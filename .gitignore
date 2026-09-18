@@ -3,3 +3,6 @@ dist
 .vercel
 .env
 .env.local
+
+# 엑셀 임시 잠금 파일
+~$*
