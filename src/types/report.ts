@@ -1,0 +1,38 @@
+/** 안전신문고 불법주정차 신고서 한 건이 채워야 하는 칸 */
+export type ViolationType =
+  | 'hydrant'      // 소화전 5m 이내
+  | 'crossing'     // 횡단보도
+  | 'corner'       // 교차로 모퉁이 5m 이내
+  | 'busstop'      // 버스정류소 10m 이내
+  | 'schoolzone'   // 어린이보호구역
+  | 'sidewalk';    // 인도
+
+export const VIOLATION_LABEL: Record<ViolationType, string> = {
+  hydrant: '소화전 5m 이내',
+  crossing: '횡단보도',
+  corner: '교차로 모퉁이 5m 이내',
+  busstop: '버스정류소 10m 이내',
+  schoolzone: '어린이보호구역',
+  sidewalk: '인도',
+};
+
+export interface Shot {
+  /** 촬영 시각 — 신고서의 '발생일시'이자 1분 간격 판정의 기준 */
+  takenAt: number;
+  lat?: number;
+  lng?: number;
+  /** 위치 정확도(m). 좌표 기반 유형 판정의 신뢰도를 좌우한다. */
+  accuracy?: number;
+  dataUrl: string;
+}
+
+export interface DraftReport {
+  shots: Shot[];
+  address?: string;
+  plate?: string;
+  type?: ViolationType;
+  /** 좌표로 계산한 유형 후보와 사진으로 판독한 유형이 엇갈리면 사람에게 묻는다. */
+  typeByLocation?: ViolationType;
+  typeByPhoto?: ViolationType;
+  body?: string;
+}

@@ -1,0 +1,712 @@
+/* 서체 (@import는 다른 규칙보다 앞서야 한다)
+   · Paperlogy — 전북교육청 누리집이 제목에 쓰는 서체. 누리집 <head> 에 걸린 것과
+     같은 주소를 쓴다. 제목 글자 모양이 다르면 아무리 색을 맞춰도 딴 사이트로 보인다.
+   · Pretendard — 본문. KRDS 표준 본문 서체다. */
+@import url("https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/Paperlogy.css");
+@import url("https://cdn.jsdelivr.net/gh/fonts-archive/HakgyoansimUndongjang/HakgyoansimUndongjang.css");
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@1.3.9/dist/web/variable/pretendardvariable.min.css");
+@import "tailwindcss";
+
+/* ============================================================
+   KRDS(대한민국 디지털 정부 디자인시스템) 토큰
+   출처: https://github.com/KRDS-uiux/krds-uiux
+        resources/css/token/krds_tokens.css
+   ============================================================ */
+:root {
+  /* ---- Primary (파랑) ---- */
+  --krds-primary-5:  #ecf2fe;
+  --krds-primary-10: #d8e5fd;
+  --krds-primary-20: #b1cefb;
+  --krds-primary-30: #86aff9;
+  --krds-primary-40: #4c87f6;
+  --krds-primary-50: #256ef4;
+  --krds-primary-60: #0b50d0;
+  --krds-primary-70: #083891;
+  --krds-primary-80: #052561;
+  --krds-primary-90: #03163a;
+
+  /* ---- Secondary (남색) ---- */
+  --krds-secondary-5:  #eef2f7;
+  --krds-secondary-10: #d6e0eb;
+  --krds-secondary-20: #bacbde;
+  --krds-secondary-30: #90b0d5;
+  --krds-secondary-40: #6b96c7;
+  --krds-secondary-50: #346fb2;
+  --krds-secondary-60: #1c589c;
+  --krds-secondary-70: #063a74;
+  --krds-secondary-80: #052b57;
+
+  /* ---- Gray ---- */
+  --krds-gray-0:   #ffffff;
+  --krds-gray-5:   #f4f5f6;
+  --krds-gray-10:  #e6e8ea;
+  --krds-gray-20:  #cdd1d5;
+  --krds-gray-30:  #b1b8be;
+  --krds-gray-40:  #8a949e;
+  --krds-gray-50:  #6d7882;
+  --krds-gray-60:  #58616a;
+  --krds-gray-70:  #464c53;
+  --krds-gray-80:  #33363d;
+  --krds-gray-90:  #1e2124;
+  --krds-gray-95:  #131416;
+
+  /* ---- 상태색 ---- */
+  --krds-danger-5:  #fdefec;  --krds-danger-10: #fcdfd9;
+  --krds-danger-50: #de3412;  --krds-danger-60: #bd2c0f;
+  --krds-warning-5:  #fff3db; --krds-warning-10: #ffe0a3;
+  --krds-warning-50: #9e6a00; --krds-warning-60: #8a5c00;
+  --krds-success-5:  #eaf6ec; --krds-success-10: #d8eedd;
+  --krds-success-50: #228738; --krds-success-60: #267337;
+  --krds-info-5:  #e7f4fe;    --krds-info-10: #d3ebfd;
+  --krds-info-50: #0b78cb;    --krds-info-60: #096ab3;
+  --krds-point-5:  #fbeff0;   --krds-point-10: #f5d6d9;
+  --krds-point-50: #d63d4a;   --krds-point-60: #ab2b36;
+
+  /* ============================================================
+     전북특별자치도교육청 누리집 색
+     ============================================================
+     **눈으로 따온 값이 아니라 누리집 CSS 변수에서 그대로 읽어 왔다.**
+     (열린교육감실 게시판 페이지의 :root 선언)
+         --color1 #023064  --color2 #32bdb8  --color3 #fecd20
+         --txt    #383c50  --line   #e5eaef  --bk     #05091e
+     처음엔 화면을 보고 #103a63 쯤으로 짐작했는데 실제 남색은 훨씬 짙었다.
+     값이 바뀌면 여기 여덟 줄만 고치면 화면 전체가 따라 바뀐다. */
+  --jbe-navy:      #023064;   /* color1 — 옆차림 제목 카드, 현재 위치 막대, 인쇄 단추 */
+  --jbe-navy-dark: #003668;   /* point2 */
+  --jbe-teal:      #32bdb8;   /* color2 */
+  --jbe-yellow:    #fecd20;   /* color3 — 주소 복사 단추 */
+  --jbe-text:      #383c50;   /* txt — 본문 글자 */
+  --jbe-ink:       #05091e;   /* bk — 페이지 제목, 맨 아래 띠 바탕 */
+  --jbe-line:      #e5eaef;   /* line — 가로선·테두리 */
+  --jbe-rule:      #ccd6e0;   /* 옆차림 메뉴의 왼쪽 세로줄 */
+  --jbe-tool-bg:   #e7eaef;   /* 도구 단추 바탕 */
+  --jbe-table-head:#eef3f9;
+  --jbe-blue:      #2259c8;   /* point1 */
+  --jbe-panel-shadow: 1px 1px 20px rgba(196, 203, 213, 0.49);
+
+  /* 맨 아래 띠. 누리집 푸터는 --bk 를 그대로 깔고 첫 줄 링크만 청록이다.
+     이 두 줄이 빠져 있어서 var() 가 빈 값이 되고 띠가 하얗게 보였다. */
+  --jbe-footer:      #05091e;
+  --jbe-footer-link: #32bdb8;
+}
+
+/* ============================================================
+   Tailwind 기본 팔레트를 KRDS 값으로 치환한다.
+   컴포넌트의 유틸리티 클래스는 그대로 두고 색만 바뀌게 하는 방식.
+   ============================================================ */
+@theme {
+  /* 본문 서체 */
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system,
+               "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: "Pretendard Variable", ui-monospace, SFMono-Regular, monospace;
+  /* 제목용 — 누리집과 같은 Paperlogy */
+  --font-display: Paperlogy, "Pretendard Variable", Pretendard, sans-serif;
+
+  /* KRDS 타이포 스케일 (본문 17px 기준) */
+  --text-xs:   0.8125rem;  /* 13px · body-xsmall */
+  --text-sm:   0.9375rem;  /* 15px · body-small  */
+  --text-base: 1.0625rem;  /* 17px · body-medium */
+  --text-lg:   1.1875rem;  /* 19px · heading-small */
+  --text-xl:   1.375rem;   /* 22px */
+  --text-2xl:  1.5rem;     /* 24px · heading-medium */
+  --text-3xl:  2rem;       /* 32px · heading-large */
+  --text-4xl:  2.5rem;     /* 40px · heading-xlarge */
+  --text-5xl:  3.6rem;     /* display-small */
+
+  /* 모서리 (KRDS 4·6·8·12) */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+
+  /* ---- 회색: slate → KRDS gray ---- */
+  --color-slate-50:  #f4f5f6;
+  --color-slate-100: #e6e8ea;
+  --color-slate-200: #cdd1d5;
+  --color-slate-300: #b1b8be;
+  --color-slate-400: #8a949e;
+  --color-slate-500: #6d7882;
+  --color-slate-600: #58616a;
+  --color-slate-700: #464c53;
+  --color-slate-800: #33363d;
+  --color-slate-900: #1e2124;
+  --color-slate-950: #131416;
+
+  /* gray/zinc/neutral 계열도 같은 값으로 (컴포넌트가 섞어 쓰는 경우 대비) */
+  --color-gray-50:  #f4f5f6;
+  --color-gray-100: #e6e8ea;
+  --color-gray-200: #cdd1d5;
+  --color-gray-300: #b1b8be;
+  --color-gray-400: #8a949e;
+  --color-gray-500: #6d7882;
+  --color-gray-600: #58616a;
+  --color-gray-700: #464c53;
+  --color-gray-800: #33363d;
+  --color-gray-900: #1e2124;
+  --color-gray-950: #131416;
+
+  /* ---- 파랑: blue → KRDS primary ---- */
+  --color-blue-50:  #ecf2fe;
+  --color-blue-100: #d8e5fd;
+  --color-blue-200: #b1cefb;
+  --color-blue-300: #86aff9;
+  --color-blue-400: #4c87f6;
+  --color-blue-500: #256ef4;
+  --color-blue-600: #256ef4;
+  --color-blue-700: #0b50d0;
+  --color-blue-800: #083891;
+  --color-blue-900: #052561;
+  --color-blue-950: #03163a;
+
+  /* ---- 남색: indigo/violet → KRDS secondary ---- */
+  --color-indigo-50:  #eef2f7;
+  --color-indigo-100: #d6e0eb;
+  --color-indigo-200: #bacbde;
+  --color-indigo-300: #90b0d5;
+  --color-indigo-400: #6b96c7;
+  --color-indigo-500: #346fb2;
+  --color-indigo-600: #1c589c;
+  --color-indigo-700: #063a74;
+  --color-indigo-800: #052b57;
+  --color-indigo-900: #031f3f;
+
+  /* ---- 초록: emerald/green → KRDS success ---- */
+  --color-emerald-50:  #eaf6ec;
+  --color-emerald-100: #d8eedd;
+  --color-emerald-200: #d8eedd;
+  --color-emerald-300: #7bbb8a;
+  --color-emerald-400: #4aa35f;
+  --color-emerald-500: #228738;
+  --color-emerald-600: #267337;
+  --color-emerald-700: #1d5c2c;
+  --color-emerald-800: #164522;
+  --color-emerald-900: #0f2e17;
+  --color-green-50:  #eaf6ec;
+  --color-green-100: #d8eedd;
+  --color-green-500: #228738;
+  --color-green-600: #267337;
+  --color-green-700: #1d5c2c;
+
+  /* ---- 노랑: amber/yellow → KRDS warning ---- */
+  --color-amber-50:  #fff3db;
+  --color-amber-100: #ffe0a3;
+  --color-amber-200: #ffe0a3;
+  --color-amber-300: #d9a13d;
+  --color-amber-400: #b98200;
+  --color-amber-500: #9e6a00;
+  --color-amber-600: #8a5c00;
+  --color-amber-700: #714b00;
+  --color-amber-800: #573a00;
+  --color-amber-900: #3d2900;
+  --color-yellow-50:  #fff3db;
+  --color-yellow-100: #ffe0a3;
+  --color-yellow-500: #9e6a00;
+  --color-yellow-600: #8a5c00;
+
+  /* ---- 빨강: red/rose → KRDS danger ---- */
+  --color-red-50:  #fdefec;
+  --color-red-100: #fcdfd9;
+  --color-red-200: #fcdfd9;
+  --color-red-300: #f0a08c;
+  --color-red-400: #e86a4c;
+  --color-red-500: #de3412;
+  --color-red-600: #bd2c0f;
+  --color-red-700: #9c240c;
+  --color-red-800: #7a1c0a;
+  --color-red-900: #591407;
+  --color-rose-50:  #fbeff0;
+  --color-rose-100: #f5d6d9;
+  --color-rose-500: #d63d4a;
+  --color-rose-600: #ab2b36;
+
+  /* ---- 하늘: sky/cyan → KRDS information ---- */
+  --color-sky-50:  #e7f4fe;
+  --color-sky-100: #d3ebfd;
+  --color-sky-500: #0b78cb;
+  --color-sky-600: #096ab3;
+  --color-cyan-50:  #e7f4fe;
+  --color-cyan-100: #d3ebfd;
+  --color-cyan-500: #0b78cb;
+  --color-cyan-600: #096ab3;
+}
+
+/* ============================================================
+   기본 요소
+   ============================================================ */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  /* KRDS는 한글 가독성을 위해 자간을 약간 좁힌다 */
+  letter-spacing: -0.02em;
+  color: var(--jbe-text);
+  background: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  word-break: keep-all;   /* 한글 어절 단위 줄바꿈 */
+}
+
+/* 숫자는 자간을 좁히지 않는다 */
+.font-mono, .tabular-nums {
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 접근성: 포커스 표시 (KRDS 필수) ---- */
+:focus-visible {
+  outline: 2px solid var(--krds-primary-50);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---- 폼 컨트롤: KRDS 모양 ---- */
+input[type="text"],
+input[type="search"],
+select,
+textarea {
+  font-family: inherit;
+  letter-spacing: inherit;
+}
+select {
+  /* KRDS 셀렉트 화살표 */
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2358616a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+  padding-right: 2.25rem !important;
+}
+select::-ms-expand { display: none; }
+
+/* ---- 검색어 강조 ---- */
+mark {
+  background: var(--krds-warning-10);
+  color: var(--krds-gray-90);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 700;
+}
+
+/* 가로로 넘칠 때만 밀어서 보는 영역(탭 줄 등)은 스크롤바를 감춘다 */
+.no-scrollbar {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* 구형 Edge */
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* ---- 스크롤바 ---- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--krds-gray-5); }
+::-webkit-scrollbar-thumb {
+  background: var(--krds-gray-30);
+  border-radius: 6px;
+  border: 2px solid var(--krds-gray-5);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--krds-gray-40); }
+
+/* ---- 본문 바로가기 (KRDS 접근성 필수 요소) ---- */
+.krds-skip {
+  position: absolute;
+  left: 0; top: -100px;
+  z-index: 100;
+  width: 100%;
+  padding: 12px 0;
+  text-align: center;
+  background: var(--krds-gray-90);
+  color: #fff;
+  font-weight: 700;
+  transition: top 0.15s;
+}
+.krds-skip:focus {
+  top: 0;
+}
+
+/* ---- 애니메이션은 사용자 설정을 존중한다 ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   전북교육청 누리집 맞춤 조각
+   ============================================================ */
+
+
+
+/* 머리말 아래 청록 띠 — 관리자 화면 넷을 늘어놓는 상단 탭.
+   누리집의 갈래 띠와 같은 색이고, 지금 보는 탭만 아래에 흰 줄이 붙는다. */
+.jbe-subnav { background: var(--jbe-teal); }
+.jbe-subnav-tab {
+  display: block;
+  padding: 0 1.625rem;
+  height: 3.25rem;
+  line-height: 3.25rem;
+  color: #fff;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 4px solid transparent;
+  transition: background-color .15s, border-color .15s;
+}
+.jbe-subnav-tab:hover { background: rgba(255, 255, 255, 0.14); }
+.jbe-subnav-tab.on {
+  font-weight: 800;
+  background: rgba(0, 0, 0, 0.09);
+  border-bottom-color: #fff;
+}
+
+/* 누리집 표 — 머리 줄이 연한 청회색이고 위아래 선이 진하다 */
+.jbe-table { width: 100%; border-collapse: collapse; }
+.jbe-table thead th {
+  background: var(--jbe-table-head);
+  border-top: 2px solid var(--jbe-navy);
+  border-bottom: 1px solid var(--jbe-line);
+  font-weight: 700;
+  color: var(--krds-gray-90);
+  padding: 0.875rem 1rem;
+  white-space: nowrap;
+}
+.jbe-table tbody td {
+  border-bottom: 1px solid var(--krds-gray-10);
+  padding: 0.875rem 1rem;
+}
+.jbe-table tbody tr:hover { background: var(--krds-gray-5); }
+
+/* 오른쪽 위 동그란 도구 단추 (글자 크기·주소 복사·인쇄) */
+.jbe-tool {
+  width: 2.5rem; height: 2.5rem;
+  border-radius: 9999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--jbe-line);
+  background: #fff;
+  color: var(--krds-gray-70);
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.jbe-tool:hover { border-color: var(--jbe-navy); color: var(--jbe-navy); }
+.jbe-tool.is-yellow { background: var(--jbe-yellow); border-color: var(--jbe-yellow); color: #3a2d00; }
+.jbe-tool.is-yellow:hover { filter: brightness(0.94); }
+.jbe-tool.is-navy { background: var(--jbe-navy); border-color: var(--jbe-navy); color: #fff; }
+.jbe-tool.is-navy:hover { background: var(--jbe-navy-dark); }
+
+/* 글자 크기 조절 — 도구 단추가 이 값을 움직인다 */
+:root { --jbe-scale: 1; }
+.jbe-scaled { font-size: calc(1rem * var(--jbe-scale)); }
+
+/* 인쇄할 때는 머리말·옆차림·단추를 뺀다 */
+@media print {
+  .jbe-noprint { display: none !important; }
+  body { background: #fff; }
+  a[href]:after { content: ""; }
+}
+
+/* 누리집은 로고·메뉴·페이지 제목에 Paperlogy 를 쓴다 */
+.jbe-display { font-family: var(--font-display); }
+
+/* 머리말 주 메뉴 — 누리집 gnb */
+.jbe-gnb a {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--krds-gray-90);
+  white-space: nowrap;
+}
+.jbe-gnb a:hover { color: var(--jbe-blue); }
+.jbe-gnb .on { color: var(--jbe-navy); }
+
+/* 페이지 제목 (누리집 .sub_title h3) */
+.jbe-page-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 2.375rem;
+  line-height: 1.2;
+  color: #111;
+  letter-spacing: -0.03em;
+}
+
+/* 길 안내 (누리집 .local) */
+.jbe-local { color: var(--krds-gray-50); font-size: 0.875rem; }
+.jbe-local a:hover { color: var(--jbe-navy); text-decoration: underline; }
+
+/* ============================================================
+   본문 조각 — 누리집 색으로
+   ============================================================
+   처음에는 KRDS 기본 파랑(#256ef4)을 그대로 썼다. 밝고 쨍한 파랑이라
+   누리집의 남색·청록과 나란히 두면 혼자 다른 사이트처럼 튀었다.
+   강조색을 전부 남색(--jbe-navy)으로 내리고, 옅은 바탕은 누리집 표 머리와
+   같은 청회색(--jbe-table-head)으로 맞췄다. */
+
+/* '한눈에 보기' 처럼 옅은 바탕에 얹는 상자. 누리집 표처럼 위에 남색 줄을 둔다. */
+.jbe-panel {
+  background: var(--jbe-table-head);
+  border: 1px solid var(--jbe-line);
+  border-top: 3px solid var(--jbe-navy);
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+.jbe-panel-title { color: var(--jbe-navy); font-family: var(--font-display); }
+.jbe-bullet { background: var(--jbe-navy); }
+
+/* 안건·지시사항 카드 */
+.jbe-card {
+  background: #fff;
+  border: 1px solid var(--jbe-line);
+  border-radius: 0.5rem;
+  transition: border-color .15s, box-shadow .15s;
+}
+.jbe-card:hover {
+  border-color: var(--jbe-navy);
+  box-shadow: 0 1px 6px rgb(16 58 99 / 0.08);
+}
+
+/* 지금 보고 있는 안건.
+   타임스탬프를 누르거나 영상이 그 대목에 이르면 켜진다. 상자를 통째로 칠하지 않고
+   왼쪽에 남색 막대를 세우고 바탕만 아주 옅게 깐다 — 옆차림에서 지금 회차를 남색
+   막대로 표시하는 것과 같은 말투다. 글자색은 건드리지 않아 읽기가 그대로다. */
+.jbe-agenda { border-left: 4px solid transparent; }
+.jbe-agenda.on {
+  border-left-color: var(--jbe-navy);
+  border-color: var(--jbe-navy);
+  background: #f5f9fd;
+  box-shadow: 0 1px 6px rgb(16 58 99 / 0.10);
+}
+.jbe-agenda-now {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--jbe-navy);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+/* 부서 배지 */
+.jbe-badge-dept {
+  background: var(--jbe-table-head);
+  border-color: #c2d3e4;
+  color: var(--jbe-navy);
+}
+
+/* 갈래 제목 옆의 건수 */
+.jbe-count { color: var(--jbe-navy); }
+
+/* 어떤 조각이 제 너비를 고집해도 화면 밖으로 가로로 밀리지 않게 한다.
+   한글은 word-break:keep-all 이라 긴 어절이 통째로 버티는 일이 있고,
+   그러면 가로 스크롤이 생기거나(구형 브라우저) 오른쪽이 잘린다. */
+/* `hidden` 이 아니라 `clip` 이다. 이 차이가 실제로 가로 막대를 만들었다.
+   `overflow-x: hidden` 은 그 요소를 **스크롤 상자로 만든 다음** 가로만 감추는
+   것이어서, 세로는 자동으로 `auto` 가 되고 body 가 제 스크롤 상자를 하나 더
+   갖는다. 막대가 자리를 차지하는 윈도우에서는 이 여벌 상자 때문에 막대가
+   덧나 보인다. 겹침 막대를 쓰는 내 검사 환경에서는 두께가 0 이라 끝내 재현이
+   안 됐다. `clip` 은 스크롤 상자를 아예 만들지 않고 넘친 부분만 잘라낸다. */
+html, body { max-width: 100%; overflow-x: clip; }
+
+/* ============================================================
+   옆차림 (누리집 .sub_left / .sLeft_wrap 을 그대로 옮긴 것)
+   ============================================================
+   누리집 규칙을 읽어 와서 값까지 맞췄다.
+
+     .sub_left::before   흰 판. top 100px · width 29% · 오른쪽 위만 50px 둥글다.
+                         바탕이 흰색이라 **그림자로만 경계가 보인다.**
+                         내가 처음엔 연회색 바닥에 왼쪽 위가 둥근 판으로 만들었는데
+                         둘 다 반대였다.
+     .sLeft_wrap         흰 카드, 모서리 30px, 그림자. 남색 제목은 이 카드의 머리다.
+     .sLeft_wrap h2      남색 바탕·흰 글씨·가운데, 위아래 여백 60px(넓은 화면 80px),
+                         30px(34px), Hakgyoansim Undongjang, 굵기 보통.
+     li                  왼쪽에 5px 세로줄(#ccd6e0), 왼쪽 여백 30px.
+     li.on::before       그 자리를 5px 남색 막대가 덮는다.
+     li > a              줄높이 3, 20px(22px).
+   ============================================================ */
+
+/* ── 두 칸의 너비 ──
+   누리집은 1024px 에서 25%/68%, 1500px 에서 20%/73% 로 바꾼다. 이걸 Tailwind
+   유틸리티(`lg:w-[25%] 2xl:w-[20%]`)로 적었다가 한참 헤맸다. Tailwind 가 1500px
+   규칙 덩어리를 lg(1024px) **앞에** 내보내는 바람에, 1500px 이상에서 나중에 오는
+   lg 규칙이 이겨 25% 가 그대로 남았다. 화면에서만 보이고 코드로는 안 보이는 함정이다.
+   2xl 기준점을 1500px 로 옮겨도 같은 순서로 나왔다. 그래서 순서를 내가 쥘 수 있는
+   여기로 옮겼다. 아래 두 덩어리는 적힌 차례대로 겹쳐진다. */
+@media (min-width: 1024px) {
+  .jbe-aside-col { width: 25%; flex-shrink: 0; }
+  .jbe-main-col  { width: 68%; margin-top: 110px; }
+}
+
+/* ── 흰 판·남색 카드 (누리집 .sub_left::before / .sLeft_wrap) ──
+   **이번엔 짐작하지 않고 누리집을 1910px 로 띄워 실제 상자를 쟀다.** (.sub_wrap 1730px)
+       흰 판       [   3, 487 ]   위쪽 끝은 .sub_wrap 에서 130px 아래
+       남색 카드   [  83, 429 ]   위쪽 끝은 35px 아래
+   즉 흰 판은 카드보다 **왼쪽으로 80px, 오른쪽으로 58px** 더 나가고,
+   카드는 판보다 **95px 위로 솟는다.** 그 솟은 부분이 이 디자인의 핵심이다.
+   그리고 그림자를 가진 것은 **판뿐이다** — 카드는 box-shadow: none 이라 판 위에
+   얹힌 흰 종이처럼 보인다. 내가 카드에 그림자를 주고 안쪽 여백까지 넣었던 건
+   둘 다 틀린 짓이었다.
+   우리 틀은 좌우 안쪽 여백이 40px 이라 누리집 비율(29%·25%·28%)을 그대로 쓰면
+   어긋난다. 그래서 **카드 기준으로 몇 px 더 나가는지**로 적는다. */
+.jbe-aside-panel {              /* .sub_left::before */
+  position: absolute;
+  top: 130px;                   /* 남색 카드가 이만큼 위로 솟는다 */
+  left: -40px;                  /* 카드 왼쪽(40px)에서 80px 바깥 */
+  z-index: -1;
+  width: calc(25% + 118px);     /* 카드 오른쪽에서 58px 바깥 */
+  height: 100%;
+  background: #fff;
+  box-shadow: var(--jbe-panel-shadow);
+  border-radius: 0 50px 0 0;
+}
+.jbe-aside-card {               /* .sLeft_wrap */
+  margin-top: 35px;
+  background: #fff;
+  border-radius: 30px;
+  /* 그림자 없음 — 누리집도 none 이다 */
+}
+.jbe-aside-title {              /* .sLeft_wrap h2 */
+  background: var(--jbe-navy);
+  color: #fff;
+  text-align: center;
+  border-radius: 30px;
+  padding: 60px 0;
+  font-size: 30px;
+  font-weight: 400;
+  font-family: "Hakgyoansim Undongjang", Paperlogy, var(--font-sans);
+}
+
+.jbe-aside-menu { padding: 20px; margin: 30px 0 50px; }
+.jbe-aside-item {               /* li */
+  position: relative;
+  padding-left: 30px;
+  border-left: 5px solid var(--jbe-rule);
+}
+.jbe-aside-item.on::before {    /* li.on::before */
+  content: "";
+  display: block;
+  position: absolute;
+  left: -5px;
+  top: 0;
+  width: 5px;
+  height: 100%;
+  background: var(--jbe-navy);
+}
+.jbe-aside-item > button {   /* li > a */
+  display: block;
+  width: 100%;
+  position: relative;
+  text-align: left;
+  font-size: 20px;
+  color: var(--jbe-text);
+  padding: 14px 28px 14px 0;
+}
+.jbe-aside-item.on > button { font-weight: 500; }
+.jbe-aside-item:hover > button { text-decoration: underline; }
+
+/* 회의 고르는 자리 — 회차 목록 **위**, 목록 밖.
+   회의 둘을 목록 줄로 두고 고른 쪽 밑으로 회차를 펼치던 때에는, 회차가 쌓일수록
+   아래 회의가 밀려 내려갔다. 목록 밖 한 줄로 빼 두면 회차가 몇 년치가 되든
+   두 회의 다 늘 같은 자리, 늘 첫 화면에 있다. */
+.jbe-aside-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 22px;
+}
+.jbe-aside-switch button {
+  padding: 11px 6px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--jbe-text);
+  background: var(--jbe-table-head);
+  border-radius: 999px;
+}
+.jbe-aside-switch button:hover { background: var(--jbe-line); }
+.jbe-aside-switch button.on {
+  background: var(--jbe-navy);
+  color: #fff;
+  font-weight: 600;
+}
+.jbe-aside-switch button.on:hover { background: var(--jbe-navy); }
+
+.jbe-aside-subline {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--krds-gray-50);
+}
+
+/* ── 휴대폰 ──
+   넓은 화면의 옆차림을 그대로 세로로 쌓으면 남색 카드와 회차 일곱 줄이 첫 화면을
+   다 먹는다. 좁을 때는 카드를 한 줄로 줄이고 목록은 손잡이 뒤로 접는다. */
+@media (max-width: 1023.98px) {
+  .jbe-aside-card { margin-top: 0; margin-bottom: 1.25rem; }
+  .jbe-aside-title { padding: 20px 0; font-size: 21px; border-radius: 18px; }
+  .jbe-aside-menu { padding: 6px 14px 14px; margin: 0; }
+  .jbe-aside-item { padding-left: 18px; }
+  .jbe-aside-item > button { font-size: 17px; padding: 11px 24px 11px 0; }
+  .jbe-aside-subline { font-size: 13px; }
+  .jbe-aside-switch { margin-bottom: 14px; }
+  .jbe-aside-switch button { padding: 9px 6px; font-size: 15px; }
+}
+
+/* 접힌 목록의 손잡이 — 좁은 화면에서만.
+   `display: flex` 를 여기서 켜 두고 Tailwind 의 `lg:hidden` 으로 끄려 했더니,
+   내 규칙이 유틸리티보다 **뒤에** 나와서 넓은 화면에서도 손잡이가 남았다.
+   숨기는 것을 기본으로 두고 좁을 때만 켜면 다툴 일이 없다.
+
+   켜는 쪽은 **이 아래**에 따로 둔다. 한때 위 휴대폰 묶음 안에 넣어 뒀는데,
+   그 묶음이 이 규칙보다 앞에 있어서 — 힘이 같으면 뒤가 이긴다 — 휴대폰에서도
+   `none` 이 이겼다. 손잡이가 안 뜨는데 목록은 접혀 있으니, 휴대폰에서는 회차를
+   아예 고를 수 없었다. */
+.jbe-aside-toggle {
+  display: none;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 14px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+  color: var(--jbe-navy);
+}
+.jbe-aside-toggle:hover { background: var(--jbe-table-head); }
+@media (max-width: 1023.98px) { .jbe-aside-toggle { display: flex; } }
+
+@media (min-width: 1500px) {
+  .jbe-aside-title { padding: 80px 0; font-size: 34px; }
+  .jbe-aside-item > button { font-size: 22px; }
+}
+
+/* 페이지 제목 줄 (누리집 .sub_title) */
+.jbe-sub-title { padding-bottom: 18px; border-bottom: 1px solid var(--jbe-line); }
+.jbe-page-title {
+  font-family: Paperlogy, var(--font-sans);
+  font-weight: 700;
+  font-size: 38px;
+  line-height: 1.2;
+  color: var(--jbe-ink);
+  margin-bottom: 20px;
+  letter-spacing: -0.03em;
+}
+@media (min-width: 1500px) { .jbe-page-title { font-size: 48px; } }
+
+/* 도구 단추 — 누리집은 49px 동그라미 */
+.jbe-tool {
+  width: 49px; height: 49px;
+  border: 0;
+  background: var(--jbe-tool-bg);
+  color: var(--jbe-navy);
+}
+.jbe-tool.is-yellow { background: var(--jbe-yellow); color: #3a2d00; }
+.jbe-tool.is-navy   { background: var(--jbe-navy); color: #fff; }
+.jbe-tool:hover     { transform: translateY(-4px); }
