@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BODY_MAX, BODY_MIN, composeBody } from './compose';
+import { locatedShot } from '../types/report';
 import type { Shot } from '../types/report';
 
 const T0 = new Date(2026, 9, 1, 14, 2, 11).getTime();
@@ -50,5 +51,16 @@ describe('내용 자동 작성', () => {
     });
     expect(s.length).toBeGreaterThanOrEqual(BODY_MIN);
     expect(s.length).toBeLessThanOrEqual(BODY_MAX);
+  });
+});
+
+describe('좌표가 한 장에만 있을 때', () => {
+  it('첫 장에 좌표가 없어도 둘째 장 좌표로 장소를 쓴다', () => {
+    const s = composeBody({ shots: [shot(0, false), shot(61)] });
+    expect(s).toContain('좌표 35.82421, 127.14800 부근에서');
+  });
+  it('locatedShot은 좌표 있는 첫 컷을 고른다', () => {
+    expect(locatedShot([shot(0, false), shot(61)])?.takenAt).toBe(T0 + 61_000);
+    expect(locatedShot([shot(0, false)])).toBeUndefined();
   });
 });

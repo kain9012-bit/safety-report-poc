@@ -5,10 +5,13 @@ import { clearDraft, loadDraft, saveDraft } from '../lib/draft';
 import { MIN_INTERVAL_SEC } from '../lib/rules';
 import type { Shot } from '../types/report';
 
+/** 위치를 기다리는 최대 시간(초). 넘으면 위치 없이도 찍게 한다. */
+const LOC_WAIT_SEC = 10;
+
 interface Props {
   onComplete: (shots: Shot[]) => void;
-  /** 찍지 않고 신고서로 돌아가기. 찍던 것은 저장되어 있으므로 잃지 않는다. */
-  onCancel?: () => void;
+  /** 신고서로 돌아가기. 찍은 데까지(1장이어도) 신고서에 넘긴다. */
+  onCancel?: (shots: Shot[]) => void;
 }
 
 interface Pos {
@@ -30,6 +33,9 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
   const [shots, setShots] = useState<Shot[]>([]);
   const [pos, setPos] = useState<Pos | null>(null);
   const [posError, setPosError] = useState<string | null>(null);
+  /** 1 권한 거부 · 2 위치 못 잡음 · 3 시간 초과 (GeolocationPositionError.code) */
+  const [posErrCode, setPosErrCode] = useState<number | null>(null);
+  const mountedAt = useRef(Date.now());
   const [camError, setCamError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const [restored, setRestored] = useState(false);
@@ -54,14 +60,19 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
   useEffect(() => {
     if (!navigator.geolocation) {
       setPosError('위치를 쓸 수 없습니다');
+      setPosErrCode(2);
       return;
     }
     const id = navigator.geolocation.watchPosition(
       (p) => {
         setPosError(null);
+        setPosErrCode(null);
         setPos({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy });
       },
-      (e) => setPosError(e.message || '위치를 받을 수 없습니다'),
+      (e) => {
+        setPosError(e.message || '위치를 받을 수 없습니다');
+        setPosErrCode(e.code);
+      },
       { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 },
     );
     return () => navigator.geolocation.clearWatch(id);
@@ -86,7 +97,12 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
   const remainSec = first ? Math.max(0, Math.ceil(MIN_INTERVAL_SEC - (now - first.takenAt) / 1000)) : 0;
   const canShootSecond = Boolean(first) && remainSec === 0;
   const done = shots.length >= 2;
-  const shootable = (shots.length === 0 || canShootSecond) && !camError;
+  // 좌표 없는 사진은 신고서의 발생지역을 못 채운다. 위치를 받을 때까지 셔터를 잠깐 막는다.
+  // 다만 권한이 꺼졌거나 오래 못 잡으면 '위치 없이 찍기'로 풀어 준다 — 차가 떠나기 전에 찍는 게 먼저다.
+  const waitedSec = Math.floor((now - mountedAt.current) / 1000);
+  const locGiveUp = posErrCode === 1 || waitedSec >= LOC_WAIT_SEC;
+  const locBlocking = !pos && !locGiveUp;
+  const shootable = (shots.length === 0 || canShootSecond) && !camError && !locBlocking;
 
   const shoot = useCallback(() => {
     const video = videoRef.current;
@@ -97,6 +113,7 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
       lat: pos?.lat,
       lng: pos?.lng,
       accuracy: pos?.accuracy,
+      locIssue: pos ? undefined : posErrCode === 1 ? 'denied' : 'unavailable',
       dataUrl: captureFrame(video, {
         takenAt,
         lat: pos?.lat,
@@ -109,7 +126,7 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
       void saveDraft(next);
       return next;
     });
-  }, [pos]);
+  }, [pos, posErrCode]);
 
   const reset = useCallback(() => {
     setShots([]);
@@ -145,7 +162,7 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
         <div className="flex items-center gap-2 min-w-0">
           {onCancel && (
             <button
-              onClick={onCancel}
+              onClick={() => onCancel(shots)}
               aria-label="신고서로 돌아가기"
               className="w-9 h-9 rounded-full bg-slate-900/70 text-white flex items-center justify-center shrink-0"
             >
@@ -156,7 +173,11 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-white text-xs font-bold ${accTone}`}
           >
             <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            {pos ? <span className="tabular-nums">±{Math.round(pos.accuracy)}m</span> : <span>{posError ? '위치 없음' : '위치 찾는 중'}</span>}
+            {pos ? (
+            <span className="tabular-nums">±{Math.round(pos.accuracy)}m</span>
+          ) : (
+            <span>{posErrCode === 1 ? '위치 권한 꺼짐' : posError ? '위치 못 잡음' : '위치 찾는 중'}</span>
+          )}
           </div>
         </div>
 
@@ -249,10 +270,18 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
               <button
                 onClick={shoot}
                 disabled={!shootable}
-                className="w-full h-12 rounded-lg bg-blue-600 enabled:hover:bg-blue-700 disabled:bg-slate-600 disabled:text-white/60 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                className={`w-full h-12 rounded-lg ${
+                  !pos && !locBlocking ? 'bg-amber-600' : 'bg-blue-600 enabled:hover:bg-blue-700'
+                } disabled:bg-slate-600 disabled:text-white/60 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2`}
               >
                 <Camera className="w-5 h-5" aria-hidden="true" />
-                {shots.length === 0 ? '첫 번째 사진' : '두 번째 사진'}
+                {locBlocking && (shots.length === 0 || canShootSecond)
+                  ? `위치 찾는 중… ${Math.max(0, LOC_WAIT_SEC - waitedSec)}초`
+                  : !pos
+                    ? '위치 없이 찍기'
+                    : shots.length === 0
+                      ? '첫 번째 사진'
+                      : '두 번째 사진'}
               </button>
             )}
           </div>

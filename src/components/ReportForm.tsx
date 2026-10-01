@@ -18,7 +18,7 @@ import { formatStamp } from '../lib/camera';
 import { BODY_MAX, BODY_MIN, composeBody } from '../lib/compose';
 import type { AddressState } from '../lib/reverseGeocode';
 import { intervalSeconds, isValidPlate } from '../lib/rules';
-import { VIOLATION_LABEL } from '../types/report';
+import { VIOLATION_LABEL, locatedShot } from '../types/report';
 import type { DraftReport, EditableField, ViolationType } from '../types/report';
 
 interface Props {
@@ -63,7 +63,7 @@ export default function ReportForm({ draft, addressState, onCapture, onEdit, onR
   const first = shots[0];
   const second = shots[1];
   const hasShots = shots.length >= 2;
-  const hasCoord = first?.lat !== undefined && first?.lng !== undefined;
+  const hasCoord = Boolean(locatedShot(shots));
   const manual = draft.manual ?? {};
 
   const body = manual.body ? (draft.body ?? '') : composeBody(draft);
@@ -459,9 +459,9 @@ function Changed({ children, muted }: { children: ReactNode; muted?: boolean }) 
 }
 
 function PlaceValue({ draft, state }: { draft: DraftReport; state: AddressState }) {
-  const first = draft.shots[0];
-  const hasCoord = first?.lat !== undefined && first?.lng !== undefined;
+  const first = locatedShot(draft.shots);
   const acc = first?.accuracy !== undefined ? `±${Math.round(first.accuracy)}m` : undefined;
+  const taken = draft.shots[0];
 
   if (draft.address) {
     return (
@@ -480,10 +480,14 @@ function PlaceValue({ draft, state }: { draft: DraftReport; state: AddressState 
       </Value>
     );
   }
-  if (!hasCoord) {
+  if (!first) {
     return (
       <Changed muted>
-        {first ? '사진에 위치가 없습니다. 위치찾기로 넣어 주세요.' : '사진을 찍은 자리가 그대로 들어갑니다'}
+        {!taken
+          ? '사진을 찍은 자리가 그대로 들어갑니다'
+          : taken.locIssue === 'denied'
+            ? '브라우저의 위치 권한이 꺼져 있어 좌표를 받지 못했습니다. 위치를 허용하고 다시 찍거나, 위치찾기로 넣어 주세요.'
+            : '찍을 때 위치를 잡지 못했습니다(실내·지하 등). 위치찾기로 넣어 주세요.'}
       </Changed>
     );
   }
@@ -570,8 +574,7 @@ function PlaceSheet({
   onReset: () => void;
   onClose: () => void;
 }) {
-  const first = draft.shots[0];
-  const hasCoord = first?.lat !== undefined && first?.lng !== undefined;
+  const first = locatedShot(draft.shots);
   const [addr, setAddr] = useState(draft.address ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
   const focus = () => inputRef.current?.focus();
@@ -617,9 +620,9 @@ function PlaceSheet({
 
         <p className="mt-4 text-[22px] text-slate-900 leading-snug">
           {draft.address ??
-            (hasCoord ? `${first.lat!.toFixed(5)}, ${first.lng!.toFixed(5)}` : '사진에 좌표가 없습니다')}
+            (first ? `${first.lat!.toFixed(5)}, ${first.lng!.toFixed(5)}` : '사진에 좌표가 없습니다')}
         </p>
-        {hasCoord && first.accuracy !== undefined && (
+        {first && first.accuracy !== undefined && (
           <p className="mt-1 text-[14px] text-slate-500">
             사진을 찍은 자리 · 정확도 ±{Math.round(first.accuracy)}m
             {first.accuracy > 10 && ' — 오차가 커서 옆 건물로 잡힐 수 있습니다'}

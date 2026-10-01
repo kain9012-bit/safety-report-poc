@@ -5,6 +5,7 @@ import type { AddressState } from './lib/reverseGeocode';
 import { PhoneFrame, ProtoNotice } from './components/Ui';
 import CaptureScreen from './components/CaptureScreen';
 import ReportForm from './components/ReportForm';
+import { locatedShot } from './types/report';
 import type { DraftReport, EditableField, Shot } from './types/report';
 
 type Step = 'form' | 'capture';
@@ -29,7 +30,7 @@ export default function App() {
   }, []);
 
   // 사진 좌표 → 발생지역. 사람이 직접 고친 주소는 덮어쓰지 않는다.
-  const first = draft.shots[0];
+  const first = locatedShot(draft.shots);
   const manualAddress = Boolean(draft.manual?.address);
   useEffect(() => {
     if (!first || first.lat === undefined || first.lng === undefined || manualAddress) {
@@ -90,7 +91,7 @@ export default function App() {
             onReset={onReset}
           />
         ) : (
-          <CaptureScreen onComplete={onCaptured} onCancel={() => setStep('form')} />
+          <CaptureScreen onComplete={onCaptured} onCancel={onCaptured} />
         )}
       </PhoneFrame>
     </div>

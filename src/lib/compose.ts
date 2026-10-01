@@ -7,7 +7,7 @@
  */
 import { formatStamp } from './camera';
 import { intervalSeconds, isValidPlate } from './rules';
-import { VIOLATION_LABEL } from '../types/report';
+import { VIOLATION_LABEL, locatedShot } from '../types/report';
 import type { DraftReport } from '../types/report';
 
 /** 지금 앱의 내용 칸 글자 수 제한 */
@@ -22,8 +22,9 @@ export function composeBody(d: DraftReport): string {
 
   let where: string | undefined;
   if (d.address) where = d.address;
-  else if (first.lat !== undefined && first.lng !== undefined) {
-    where = `좌표 ${first.lat.toFixed(5)}, ${first.lng.toFixed(5)} 부근`;
+  else {
+    const at = locatedShot(d.shots);
+    if (at) where = `좌표 ${at.lat!.toFixed(5)}, ${at.lng!.toFixed(5)} 부근`;
   }
 
   const plate = d.plate?.replace(/\s/g, '');

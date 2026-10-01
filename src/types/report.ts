@@ -23,7 +23,14 @@ export interface Shot {
   lng?: number;
   /** 위치 정확도(m). 좌표 기반 유형 판정의 신뢰도를 좌우한다. */
   accuracy?: number;
+  /** 좌표가 없을 때 그 이유 — 신고서가 무엇을 하라고 안내할지 정한다 */
+  locIssue?: 'denied' | 'unavailable';
   dataUrl: string;
+}
+
+/** 좌표가 있는 첫 컷. 첫 장에 좌표가 없어도 둘째 장에 있으면 그걸 쓴다. */
+export function locatedShot(shots: readonly Shot[]): Shot | undefined {
+  return shots.find((s) => s.lat !== undefined && s.lng !== undefined);
 }
 
 export interface DraftReport {
