@@ -17,5 +17,7 @@ jobs:
         run: npm ci || npm install --no-audit --no-fund
       - name: 타입 검사
         run: npm run lint
+      - name: 단위 시험
+        run: npm test
       - name: 빌드
         run: npm run build

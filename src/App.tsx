@@ -1,103 +1,94 @@
 import { useState } from 'react';
-import { Camera, FileText, MapPin, ShieldAlert } from 'lucide-react';
+import { FileText, Info } from 'lucide-react';
 import { EmptyState, PhoneFrame, ProtoNotice } from './components/Ui';
-import type { DraftReport } from './types/report';
+import CaptureScreen from './components/CaptureScreen';
+import type { Shot } from './types/report';
 
-type Step = 'intro' | 'capture' | 'review';
+type Step = 'capture' | 'review';
 
 export default function App() {
-  const [step, setStep] = useState<Step>('intro');
-  const [draft] = useState<DraftReport>({ shots: [] });
+  const [step, setStep] = useState<Step>('capture');
+  const [shots, setShots] = useState<Shot[]>([]);
+  const [why, setWhy] = useState(false);
 
   return (
     <div className="min-h-screen overflow-x-clip bg-slate-100 text-slate-800 font-sans antialiased selection:bg-blue-600 selection:text-white">
       <PhoneFrame>
         <ProtoNotice />
 
-        <header className="px-4 py-3 border-b border-slate-200 flex items-center gap-2 shrink-0">
-          <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
-            <ShieldAlert className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <p className="font-bold text-slate-900 leading-tight">주정차 신고 자동작성</p>
-            <p className="text-xs text-slate-500 leading-tight">안전신문고 개선 제안 시제품</p>
-          </div>
-        </header>
+        {/* 요구사항 R5 — 앱을 켜면 곧 촬영. 유형 선택은 찍은 뒤로 미룬다. */}
+        {step === 'capture' && (
+          <CaptureScreen
+            onComplete={(s) => {
+              setShots(s);
+              setStep('review');
+            }}
+          />
+        )}
 
-        <main className="flex-1 p-4 space-y-4">
-          {step === 'intro' && (
-            <>
-              <div className="rounded-lg bg-blue-50 border border-blue-100 p-5 space-y-2">
-                <h1 className="text-2xl font-bold text-slate-900 leading-snug">
-                  사진만 찍으면
-                  <br />
-                  <span className="text-blue-700">신고서가 채워집니다</span>
-                </h1>
-                <p className="text-sm text-slate-600">
-                  발생일시·주소·위반유형·차량번호는 사진 안에 이미 들어 있습니다. 국민이 다시
-                  적을 이유가 없습니다.
-                </p>
-              </div>
-
-              <ul className="space-y-2">
-                {[
-                  { icon: Camera, t: '1분 간격 두 장', d: '카운트다운과 첫 컷 겹쳐보기로 같은 구도를 잡아 줍니다' },
-                  { icon: MapPin, t: '위치로 유형 판정', d: '소화전·횡단보도·버스정류소·어린이보호구역까지의 거리를 재서 후보를 냅니다' },
-                  { icon: FileText, t: '신고서 자동작성', d: '판독 결과와 위치 계산이 맞아떨어질 때만 자동 확정합니다' },
-                ].map(({ icon: Icon, t, d }) => (
-                  <li key={t} className="bg-white rounded-lg border border-slate-200 p-4 flex gap-3">
-                    <Icon className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" aria-hidden="true" />
-                    <div>
-                      <p className="font-bold text-sm text-slate-900">{t}</p>
-                      <p className="text-sm text-slate-600">{d}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                onClick={() => setStep('capture')}
-                className="w-full py-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-base transition-colors"
-              >
-                신고 시작
-              </button>
-            </>
-          )}
-
-          {step === 'capture' && (
-            <EmptyState
-              icon={<Camera className="w-6 h-6" aria-hidden="true" />}
-              title="촬영 화면은 아직 만드는 중입니다"
-              desc="60초 카운트다운과 첫 컷 겹쳐보기가 여기 들어갑니다."
-            >
-              <button
-                onClick={() => setStep('review')}
-                className="px-4 py-2 rounded-lg border border-slate-300 hover:border-blue-600 hover:text-blue-700 font-bold text-sm transition-colors"
-              >
-                다음 화면 보기
-              </button>
-            </EmptyState>
-          )}
-
-          {step === 'review' && (
+        {step === 'review' && (
+          <main className="flex-1 p-4 space-y-4">
             <EmptyState
               icon={<FileText className="w-6 h-6" aria-hidden="true" />}
-              title="자동작성 결과를 보여줄 수 없습니다"
-              desc={
-                draft.shots.length === 0
-                  ? '사진이 없고, 주소·유형·번호판을 알아낼 열쇠(공공데이터·판독 API)도 아직 연결되지 않았습니다. 없는 값을 지어내 채우지 않습니다.'
-                  : undefined
-              }
+              title="신고서 자동작성은 아직 붙이지 않았습니다"
+              desc="사진 두 장과 촬영시각·좌표는 받아 두었습니다. 주소 변환과 유형 추천, 번호판 판독을 붙이면 이 화면이 채워집니다. 없는 값을 지어내 보여주지 않습니다."
             >
               <button
-                onClick={() => setStep('intro')}
+                onClick={() => setStep('capture')}
                 className="px-4 py-2 rounded-lg border border-slate-300 hover:border-blue-600 hover:text-blue-700 font-bold text-sm transition-colors"
               >
-                처음으로
+                촬영으로 돌아가기
               </button>
             </EmptyState>
+
+            <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2">
+              <p className="text-sm font-bold text-slate-900">지금 확보된 값</p>
+              {shots.map((s, i) => (
+                <div key={i} className="text-sm text-slate-600 tabular-nums">
+                  {i + 1}번째 — {new Date(s.takenAt).toLocaleString('ko-KR')}
+                  {s.lat !== undefined
+                    ? ` · ${s.lat.toFixed(5)}, ${s.lng?.toFixed(5)} (±${Math.round(s.accuracy ?? 0)}m)`
+                    : ' · 위치 없음'}
+                </div>
+              ))}
+            </div>
+          </main>
+        )}
+
+        {/* 왜 이렇게 바꿨는지 — 시연을 보는 사람이 근거를 바로 볼 수 있게 */}
+        <div className="border-t border-slate-200">
+          <button
+            onClick={() => setWhy((v) => !v)}
+            className="w-full px-4 py-3 flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-blue-700 transition-colors"
+          >
+            <Info className="w-4 h-4" aria-hidden="true" />
+            이 화면이 바꾸는 것
+          </button>
+          {why && (
+            <div className="px-4 pb-4 space-y-2 text-sm text-slate-600">
+              <p>
+                <b className="text-slate-900">앱을 켜면 곧 촬영</b> — 지금은 팝업을 닫고 유형을 고른
+                뒤에야 카메라가 열립니다. 그 사이 차가 떠납니다. (리뷰 13건)
+              </p>
+              <p>
+                <b className="text-slate-900">60초를 앱이 대신 기다립니다</b> — 촬영 시각으로 세기
+                때문에 앱을 나가도 카운트가 멈추지 않습니다. 차 옆에 서 있을 이유가 없습니다.
+                (리뷰 22건)
+              </p>
+              <p>
+                <b className="text-slate-900">첫 컷을 겹쳐 보여줍니다</b> — 같은 구도로 찍게 해
+                '사진 구도·방향 불일치' 반려를 줄입니다.
+              </p>
+              <p>
+                <b className="text-slate-900">촬영시각과 좌표를 사진에 박습니다</b> — '촬영시각
+                미표시'와 '위치 특정 불가'는 흔한 반려 사유입니다.
+              </p>
+              <p className="text-xs text-slate-500 pt-1">
+                근거: 2026년 구글플레이 리뷰 655건 분류 결과 (저장소 docs/painpoints.md)
+              </p>
+            </div>
           )}
-        </main>
+        </div>
 
         <footer className="bg-slate-900 text-slate-300 px-4 py-4 text-xs shrink-0">
           <p className="font-bold text-white">주정차 신고 자동작성 시제품</p>
