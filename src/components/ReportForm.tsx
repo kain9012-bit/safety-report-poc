@@ -7,7 +7,6 @@ import {
   LocateFixed,
   MapPin,
   Menu,
-  Mic,
   Pointer,
   RotateCcw,
   X,
@@ -44,7 +43,9 @@ const SOURCE: Record<Source, { cls: string; text: string }> = {
 /**
  * 신고서 화면 — 지금 앱의 불법주정차 신고서를 **모양 그대로** 옮겼다.
  * (상단 파란 띠 · 5칸 탭 · 주황 별표와 파란 물음표 · 오른쪽 테두리 단추 · 사진 4칸(필수 2) ·
- *  파란 글씨 주소 · 회색 내용칸 · 추천 단어/주민점검신청제 · 휴대전화 인증 · 공유 동의 · 제출/닫기)
+ *  파란 글씨 주소 · 회색 내용칸 · 공유 동의 · 제출/닫기)
+ *
+ * 추천 단어 · 주민점검신청제 · 음성 · 휴대전화 인증은 이번 개선과 관계없어 뺐다.
  *
  * 바꾼 것은 둘뿐이다.
  *  1. 사진 칸이 '불법 주정차 신고(유형선택)'보다 위로 온다.
@@ -54,9 +55,7 @@ const SOURCE: Record<Source, { cls: string; text: string }> = {
  */
 export default function ReportForm({ draft, addressState, onCapture, onEdit, onReset }: Props) {
   const [sheet, setSheet] = useState<'why' | 'type' | 'place' | null>(null);
-  const [phone, setPhone] = useState('');
   const [agree, setAgree] = useState(true);
-  const [hint, setHint] = useState(true);
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState(false);
 
@@ -76,7 +75,6 @@ export default function ReportForm({ draft, addressState, onCapture, onEdit, onR
     !draft.address && !hasCoord && '발생지역',
     !plateOk && '차량번호',
     body.length < BODY_MIN && '내용',
-    !phone && '휴대전화',
   ].filter(Boolean) as string[];
 
   const copyBody = async () => {
@@ -232,9 +230,7 @@ export default function ReportForm({ draft, addressState, onCapture, onEdit, onR
                   <OutlineButton onClick={() => onEdit('body', undefined)} icon={<RotateCcw className="w-5 h-5" />}>
                     자동문장
                   </OutlineButton>
-                ) : (
-                  <OutlineButton icon={<Mic className="w-5 h-5" />}>음성</OutlineButton>
-                )
+                ) : undefined
               }
             />
             <textarea
@@ -252,52 +248,21 @@ export default function ReportForm({ draft, addressState, onCapture, onEdit, onR
               ) : (
                 <span />
               )}
-              <span className="text-[15px] text-slate-500 tabular-nums">
-                {body.length} / {BODY_MAX}
+              <span className="flex items-center gap-3">
+                <button onClick={copyBody} className="flex items-center gap-1 text-[15px] text-slate-700">
+                  <CopyPlus className="w-5 h-5 text-slate-500" strokeWidth={1.5} aria-hidden="true" />
+                  {copied ? '복사됨' : '내용복사'}
+                </button>
+                <span className="text-[15px] text-slate-500 tabular-nums">
+                  {body.length} / {BODY_MAX}
+                </span>
               </span>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between">
-              <CheckLine checked={hint} onChange={setHint} label="추천 단어" help />
-              <button onClick={copyBody} className="flex items-center gap-1.5 text-[17px] text-slate-700">
-                <CopyPlus className="w-6 h-6 text-slate-500" strokeWidth={1.5} aria-hidden="true" />
-                {copied ? '복사됨' : '내용복사'}
-              </button>
-            </div>
-            <div className="mt-4">
-              <CheckLine checked={false} label="주민점검신청제" help />
             </div>
           </section>
 
-          {/* ===== 휴대전화 — 지금과 같다. 시제품이라 문자는 보내지 않는다 ===== */}
-          <section>
-            <Row label="휴대전화" />
-            <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="010-0000-0000"
-                className="min-w-0 h-12 px-4 rounded border border-slate-300 bg-slate-100 text-[18px] tabular-nums"
-              />
-              <button disabled className="h-12 w-[110px] rounded bg-green-600 text-white text-[16px] font-bold">
-                인증번호받기
-              </button>
-              <input
-                disabled
-                placeholder="인증번호 입력"
-                className="min-w-0 h-12 px-4 rounded border border-slate-300 bg-white text-[18px] placeholder:text-slate-400"
-              />
-              <button disabled className="h-12 w-[110px] rounded bg-slate-400 text-white text-[16px] font-bold">
-                확인
-              </button>
-            </div>
-            <div className="mt-4 flex items-center justify-between">
-              <CheckLine checked={agree} onChange={setAgree} label="신고 내용 공유 동의" />
-              <OutlineButton>내용보기</OutlineButton>
-            </div>
-            <Changed muted>시제품이라 인증 문자를 보내지 않고, 번호도 저장하지 않습니다.</Changed>
+          <section className="flex items-center justify-between">
+            <CheckLine checked={agree} onChange={setAgree} label="신고 내용 공유 동의" />
+            <OutlineButton>내용보기</OutlineButton>
           </section>
         </div>
       </div>
@@ -444,12 +409,10 @@ function CheckLine({
   checked,
   onChange,
   label,
-  help,
 }: {
   checked: boolean;
   onChange?: (v: boolean) => void;
   label: string;
-  help?: boolean;
 }) {
   return (
     <label className="flex items-center gap-2.5 text-[17px] text-slate-800">
@@ -469,11 +432,6 @@ function CheckLine({
         {checked && <Check className="w-5 h-5 text-white" strokeWidth={3} />}
       </span>
       {label}
-      {help && (
-        <span className="w-6 h-6 rounded-full bg-[#3a8fdb] text-white text-[14px] font-bold flex items-center justify-center">
-          ?
-        </span>
-      )}
     </label>
   );
 }
@@ -692,10 +650,11 @@ function WhyPanel({ onClose }: { onClose: () => void }) {
       <BlueBar title="지금 화면과 무엇이 다른가" onClose={onClose} />
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 text-[15px] text-slate-600">
         <div>
-          <p className="font-bold text-slate-900 mb-1">칸은 그대로</p>
+          <p className="font-bold text-slate-900 mb-1">화면 틀은 그대로</p>
           <p>
-            유형선택 · 사진 · 발생지역(위치찾기) · 내용(5~900자) · 휴대전화 · 공유 동의 · 제출/닫기.
-            지금 신고서와 같은 칸을 같은 모양으로 둡니다. 바꾼 것은 <b>순서</b>와 <b>누가 채우는가</b> 둘뿐입니다.
+            유형선택 · 사진 · 발생지역(위치찾기) · 내용(5~900자) · 공유 동의 · 제출/닫기.
+            지금 신고서의 칸과 단추 모양을 그대로 씁니다. 바꾼 것은 <b>순서</b>와 <b>누가 채우는가</b>입니다.
+            추천 단어 · 주민점검신청제 · 음성 · 휴대전화 인증은 이번 개선과 관계없어 시제품에서 뺐습니다.
           </p>
         </div>
         <div>
