@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EDIT_APPS, checkAlbum, checkAlbumPair, checkAlbumPhoto, worst } from './authenticity';
 import { precheck } from './precheck';
+import { INTERVAL_SEC, MIN_INTERVAL_SEC } from './rules';
 import type { PhotoMeta } from './authenticity';
 import type { Verdict } from './crosscheck';
 import type { DraftReport, Shot } from '../types/report';
@@ -60,8 +61,14 @@ describe('앨범 사진 두 장', () => {
   it('61초 간격·같은 카메라·같은 자리 → 통과', () => {
     expect(worst(checkAlbum([meta(), meta({ takenAt: T + 61_000, modifiedAt: T + 61_000, fileName: 'IMG_0002.JPG' })], NOW))).toBe('pass');
   });
-  it('1분 미만 간격은 받을 수 없다', () => {
-    expect(status(checkAlbumPair(meta(), meta({ takenAt: T + 20_000, fileName: 'b' })), 'gap')).toBe('fail');
+  it('1분 미만 간격은 받을 수 없다(실제 기준)', () => {
+    expect(status(checkAlbumPair(meta(), meta({ takenAt: T + 20_000, fileName: 'b' }), MIN_INTERVAL_SEC), 'gap')).toBe('fail');
+  });
+  it('테스트 중에는 앨범도 카메라와 같은 INTERVAL_SEC 기준', () => {
+    const gap = (s: number) => checkAlbumPair(meta(), meta({ takenAt: T + s * 1000, fileName: 'b' })).find((c) => c.id === 'pair-gap')!;
+    expect(gap(INTERVAL_SEC - 1).status).toBe('fail');
+    expect(gap(INTERVAL_SEC).status).toBe('pass');
+    if (INTERVAL_SEC < MIN_INTERVAL_SEC) expect(gap(INTERVAL_SEC).detail).toContain('테스트용');
   });
   it('같은 파일 두 번', () => {
     expect(status(checkAlbumPair(meta(), meta()), 'dup')).toBe('fail');
@@ -103,11 +110,25 @@ describe('제출 전 점검', () => {
     const r = precheck({ draft: d, body: '내용입니다', verdict: { ...ok, type: 'schoolzone' }, vision, now: night + 120_000 });
     expect(status(r.checks, 'schoolzone-hours')).toBe('fail');
   });
-  it('1분이 안 되면 막고, 테스트용 짧은 대기 때문인지 적는다', () => {
-    const r = precheck({ draft: draft({ shots: [shot(0), shot(3)] }), body: '내용입니다', verdict: ok, vision, now: NOW });
-    const c = r.checks.find((x) => x.id === 'interval')!;
-    expect(c.status).toBe('fail');
-    expect(c.detail).toContain('테스트용');
+  it('실제 기준(1분)이면 3초 간격은 막는다', () => {
+    const r = precheck({ draft: draft({ shots: [shot(0), shot(3)] }), body: '내용입니다', verdict: ok, vision, now: NOW, minInterval: MIN_INTERVAL_SEC });
+    expect(r.checks.find((x) => x.id === 'interval')!.status).toBe('fail');
+  });
+  it('테스트 중에는 카메라·앨범 모두 INTERVAL_SEC로 보고 그 사실을 적는다', () => {
+    const cam = precheck({ draft: draft({ shots: [shot(0), shot(INTERVAL_SEC)] }), body: '내용입니다', verdict: ok, vision, now: NOW });
+    expect(cam.checks.find((x) => x.id === 'interval')!.status).toBe('pass');
+    const alb = precheck({
+      draft: draft({
+        shots: [
+          shot(0, { source: 'album', meta: meta() }),
+          shot(INTERVAL_SEC, { source: 'album', meta: meta({ takenAt: T + INTERVAL_SEC * 1000, modifiedAt: T + INTERVAL_SEC * 1000, fileName: 'b' }) }),
+        ],
+      }),
+      body: '내용입니다', verdict: ok, vision, now: NOW,
+    });
+    expect(alb.checks.find((x) => x.id === 'interval')!.status).toBe('pass');
+    expect(alb.album.find((x) => x.id === 'pair-gap')!.status).toBe('pass');
+    if (INTERVAL_SEC < MIN_INTERVAL_SEC) expect(alb.album.find((x) => x.id === 'pair-gap')!.detail).toContain('테스트용');
   });
   it('앨범 사진은 진위 점검이 함께 들어가고, 촬영시각이 없으면 막는다', () => {
     const d = draft({

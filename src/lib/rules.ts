@@ -21,10 +21,17 @@ export const THRESHOLD_METERS: Record<ViolationType, number | undefined> = {
 export const MIN_INTERVAL_SEC = 60;
 
 /**
- * 촬영 화면이 둘째 장을 기다리는 시간(초). **지금은 현장 테스트용으로 3초.**
- * 시연·실사용 전에는 MIN_INTERVAL_SEC 로 되돌린다. 신고 요건(1분)은 위 상수가 지킨다.
+ * 두 장 간격 기준(초) — **지금은 현장 테스트용 3초.** 촬영 대기·앨범 점검·제출 점검이 모두 이 값을 쓴다.
+ * 시연·실사용 전에는 MIN_INTERVAL_SEC 로 되돌린다(한 곳만 고치면 된다).
  */
-export const CAPTURE_WAIT_SEC = 3;
+export const INTERVAL_SEC = 3;
+
+/** 테스트용 기준으로 돌고 있는가 — 화면에 '테스트용 3초 · 실제 기준 60초'를 함께 적는다 */
+export const IS_TEST_INTERVAL = INTERVAL_SEC < MIN_INTERVAL_SEC;
+
+/** 기준 설명 꼬리말 */
+export const intervalNote = (min: number) =>
+  min < MIN_INTERVAL_SEC ? ` (테스트용 ${min}초 기준 · 실제 기준 ${MIN_INTERVAL_SEC}초)` : '';
 
 /** 어린이보호구역 단속 시간대(평일) */
 export const SCHOOLZONE_HOURS = { from: 8, to: 20 } as const;
@@ -84,7 +91,7 @@ export interface CheckInput {
  * 제출 직전 점검 — 자주 나오는 반려 사유 다섯 가지.
  * fail 이 하나라도 있으면 제출을 막는다. warn 은 알리되 막지 않는다.
  */
-export function runChecks(input: CheckInput): CheckResult[] {
+export function runChecks(input: CheckInput, minInterval: number = INTERVAL_SEC): CheckResult[] {
   const now = input.now ?? Date.now();
   const [first, second] = [...input.shotTimes].sort((a, b) => a - b);
   const out: CheckResult[] = [];
@@ -102,11 +109,11 @@ export function runChecks(input: CheckInput): CheckResult[] {
     out.push({
       id: 'interval',
       label: '1분 간격 두 장',
-      status: gap >= MIN_INTERVAL_SEC ? 'pass' : 'fail',
+      status: gap >= minInterval ? 'pass' : 'fail',
       detail:
-        gap >= MIN_INTERVAL_SEC
+        (gap >= minInterval
           ? `${Math.floor(gap)}초 간격으로 찍혔습니다.`
-          : `${Math.floor(gap)}초 간격입니다. ${MIN_INTERVAL_SEC}초 이상이어야 합니다.`,
+          : `${Math.floor(gap)}초 간격입니다. ${minInterval}초 이상이어야 합니다.`) + intervalNote(minInterval),
     });
   }
 

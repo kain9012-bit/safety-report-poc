@@ -4,6 +4,8 @@ import {
   intervalSeconds,
   isExpired,
   isValidPlate,
+  INTERVAL_SEC,
+  MIN_INTERVAL_SEC,
   runChecks,
   submitDeadline,
 } from './rules';
@@ -45,7 +47,7 @@ describe('두 컷 간격', () => {
       lng: 127.1,
       accuracy: 8,
       now: base + 60_000,
-    });
+    }, MIN_INTERVAL_SEC);
     expect(fail.find((c) => c.id === 'interval')?.status).toBe('fail');
     expect(blocksSubmit(fail)).toBe(true);
 
@@ -57,9 +59,19 @@ describe('두 컷 간격', () => {
       lng: 127.1,
       accuracy: 8,
       now: base + 61_000,
-    });
+    }, MIN_INTERVAL_SEC);
     expect(pass.find((c) => c.id === 'interval')?.status).toBe('pass');
     expect(blocksSubmit(pass)).toBe(false);
+  });
+
+  it('테스트 중에는 INTERVAL_SEC(3초) 기준으로 보고, 그 사실을 적는다', () => {
+    const base = AT('2026-09-18T14:30:00+09:00');
+    const at = (gap: number) =>
+      runChecks({ shotTimes: [base, base + gap * 1000], hasTimestampOverlay: true, plate: '12가3456', lat: 35.8, lng: 127.1, accuracy: 8, now: base + 70_000 })
+        .find((c) => c.id === 'interval')!;
+    expect(at(INTERVAL_SEC - 1).status).toBe('fail');
+    expect(at(INTERVAL_SEC).status).toBe('pass');
+    if (INTERVAL_SEC < MIN_INTERVAL_SEC) expect(at(INTERVAL_SEC).detail).toContain('테스트용');
   });
 });
 

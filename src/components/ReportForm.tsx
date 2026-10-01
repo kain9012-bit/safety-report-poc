@@ -688,7 +688,6 @@ function VisionLine({
       {r?.sameVehicle === 'no' && (
         <p className="text-red-600 font-bold">두 장에서 읽은 번호가 다릅니다 — 같은 차가 아니면 반려됩니다</p>
       )}
-      <p className="text-[12px] text-slate-400">판독을 위해 사진을 Google Gemini로 보냅니다(시제품 · 테스트 사진만)</p>
     </div>
   );
 }

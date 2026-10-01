@@ -7,7 +7,7 @@
  */
 import { checkAlbum, worst } from './authenticity';
 import { BODY_MIN } from './compose';
-import { CAPTURE_WAIT_SEC, MIN_INTERVAL_SEC, SCHOOLZONE_HOURS, runChecks } from './rules';
+import { INTERVAL_SEC, SCHOOLZONE_HOURS, runChecks } from './rules';
 import type { CheckResult } from './rules';
 import type { Verdict } from './crosscheck';
 import { locatedShot } from '../types/report';
@@ -20,6 +20,8 @@ export interface PrecheckInput {
   verdict: Verdict;
   vision?: VisionResult | null;
   now?: number;
+  /** 두 장 간격 기준(초). 기본은 INTERVAL_SEC(지금은 테스트용) */
+  minInterval?: number;
 }
 
 export interface Precheck {
@@ -29,11 +31,11 @@ export interface Precheck {
   blocked: boolean;
 }
 
-export function precheck({ draft, body, verdict, vision, now = Date.now() }: PrecheckInput): Precheck {
+export function precheck({ draft, body, verdict, vision, now = Date.now(), minInterval = INTERVAL_SEC }: PrecheckInput): Precheck {
   const shots = draft.shots;
   const at = locatedShot(shots);
   const albumShots = shots.filter((s) => s.source === 'album' && s.meta);
-  const album = albumShots.length ? checkAlbum(albumShots.map((s) => s.meta!), now) : [];
+  const album = albumShots.length ? checkAlbum(albumShots.map((s) => s.meta!), now, minInterval) : [];
 
   // 촬영시각 기록이 없는 앨범 사진은 시각을 모르는 것으로 본다(파일 수정시각으로 대신하지 않는다)
   const noTime = albumShots.some((s) => s.meta!.takenAt === undefined);
@@ -46,13 +48,9 @@ export function precheck({ draft, body, verdict, vision, now = Date.now() }: Pre
     lng: at?.lng,
     accuracy: at?.accuracy,
     now,
-  }).map((c) => {
+  }, minInterval).map((c) => {
     if (noTime && (c.id === 'interval' || c.id === 'timestamp')) {
       return { ...c, status: 'fail' as const, detail: '촬영시각 기록이 없는 앨범 사진이 있어 확인할 수 없습니다.' };
-    }
-    // 현장 테스트용 짧은 대기로 찍었으면 그 사실을 함께 적는다(기준 자체는 그대로)
-    if (c.id === 'interval' && c.status === 'fail' && CAPTURE_WAIT_SEC < MIN_INTERVAL_SEC && albumShots.length === 0) {
-      return { ...c, detail: `${c.detail} (지금은 테스트용 ${CAPTURE_WAIT_SEC}초 대기로 찍습니다)` };
     }
     if (c.id === 'location' && albumShots.length > 0 && at && at.accuracy === undefined) {
       return { ...c, detail: '앨범 사진 파일에 남은 위치입니다(정확도 기록 없음).' };

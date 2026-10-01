@@ -8,12 +8,12 @@
  *  - 편집 앱을 거쳤거나 촬영 뒤 수정된 흔적이 있는가
  *  - 카메라 정보가 있는가(캡처·내려받은 그림은 대개 없다)
  *  - 위치가 남아 있는가(갤러리 사진은 폰이 지우는 경우가 많아 '확인'으로만 본다)
- *  - 두 장이 1분 이상 간격인가 / 같은 카메라인가 / 같은 파일을 두 번 고르지 않았나 / 같은 자리인가
+ *  - 두 장이 기준 간격(실제 1분, 지금은 테스트용 INTERVAL_SEC) 이상인가 / 같은 카메라인가 / 같은 파일을 두 번 고르지 않았나 / 같은 자리인가
  *
  * 통과(pass)·확인 필요(warn)·불가(fail). 불가가 하나라도 있으면 제출 점검에서 막힌다.
  */
 import { distanceMeters } from './geo';
-import { MIN_INTERVAL_SEC, submitDeadline } from './rules';
+import { INTERVAL_SEC, intervalNote, submitDeadline } from './rules';
 import type { CheckResult, CheckStatus } from './rules';
 
 /** 사진 파일에서 읽은 촬영 정보 */
@@ -120,7 +120,7 @@ export function checkAlbumPhoto(m: PhotoMeta, now: number = Date.now(), n = 1): 
 }
 
 /** 두 장 관계 점검 — a가 먼저 찍은 사진이어야 한다 */
-export function checkAlbumPair(a: PhotoMeta, b: PhotoMeta): CheckResult[] {
+export function checkAlbumPair(a: PhotoMeta, b: PhotoMeta, minInterval: number = INTERVAL_SEC): CheckResult[] {
   const out: CheckResult[] = [];
 
   if (a.fileName === b.fileName && a.fileSize === b.fileSize && a.takenAt === b.takenAt) {
@@ -132,11 +132,11 @@ export function checkAlbumPair(a: PhotoMeta, b: PhotoMeta): CheckResult[] {
     out.push({
       id: 'pair-gap',
       label: '두 장 간격',
-      status: gap >= MIN_INTERVAL_SEC ? 'pass' : 'fail',
+      status: gap >= minInterval ? 'pass' : 'fail',
       detail:
-        gap >= MIN_INTERVAL_SEC
+        (gap >= minInterval
           ? `${Math.floor(gap)}초 간격으로 찍었습니다(사진 파일 기록).`
-          : `${Math.floor(gap)}초 간격입니다. ${MIN_INTERVAL_SEC}초 이상이어야 합니다.`,
+          : `${Math.floor(gap)}초 간격입니다. ${minInterval}초 이상이어야 합니다.`) + intervalNote(minInterval),
     });
   }
 
@@ -159,9 +159,9 @@ export function checkAlbumPair(a: PhotoMeta, b: PhotoMeta): CheckResult[] {
 }
 
 /** 앨범 사진 전체 점검 — 촬영시각 순으로 넣는다 */
-export function checkAlbum(metas: PhotoMeta[], now: number = Date.now()): CheckResult[] {
+export function checkAlbum(metas: PhotoMeta[], now: number = Date.now(), minInterval: number = INTERVAL_SEC): CheckResult[] {
   const one = metas.flatMap((m, i) => checkAlbumPhoto(m, now, i + 1));
-  return metas.length >= 2 ? [...one, ...checkAlbumPair(metas[0], metas[1])] : one;
+  return metas.length >= 2 ? [...one, ...checkAlbumPair(metas[0], metas[1], minInterval)] : one;
 }
 
 export function worst(checks: readonly CheckResult[]): CheckStatus {
