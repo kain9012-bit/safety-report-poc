@@ -28,7 +28,10 @@ export interface Shot {
 
 export interface DraftReport {
   shots: Shot[];
+  /** 발생지역 — 도로명주소가 있으면 도로명, 없으면 지번 */
   address?: string;
+  /** 도로명과 함께 받은 지번주소(참고용) */
+  addressParcel?: string;
   plate?: string;
   type?: ViolationType;
   /** 좌표로 계산한 유형 후보와 사진으로 판독한 유형이 엇갈리면 사람에게 묻는다. */

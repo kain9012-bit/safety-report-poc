@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { clearDraft, loadDraft } from './lib/draft';
+import { reverseGeocode } from './lib/reverseGeocode';
+import type { AddressState } from './lib/reverseGeocode';
 import { PhoneFrame, ProtoNotice } from './components/Ui';
 import CaptureScreen from './components/CaptureScreen';
 import ReportForm from './components/ReportForm';
@@ -17,6 +19,7 @@ type Step = 'form' | 'capture';
 export default function App() {
   const [step, setStep] = useState<Step>('form');
   const [draft, setDraft] = useState<DraftReport>({ shots: [] });
+  const [addressState, setAddressState] = useState<AddressState>('idle');
 
   // 요구사항 R7 — 앱을 껐다 켜도 찍던 사진이 남아 있다.
   useEffect(() => {
@@ -25,9 +28,36 @@ export default function App() {
     });
   }, []);
 
+  // 사진 좌표 → 발생지역. 사람이 직접 고친 주소는 덮어쓰지 않는다.
+  const first = draft.shots[0];
+  const manualAddress = Boolean(draft.manual?.address);
+  useEffect(() => {
+    if (!first || first.lat === undefined || first.lng === undefined || manualAddress) {
+      setAddressState('idle');
+      return;
+    }
+    let stale = false;
+    setAddressState('loading');
+    setDraft((prev) => ({ ...prev, address: undefined, addressParcel: undefined }));
+    void reverseGeocode(first.lat, first.lng).then((r) => {
+      if (stale) return;
+      setAddressState(r.state);
+      if (r.state === 'ok') {
+        setDraft((prev) =>
+          prev.manual?.address
+            ? prev
+            : { ...prev, address: r.road ?? r.parcel, addressParcel: r.road ? r.parcel : undefined },
+        );
+      }
+    });
+    return () => {
+      stale = true;
+    };
+    // 첫 컷이 바뀌거나, 직접 입력을 되돌렸을 때만 다시 찾는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first?.takenAt, manualAddress]);
+
   const onCaptured = (shots: Shot[]) => {
-    // 사진이 들어오는 순간 발생일시·좌표가 함께 들어오고, 내용 문장은 그걸로 다시 만들어진다.
-    // 주소 변환·유형 추천·번호판 판독은 아직 붙이지 않았으므로 비워 둔다 — 없는 값을 지어내지 않는다.
     setDraft((prev) => ({ ...prev, shots }));
     setStep('form');
   };
@@ -36,6 +66,7 @@ export default function App() {
     setDraft((prev) => ({
       ...prev,
       [field]: value,
+      ...(field === 'address' ? { addressParcel: undefined } : {}),
       manual: { ...prev.manual, [field]: value !== undefined },
     }));
   };
@@ -53,6 +84,7 @@ export default function App() {
         {step === 'form' ? (
           <ReportForm
             draft={draft}
+            addressState={addressState}
             onCapture={() => setStep('capture')}
             onEdit={onEdit}
             onReset={onReset}

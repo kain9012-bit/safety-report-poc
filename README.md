@@ -57,14 +57,18 @@ npm run build
 | 이름 | 쓰임 |
 | --- | --- |
 | `DATA_GO_KR_KEY` | 공공데이터포털 표준데이터(소화전·횡단보도·버스정류장·어린이보호구역) |
-| `VWORLD_KEY` / `KAKAO_REST_KEY` | 좌표 → 도로명주소 |
+| `VWORLD_KEY` / `KAKAO_REST_KEY` | 좌표 → 도로명주소 (`api/address.ts`). 브이월드가 있으면 브이월드, 없으면 카카오 |
+| `VWORLD_DOMAIN` | 브이월드 키에 등록한 서비스 URL. 키 오류가 날 때만 |
 | `VISION_PROVIDER`, `VISION_API_KEY` | 사진 판독(번호판·장면) |
 | `VITE_DEMO_MODE` | 1이면 키 없이 고정 시나리오로 흐름만 시연(화면에 '시연 모드' 띠 표시) |
+
+`npm run dev` 에서도 `api/` 함수가 같이 돕니다(vite.config.ts 의 dev-api). 키가 없으면 주소 칸은 좌표로 남습니다.
 
 ### 배포
 
 Vercel. 정적 화면과 `api/` 서버리스 함수를 한 번에 올립니다. data.go.kr 은 브라우저에서 직접 부르면
 CORS 에 막히고, 비전 AI 키는 프론트에 둘 수 없어 **함수 중계가 필수**입니다.
+함수 지역은 서울(`icn1`)로 고정했습니다 — 국내 공공 API가 해외 IP를 막는 경우가 있습니다.
 
 ## 자료 출처
 
