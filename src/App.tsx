@@ -109,9 +109,9 @@ export default function App() {
     void readPhotos(draft.shots.map((s) => s.dataUrl)).then((r) => {
       if (stale) return;
       setVision(r);
-      // 번호판 — 읽었고, 확신이 높고, 형식이 맞을 때만 채운다. 사람이 친 값은 덮지 않는다.
+      // 번호판 — 두 장에서 따로 읽은 값이 같고, 확신이 높고, 형식이 맞을 때만 채운다
       const p = r.result?.plate;
-      if (p && p.readable && p.confidence >= PLATE_CONFIDENCE_FLOOR && isValidPlate(p.text)) {
+      if (p && p.agree === true && p.confidence >= PLATE_CONFIDENCE_FLOOR && isValidPlate(p.text)) {
         setDraft((prev) => (prev.manual?.plate ? prev : { ...prev, plate: p.text }));
       }
     });

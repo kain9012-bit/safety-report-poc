@@ -20,13 +20,13 @@ import type { NearbyState } from '../lib/facilities';
 import type { Candidate } from '../lib/recommend';
 import type { Coverage, Verdict } from '../lib/crosscheck';
 import type { VisionState } from '../lib/vision';
-import type { VisionResult } from '../../api/vision';
+import type { BoxLabel, Scene, VisionResult } from '../../api/vision';
 import { PLATE_CONFIDENCE_FLOOR } from '../lib/rules';
 import type { AddressState } from '../lib/reverseGeocode';
 import type { LatLng } from './PickMap';
 import { intervalSeconds, isValidPlate } from '../lib/rules';
 import { VIOLATION_LABEL, locatedShot } from '../types/report';
-import type { DraftReport, EditableField, ViolationType } from '../types/report';
+import type { DraftReport, EditableField, Shot, ViolationType } from '../types/report';
 
 interface Props {
   draft: DraftReport;
@@ -91,7 +91,7 @@ const SOURCE: Record<Source, { cls: string; text: string }> = {
  * 기관 로고·명칭, 범죄예방·로그인 메뉴, 행사 배너는 옮기지 않는다 — 실제 기관 화면으로 오인되면 안 된다.
  */
 export default function ReportForm({ draft, addressState, typeInfo, vision, verdict, onRetryVision, onCapture, onEdit, onPickAddress, onReset }: Props) {
-  const [sheet, setSheet] = useState<'why' | 'type' | 'place' | null>(null);
+  const [sheet, setSheet] = useState<'why' | 'type' | 'place' | 'evidence' | null>(null);
   const [agree, setAgree] = useState(true);
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState(false);
@@ -206,7 +206,7 @@ export default function ReportForm({ draft, addressState, typeInfo, vision, verd
                 ? `${Math.floor(intervalSeconds(first.takenAt, second.takenAt))}초 간격 · 촬영시각과 좌표가 사진에 찍혔습니다`
                 : '사진부터 찍으면 아래 칸이 자동으로 채워집니다'}
             </Changed>
-            {hasShots && <VisionLine vision={vision} onRetry={onRetryVision} />}
+            {hasShots && <VisionLine vision={vision} onRetry={onRetryVision} onEvidence={() => setSheet('evidence')} />}
           </section>
 
           {/* ===== 불법 주정차 신고 (유형선택) ===== */}
@@ -258,7 +258,7 @@ export default function ReportForm({ draft, addressState, typeInfo, vision, verd
               }
               className="mt-3 w-full h-12 px-4 rounded border border-slate-300 bg-slate-100 text-[18px] tabular-nums placeholder:text-[15px] placeholder:text-slate-400"
             />
-            <PlateNote draft={draft} vision={vision} plateOk={plateOk} />
+            <PlateNote draft={draft} vision={vision} plateOk={plateOk} onUse={(t) => onEdit('plate', t)} />
           </section>
 
           {/* ===== 내용 ===== */}
@@ -343,6 +343,9 @@ export default function ReportForm({ draft, addressState, typeInfo, vision, verd
       )}
 
       {sheet === 'why' && <WhyPanel onClose={() => setSheet(null)} />}
+      {sheet === 'evidence' && vision.result && (
+        <EvidenceSheet shots={draft.shots} result={vision.result} onClose={() => setSheet(null)} />
+      )}
       {sheet === 'type' && (
         <TypeDialog
           current={draft.type}
@@ -576,12 +579,20 @@ function TypeValue({
   );
 }
 
-/** 사진 판독 상태 한 줄 — 무엇을 보냈고, 두 장이 요건에 맞는지 */
-function VisionLine({ vision, onRetry }: { vision: { state: VisionState; result?: VisionResult }; onRetry: () => void }) {
+/** 사진 판독 상태 한 줄 — 무엇을 보냈고, 근거는 어디서 보는지 */
+function VisionLine({
+  vision,
+  onRetry,
+  onEvidence,
+}: {
+  vision: { state: VisionState; result?: VisionResult };
+  onRetry: () => void;
+  onEvidence: () => void;
+}) {
   const r = vision.result;
   const msg: Record<VisionState, string> = {
     idle: '',
-    loading: '사진 판독 중… (10초 안팎)',
+    loading: '사진 판독 중… (두 장을 따로 읽어 맞대 봅니다, 15초 안팎)',
     ok: '사진 판독 완료',
     no_key: '사진 판독 키가 연결되지 않았습니다',
     rate_limited: '사진 판독 한도에 걸렸습니다. 잠시 후 다시 시도해 주세요',
@@ -589,35 +600,42 @@ function VisionLine({ vision, onRetry }: { vision: { state: VisionState; result?
     error: '사진 판독에 실패했습니다',
   };
   const retry = vision.state === 'rate_limited' || vision.state === 'busy' || vision.state === 'error';
+  const oneFailed = r && r.photos.some((p) => !p);
   return (
     <div className="mt-1.5 text-[13px] text-slate-500 space-y-0.5">
       <p>
         {msg[vision.state]}
+        {oneFailed && ' (한 장만 읽힘)'}
+        {r && (
+          <button onClick={onEvidence} className="ml-2 font-bold text-blue-700 underline underline-offset-2">
+            근거 보기
+          </button>
+        )}
         {retry && (
           <button onClick={onRetry} className="ml-2 font-bold text-blue-700 underline underline-offset-2">
             다시 판독
           </button>
         )}
       </p>
-      {r && (r.sameVehicle === 'no' || r.sameSpot === 'no') && (
-        <p className="text-red-600 font-bold">
-          {r.sameVehicle === 'no' ? '두 장의 차가 달라 보입니다' : '두 장의 찍은 자리가 달라 보입니다'} — 반려될 수 있습니다
-        </p>
+      {r?.sameVehicle === 'no' && (
+        <p className="text-red-600 font-bold">두 장에서 읽은 번호가 다릅니다 — 같은 차가 아니면 반려됩니다</p>
       )}
       <p className="text-[12px] text-slate-400">판독을 위해 사진을 Google Gemini로 보냅니다(시제품 · 테스트 사진만)</p>
     </div>
   );
 }
 
-/** 차량번호 아래 한 줄 — 사진에서 읽었으면 출처와 신뢰도, 못 읽었으면 왜 비웠는지 */
+/** 차량번호 아래 한 줄 — 두 장에서 따로 읽은 번호가 같을 때만 채운다. 아니면 왜 비웠는지 */
 function PlateNote({
   draft,
   vision,
   plateOk,
+  onUse,
 }: {
   draft: DraftReport;
   vision: { state: VisionState; result?: VisionResult };
   plateOk: boolean;
+  onUse: (text: string) => void;
 }) {
   const r = vision.result;
   if (draft.plate && !plateOk) {
@@ -626,20 +644,144 @@ function PlateNote({
   if (draft.plate && !draft.manual?.plate && r) {
     return (
       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-        <span className={`px-2 py-0.5 rounded border text-xs font-bold ${SOURCE.photo.cls}`}>{SOURCE.photo.text}</span>
+        <span className={`px-2 py-0.5 rounded border text-xs font-bold ${SOURCE.photo.cls}`}>두 장 판독 일치</span>
         <span className="text-[13px] text-slate-500">신뢰도 {Math.round(r.plate.confidence * 100)}% · 한 글자씩 확인해 주세요</span>
       </div>
     );
   }
   if (!draft.plate && r) {
-    const why = !r.plate.readable
-      ? '사진에서 번호판을 확실히 읽지 못했습니다'
-      : r.plate.confidence < PLATE_CONFIDENCE_FLOOR
-        ? `읽은 값(${r.plate.text})의 신뢰도가 낮습니다`
-        : `읽은 값(${r.plate.text})이 번호판 형식과 다릅니다`;
-    return <p className="mt-1.5 text-[13px] text-slate-500">{why} — 틀린 번호는 다른 사람에게 과태료가 가므로 비워 두었습니다</p>;
+    const reads = [...new Set(r.plate.reads)];
+    const why =
+      r.plate.agree === false
+        ? `두 장에서 읽은 번호가 다릅니다(${r.plate.reads.join(' / ')})`
+        : reads.length === 1 && r.plate.agree === null
+          ? `한 장에서만 읽혔습니다(${reads[0]})`
+          : !r.plate.readable
+            ? '사진에서 번호판을 확실히 읽지 못했습니다'
+            : r.plate.confidence < PLATE_CONFIDENCE_FLOOR
+              ? `읽은 값(${r.plate.text})의 신뢰도가 낮습니다`
+              : `읽은 값(${r.plate.text})이 번호판 형식과 다릅니다`;
+    return (
+      <div className="mt-1.5 text-[13px] text-slate-500">
+        <p>{why} — 틀린 번호는 다른 사람에게 과태료가 가므로 비워 두었습니다</p>
+        {reads.length > 0 && (
+          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+            사진을 보고 맞으면
+            {reads.map((t) => (
+              <button key={t} onClick={() => onUse(t)} className="px-2 py-0.5 rounded border border-slate-300 text-slate-700 font-bold tabular-nums">
+                {t} 쓰기
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
   return null;
+}
+
+const BOX_STYLE: Record<BoxLabel, { color: string; text: string }> = {
+  plate: { color: '#dc2626', text: '번호판' },
+  vehicle: { color: '#2563eb', text: '단속 차량' },
+  crosswalk: { color: '#16a34a', text: '횡단보도' },
+  sidewalk: { color: '#16a34a', text: '인도' },
+  busstop_sign: { color: '#16a34a', text: '정류장 표지' },
+  schoolzone_mark: { color: '#16a34a', text: '보호구역 표시' },
+  corner: { color: '#16a34a', text: '교차로 모퉁이' },
+  hydrant: { color: '#16a34a', text: '소화전' },
+};
+
+const SCENE_TEXT: Record<keyof Scene, string> = {
+  onCrosswalk: '횡단보도 위',
+  onSidewalk: '인도 위',
+  busStopVisible: '정류장 표지',
+  schoolZoneMarking: '보호구역 표시',
+  intersectionCorner: '교차로 모퉁이',
+  fireHydrantNear: '소화전',
+};
+const TRI_TEXT = { yes: '보임', no: '아님', unclear: '모름' } as const;
+
+/** 근거 보기 — 사진 위에 AI가 근거로 짚은 자리를 상자로, 아래에 장면 항목을 장별로 */
+function EvidenceSheet({ shots, result, onClose }: { shots: Shot[]; result: VisionResult; onClose: () => void }) {
+  return (
+    <div className="absolute inset-0 z-30 bg-white flex flex-col">
+      <BlueBar title="사진 판독 근거" onClose={onClose} />
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
+        {shots.slice(0, 2).map((s, i) => {
+          const read = result.photos[i];
+          return (
+            <div key={s.takenAt}>
+              <p className="text-[15px] font-bold text-slate-900 mb-1.5">
+                {i + 1}번째 사진 {read ? `· 번호 ${read.plate.readable ? read.plate.text : '못 읽음'}` : '· 판독 실패'}
+              </p>
+              <div className="relative">
+                <img src={s.dataUrl} alt={`${i + 1}번째 사진`} className="w-full rounded" />
+                {read && (
+                  <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
+                    {read.boxes.map((b, j) => {
+                      const [y0, x0, y1, x1] = b.box;
+                      const st = BOX_STYLE[b.label];
+                      return (
+                        <g key={j}>
+                          <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} fill="none" stroke={st.color} strokeWidth={6} vectorEffect="non-scaling-stroke" />
+                        </g>
+                      );
+                    })}
+                  </svg>
+                )}
+                {read?.boxes.map((b, j) => (
+                  <span
+                    key={j}
+                    className="absolute text-[11px] font-bold text-white px-1 rounded-sm -translate-y-full"
+                    style={{ left: `${b.box[1] / 10}%`, top: `${b.box[0] / 10}%`, background: BOX_STYLE[b.label].color }}
+                  >
+                    {BOX_STYLE[b.label].text}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        <table className="w-full text-[14px]">
+          <thead>
+            <tr className="text-slate-500 text-left">
+              <th className="py-1 font-normal">항목</th>
+              <th className="py-1 font-normal text-center">1장</th>
+              <th className="py-1 font-normal text-center">2장</th>
+              <th className="py-1 font-normal text-center">합친 값</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(Object.keys(SCENE_TEXT) as (keyof Scene)[]).map((k) => (
+              <tr key={k} className="border-t border-slate-100">
+                <td className="py-1.5 text-slate-800">{SCENE_TEXT[k]}</td>
+                {[0, 1].map((i) => (
+                  <td key={i} className="py-1.5 text-center text-slate-600">
+                    {result.photos[i] ? TRI_TEXT[result.photos[i]!.scene[k]] : '—'}
+                  </td>
+                ))}
+                <td className={`py-1.5 text-center font-bold ${result.scene[k] === 'yes' ? 'text-green-700' : 'text-slate-500'}`}>
+                  {TRI_TEXT[result.scene[k]]}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="text-[13px] text-slate-500 space-y-1 border-t border-slate-200 pt-3">
+          <p>
+            <b className="text-slate-700">유형은 위 표에서 규칙으로 정합니다.</b> 두 장의 값이 엇갈리면(보임/아님) '모름'으로
+            봅니다. 여러 개가 보이면 횡단보도·인도 → 소화전·정류장·모퉁이 → 보호구역 순으로 앞선 것을 고릅니다.
+          </p>
+          {!result.modelAgrees && (
+            <p className="text-amber-800">AI가 따로 낸 유형이 규칙 결과와 달라 확신을 낮췄습니다 — 직접 확인해 주세요.</p>
+          )}
+          <p>번호판은 두 장에서 따로 읽어 같을 때만 채웁니다. 모델: {result.model}</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PlaceValue({
