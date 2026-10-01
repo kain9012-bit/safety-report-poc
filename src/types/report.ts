@@ -35,4 +35,8 @@ export interface DraftReport {
   typeByLocation?: ViolationType;
   typeByPhoto?: ViolationType;
   body?: string;
+  /** 사람이 직접 고친 칸. 고친 칸은 자동 작성이 다시 덮어쓰지 않는다. */
+  manual?: Partial<Record<EditableField, boolean>>;
 }
+
+export type EditableField = 'type' | 'address' | 'plate' | 'body';

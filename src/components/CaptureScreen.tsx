@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Check, Info, MapPin, RotateCcw, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, Camera, Check, Info, MapPin, RotateCcw, TriangleAlert, X } from 'lucide-react';
 import { captureFrame, formatStamp, startCamera, stopCamera } from '../lib/camera';
 import { clearDraft, loadDraft, saveDraft } from '../lib/draft';
 import { MIN_INTERVAL_SEC } from '../lib/rules';
@@ -7,6 +7,8 @@ import type { Shot } from '../types/report';
 
 interface Props {
   onComplete: (shots: Shot[]) => void;
+  /** 찍지 않고 신고서로 돌아가기. 찍던 것은 저장되어 있으므로 잃지 않는다. */
+  onCancel?: () => void;
 }
 
 interface Pos {
@@ -21,7 +23,7 @@ interface Pos {
  * 길 한복판에서 한 손으로 쓰는 화면이다. 그래서 **스크롤이 없다.**
  * 영상이 화면을 채우고 나머지는 전부 그 위에 겹친다 — 카메라 앱과 같은 구조다.
  */
-export default function CaptureScreen({ onComplete }: Props) {
+export default function CaptureScreen({ onComplete, onCancel }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -140,11 +142,22 @@ export default function CaptureScreen({ onComplete }: Props) {
 
       {/* --- 위쪽 겹침: 위치·도움말 --- */}
       <div className="absolute top-0 inset-x-0 z-10 p-3 flex items-start justify-between gap-2">
-        <div
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-white text-xs font-bold ${accTone}`}
-        >
-          <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-          {pos ? <span className="tabular-nums">±{Math.round(pos.accuracy)}m</span> : <span>{posError ? '위치 없음' : '위치 찾는 중'}</span>}
+        <div className="flex items-center gap-2 min-w-0">
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              aria-label="신고서로 돌아가기"
+              className="w-9 h-9 rounded-full bg-slate-900/70 text-white flex items-center justify-center shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+            </button>
+          )}
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-white text-xs font-bold ${accTone}`}
+          >
+            <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            {pos ? <span className="tabular-nums">±{Math.round(pos.accuracy)}m</span> : <span>{posError ? '위치 없음' : '위치 찾는 중'}</span>}
+          </div>
         </div>
 
         <button
