@@ -54,10 +54,15 @@ export function parseVworld(json: unknown): Omit<AddressResult, 'provider'> | Ad
   if (r.status === 'NOT_FOUND') return 'not_found';
   if (r.status !== 'OK' || !Array.isArray(r.result)) return 'upstream';
   const items = r.result as { type?: string; text?: string }[];
-  const road = items.find((i) => i.type === 'road')?.text?.trim() || undefined;
+  // 도로명 뒤의 참고항목 '(서노송동,전주시청)'은 뺀다 — 지금 앱의 발생지역 표기와 맞춘다
+  const road = stripNote(items.find((i) => i.type === 'road')?.text);
   const parcel = items.find((i) => i.type === 'parcel')?.text?.trim() || undefined;
   if (!road && !parcel) return 'not_found';
   return { road, parcel };
+}
+
+export function stripNote(text?: string): string | undefined {
+  return text?.replace(/\s*\([^()]*\)\s*$/, '').trim() || undefined;
 }
 
 /** 카카오 로컬 API — 좌표로 주소 변환. x가 경도, y가 위도다. */

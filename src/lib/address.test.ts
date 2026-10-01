@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GET, kakaoUrl, parseKakao, parseLatLng, parseVworld, vworldUrl } from '../../api/address';
+import { GET, kakaoUrl, parseKakao, parseLatLng, parseVworld, stripNote, vworldUrl } from '../../api/address';
 
 describe('좌표 입력 검사', () => {
   it('정상 좌표', () => {
@@ -38,6 +38,17 @@ describe('브이월드 응답', () => {
       road: '전북특별자치도 전주시 완산구 노송광장로 10',
       parcel: '전북특별자치도 전주시 완산구 서노송동 568-1',
     });
+  });
+  it('도로명 뒤 참고항목 괄호는 뺀다 (실제 응답)', () => {
+    const json = {
+      response: {
+        status: 'OK',
+        result: [{ type: 'road', text: '전북특별자치도 전주시 완산구 노송광장로 10 (서노송동,전주시청)' }],
+      },
+    };
+    expect(parseVworld(json)).toEqual({ road: '전북특별자치도 전주시 완산구 노송광장로 10', parcel: undefined });
+    expect(stripNote('서울특별시 마포구 마포대로11길 84 (공덕동,현대상가)')).toBe('서울특별시 마포구 마포대로11길 84');
+    expect(stripNote('서울특별시 마포구 마포대로 83')).toBe('서울특별시 마포구 마포대로 83');
   });
   it('도로명이 없는 곳은 지번만', () => {
     const json = { response: { status: 'OK', result: [{ type: 'parcel', text: '전북 완주군 ○○면 산1' }] } };
