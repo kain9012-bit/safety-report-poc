@@ -18,6 +18,7 @@ import { BODY_MAX, BODY_MIN, composeBody } from '../lib/compose';
 import { reverseGeocode } from '../lib/reverseGeocode';
 import type { NearbyState } from '../lib/facilities';
 import type { Candidate } from '../lib/recommend';
+import { SHOW_IN_PHOTO } from '../lib/crosscheck';
 import type { Coverage, Verdict } from '../lib/crosscheck';
 import type { VisionState } from '../lib/vision';
 import type { BoxLabel, Scene, VisionResult } from '../../api/vision';
@@ -62,19 +63,16 @@ const PickMap = lazy(() => import('./PickMap'));
 /** 사진에 좌표가 없을 때 지도를 펼칠 자리 — 전주시청 */
 const DEFAULT_ORIGIN: LatLng = { lat: 35.8242, lng: 127.148 };
 
-type Source = 'gps' | 'photo' | 'cross' | 'auto' | 'manual' | 'map' | 'likely' | 'possible' | 'verified' | 'conflict';
+type Source = 'gps' | 'photo' | 'auto' | 'manual' | 'map' | 'photo_confirmed' | 'photo_only';
 
 const SOURCE: Record<Source, { cls: string; text: string }> = {
   gps: { cls: 'bg-blue-50 text-blue-700 border-blue-200', text: '사진 좌표에서 자동' },
   photo: { cls: 'bg-amber-50 text-amber-800 border-amber-200', text: '사진 판독 · 확인 필요' },
-  cross: { cls: 'bg-blue-50 text-blue-700 border-blue-200', text: '좌표×사진 추천' },
   auto: { cls: 'bg-green-50 text-green-700 border-green-200', text: '자동 작성' },
   manual: { cls: 'bg-slate-50 text-slate-600 border-slate-300', text: '직접 입력' },
   map: { cls: 'bg-slate-50 text-slate-600 border-slate-300', text: '지도에서 선택' },
-  likely: { cls: 'bg-blue-50 text-blue-700 border-blue-200', text: '좌표 추천 · 유력' },
-  possible: { cls: 'bg-amber-50 text-amber-800 border-amber-200', text: '좌표 추천 · 확인 필요' },
-  verified: { cls: 'bg-green-50 text-green-700 border-green-200', text: '좌표×사진 교차검증' },
-  conflict: { cls: 'bg-red-50 text-red-700 border-red-200', text: '좌표·사진 엇갈림 · 확인 필요' },
+  photo_confirmed: { cls: 'bg-green-50 text-green-700 border-green-200', text: '사진 증거 · 위치자료 일치' },
+  photo_only: { cls: 'bg-amber-50 text-amber-800 border-amber-200', text: '사진 증거 · 확인 필요' },
 };
 
 /**
@@ -498,7 +496,10 @@ function Changed({ children, muted }: { children: ReactNode; muted?: boolean }) 
   );
 }
 
-/** 위반유형 값 — 좌표 추천과 사진 판독을 맞대어 본 결과(crosscheck)와 그 근거 두 줄 */
+/**
+ * 위반유형 값 — 판정 근거는 사진뿐이다(crosscheck).
+ * 위치자료(좌표×공공데이터)는 '의심'으로만 보여주고, 사진에 증거가 없으면 유형을 채우지 않는다.
+ */
 function TypeValue({
   draft,
   info,
@@ -515,65 +516,74 @@ function TypeValue({
   onPick: (t: ViolationType) => void;
 }) {
   const manual = Boolean(draft.manual?.type);
-  const others = (manual ? [verdict.type, ...verdict.alternatives] : verdict.alternatives).filter(
-    (t): t is ViolationType => Boolean(t) && t !== draft.type,
+  const others = (manual && verdict.type ? [verdict.type, ...verdict.alternatives] : verdict.alternatives).filter(
+    (t) => t !== draft.type,
   );
   const missingLine = info.missing.length > 0 && (
-    <p className="mt-1 text-[13px] text-slate-500">아직 못 본 자료: {info.missing.join(', ')}</p>
+    <p className="mt-1 text-[13px] text-slate-500">아직 못 본 위치자료: {info.missing.join(', ')}</p>
   );
-  const why = !manual && (
-    <>
-      {verdict.coordReason && (
-        <p className="mt-1 text-[14px] text-slate-600">
-          <b className="text-slate-800">좌표</b> {verdict.coordReason}
+  const suspicions = verdict.suspicions.length > 0 && (
+    <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900 space-y-1">
+      <p className="font-bold">위치자료로는 의심되지만 사진에 증거가 없습니다</p>
+      {verdict.suspicions.map((c) => (
+        <p key={c.type}>
+          · {VIOLATION_LABEL[c.type]} — {c.reason}
+          {SHOW_IN_PHOTO[c.type] && <> → <b>{SHOW_IN_PHOTO[c.type]}</b> 나오게 다시 찍으면 신고할 수 있습니다</>}
         </p>
-      )}
-      {verdict.photoReason && (
-        <p className="mt-0.5 text-[14px] text-slate-600">
-          <b className="text-slate-800">사진</b> {verdict.photoReason}
-        </p>
-      )}
-      {photoLoading && <p className="mt-0.5 text-[13px] text-slate-500">사진 판독 결과를 기다리는 중…</p>}
-    </>
+      ))}
+    </div>
+  );
+  const chips = others.length > 0 && (
+    <div className="mt-2 flex items-center gap-1.5 flex-wrap text-[13px] text-slate-500">
+      사진에 함께 보인 유형
+      {others.map((t) => (
+        <button key={t} onClick={() => onPick(t)} className="px-2 py-0.5 rounded border border-slate-300 text-slate-700 font-bold">
+          {VIOLATION_LABEL[t]}
+        </button>
+      ))}
+    </div>
   );
 
   if (draft.type) {
-    const src: Source = manual ? 'manual' : verdict.source === 'none' ? 'cross' : verdict.source;
+    const src: Source = manual ? 'manual' : verdict.source === 'photo_confirmed' ? 'photo_confirmed' : 'photo_only';
     return (
       <>
         <Value source={src}>{VIOLATION_LABEL[draft.type]}</Value>
         <div className="pl-9">
-          {why}
-          {others.length > 0 && (
-            <div className="mt-2 flex items-center gap-1.5 flex-wrap text-[13px] text-slate-500">
-              다른 후보
-              {others.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => onPick(t)}
-                  className="px-2 py-0.5 rounded border border-slate-300 text-slate-700 font-bold"
-                >
-                  {VIOLATION_LABEL[t]}
-                </button>
-              ))}
-            </div>
+          {!manual && verdict.photoReason && (
+            <p className="mt-1 text-[14px] text-slate-600">
+              <b className="text-slate-800">사진</b> {verdict.photoReason}
+            </p>
           )}
-          {!manual && missingLine}
+          {!manual && verdict.coordNote && (
+            <p className="mt-0.5 text-[14px] text-slate-500">
+              <b className="text-slate-700">위치자료(참고)</b> {verdict.coordNote}
+            </p>
+          )}
+          {manual && <p className="mt-1 text-[13px] text-slate-500">직접 고른 유형입니다. 사진에 그 근거가 보이는지 확인해 주세요.</p>}
+          {chips}
+          {!manual && verdict.suspicions.length > 0 && (
+            <p className="mt-1.5 text-[13px] text-slate-500">
+              위치자료 의심(참고): {verdict.suspicions.map((c) => `${VIOLATION_LABEL[c.type]} ${Math.round(c.distance)}m`).join(', ')}
+            </p>
+          )}
         </div>
       </>
     );
   }
 
   if (!hasShots && info.state === 'idle') {
-    return <Changed muted>찍기 전에 고르지 않습니다. 사진과 좌표로 추천합니다</Changed>;
+    return <Changed muted>찍기 전에 고르지 않습니다. 사진에 보이는 것으로 정합니다</Changed>;
   }
   return (
     <div className="pl-9 mt-2">
       <p className="text-[14px] text-slate-500">
-        {info.state === 'loading' || photoLoading
-          ? '사진과 주변 시설을 확인하는 중…'
-          : '사진과 좌표 모두에서 위반 유형을 찾지 못했습니다. 유형선택에서 골라 주세요'}
+        {photoLoading
+          ? '사진 판독 중… 유형은 사진에 보이는 것으로만 정합니다'
+          : '사진에서 위반 유형의 증거를 찾지 못했습니다. 근거 보기에서 확인하거나 유형선택에서 골라 주세요'}
       </p>
+      {chips}
+      {suspicions}
       {missingLine}
     </div>
   );
@@ -1018,7 +1028,7 @@ function WhyPanel({ onClose }: { onClose: () => void }) {
           <p className="font-bold text-slate-900 mb-1">② 나머지는 사진에서</p>
           <p>
             발생지역은 사진 좌표를 주소로 바꿔 넣습니다 — 위치찾기에서 핀을 옮길 일이 줄어듭니다.
-            유형은 좌표와 사진으로 추천, 내용은 그 값들로 문장을 만듭니다. <b>사람은 확인하고 고치기만 합니다.</b>
+            유형은 사진에 보이는 것으로 정하고(위치자료는 의심 표시용 참고), 내용은 그 값들로 문장을 만듭니다. <b>사람은 확인하고 고치기만 합니다.</b>
           </p>
         </div>
         <div>

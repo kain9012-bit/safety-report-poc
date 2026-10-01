@@ -30,37 +30,53 @@ const read = (type: PhotoType, opts: { plate?: string; conf?: number; guess?: Ph
 
 const photo = (type: PhotoType, conf = 0.9): VisionResult => mergeReads([read(type, { conf }), read(type, { conf })], 'test')!;
 
-describe('교차검증', () => {
-  it('사진 유형이 좌표 후보에 있으면 교차검증', () => {
+describe('유형 판정 — 근거는 사진뿐, 위치자료는 의심', () => {
+  it('사진에 정류장이 보이고 위치자료도 정류장 → 사진 증거 · 위치자료 일치', () => {
     const v = crosscheck([bus, school], { busstop: true, schoolzone: true }, photo('busstop'));
-    expect(v).toMatchObject({ type: 'busstop', source: 'verified', alternatives: ['schoolzone'] });
-    expect(v.coordReason).toContain('3m');
-    expect(v.photoReason).toBe('근거');
+    expect(v).toMatchObject({ type: 'busstop', source: 'photo_confirmed', photoReason: '근거' });
+    expect(v.coordNote).toContain('3m');
+    expect(v.suspicions.map((c) => c.type)).toEqual(['schoolzone']);
   });
 
-  it('좌표 자료가 없는 유형(교차로 모퉁이)은 사진 판독으로', () => {
-    const v = crosscheck([school], { schoolzone: true }, photo('corner'));
-    expect(v).toMatchObject({ type: 'corner', source: 'photo', alternatives: ['schoolzone'] });
+  it('위치자료가 정류장 3m라고 해도 사진에 안 보이면 유형을 채우지 않는다 — 의심만', () => {
+    const v = crosscheck([bus], { busstop: true }, photo('none'));
+    expect(v.type).toBeUndefined();
+    expect(v.source).toBe('none');
+    expect(v.suspicions[0]).toMatchObject({ type: 'busstop', level: 'likely' });
   });
 
-  it('횡단보도 자료가 없는 지역(전주)에서 사진이 횡단보도라 하면 사진 판독으로 — 엇갈림이 아니다', () => {
-    const v = crosscheck([school], { busstop: true, crossing: false, schoolzone: true }, photo('crossing'));
-    expect(v.source).toBe('photo');
+  it('사진 판독 전이나 실패해도 위치자료만으로 채우지 않는다', () => {
+    const v = crosscheck([bus], { busstop: true }, null);
+    expect(v.source).toBe('none');
+    expect(v.type).toBeUndefined();
   });
 
-  it('좌표 자료가 있는데 근처에 없으면 엇갈림', () => {
+  it('사진에 정류장이 보이는데 위치자료에 없으면 그래도 사진 증거 — 자료 누락일 수 있다고 적음', () => {
     const v = crosscheck([school], { busstop: true, schoolzone: true }, photo('busstop'));
-    expect(v).toMatchObject({ type: 'busstop', source: 'conflict' });
+    expect(v).toMatchObject({ type: 'busstop', source: 'photo' });
+    expect(v.coordNote).toContain('자료 누락');
   });
 
-  it('사진이 확신 못 하면 좌표 추천 그대로', () => {
-    expect(crosscheck([bus], { busstop: true }, photo('crossing', 0.3))).toMatchObject({ type: 'busstop', source: 'likely' });
-    expect(crosscheck([school], { schoolzone: true }, photo('none'))).toMatchObject({ type: 'schoolzone', source: 'possible' });
-    expect(crosscheck([bus], { busstop: true }, null)).toMatchObject({ type: 'busstop', source: 'likely' });
+  it('위치자료가 아예 없는 유형(교차로 모퉁이)도 사진 증거로', () => {
+    const v = crosscheck([], {}, photo('corner'));
+    expect(v).toMatchObject({ type: 'corner', source: 'photo' });
+    expect(v.coordNote).toContain('위치자료가 없습니다');
   });
 
-  it('둘 다 없으면 비워 둔다', () => {
-    expect(crosscheck([], {}, photo('none'))).toEqual({ source: 'none', alternatives: [] });
+  it('사진이 확신 못 하면(규칙·AI 엇갈림 포함) 채우지 않는다', () => {
+    expect(crosscheck([bus], { busstop: true }, photo('crossing', 0.3)).type).toBeUndefined();
+  });
+
+  it('사진에 함께 보인 다른 유형은 바꿀 후보로', () => {
+    const both = mergeReads(
+      [
+        normalizeRead({ scene: { onCrosswalk: 'yes', schoolZoneMarking: 'yes' }, typeGuess: 'crossing', typeConfidence: 0.9 }),
+        normalizeRead({ scene: { onCrosswalk: 'yes', schoolZoneMarking: 'yes' }, typeGuess: 'crossing', typeConfidence: 0.9 }),
+      ],
+      'm',
+    )!;
+    const v = crosscheck([], {}, both);
+    expect(v).toMatchObject({ type: 'crossing', alternatives: ['schoolzone'] });
   });
 });
 
@@ -105,7 +121,7 @@ describe('유형은 장면 항목에서 규칙으로', () => {
     expect(r.typeGuess).toBe('busstop');
     expect(r.modelAgrees).toBe(false);
     expect(r.typeConfidence).toBe(DISAGREE_CONFIDENCE);
-    expect(crosscheck([bus], { busstop: true }, r).source).toBe('likely');
+    expect(crosscheck([bus], { busstop: true }, r).source).toBe('none');
   });
   it('항목은 아무것도 안 보이는데 AI만 유형을 냈으면 유형 없음', () => {
     const r = mergeReads([read('none', { guess: 'sidewalk' }), read('none', { guess: 'sidewalk' })], 'm')!;

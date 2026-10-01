@@ -3,7 +3,20 @@ import { ArrowLeft, Camera, Check, Info, MapPin, RotateCcw, TriangleAlert, X } f
 import { captureFrame, formatStamp, startCamera, stopCamera } from '../lib/camera';
 import { clearDraft, loadDraft, saveDraft } from '../lib/draft';
 import { CAPTURE_WAIT_SEC, MIN_INTERVAL_SEC } from '../lib/rules';
-import type { Shot } from '../types/report';
+import { distanceMeters } from '../lib/geo';
+import { loadNearby } from '../lib/facilities';
+import { recommend } from '../lib/recommend';
+import type { Candidate } from '../lib/recommend';
+import { SHOW_IN_PHOTO } from '../lib/crosscheck';
+import { VIOLATION_LABEL } from '../types/report';
+import type { Shot, ViolationType } from '../types/report';
+
+/** 찍기 전 안내에 쓰는 짧은 이름 */
+const NEAR_LABEL: Partial<Record<ViolationType, string>> = {
+  busstop: '버스정류장',
+  crossing: '횡단보도',
+  schoolzone: '어린이보호구역 시설',
+};
 
 /** 위치를 기다리는 최대 시간(초). 넘으면 위치 없이도 찍게 한다. */
 const LOC_WAIT_SEC = 10;
@@ -92,6 +105,17 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
       }
     });
   }, []);
+
+  // 찍기 전 안내 — 위치자료가 의심하는 유형이 있으면 "그게 사진에 나오게" 알려준다.
+  // 판정 근거는 사진이므로, 위치자료는 무엇을 찍어야 할지 알려주는 데만 쓴다.
+  const [hint, setHint] = useState<Candidate[]>([]);
+  const hintAt = useRef<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (!pos || pos.accuracy > 50) return;
+    if (hintAt.current && distanceMeters(hintAt.current, pos) < 15) return; // 15m 넘게 움직였을 때만 다시
+    hintAt.current = { lat: pos.lat, lng: pos.lng };
+    void loadNearby(pos).then((n) => setHint(recommend(pos, n).slice(0, 2)));
+  }, [pos]);
 
   const first = shots[0];
   const remainSec = first ? Math.max(0, Math.ceil(CAPTURE_WAIT_SEC - (now - first.takenAt) / 1000)) : 0;
@@ -230,6 +254,17 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
 
       {/* --- 아래쪽 겹침: 찍은 사진 + 단추 --- */}
       <div className="absolute bottom-0 inset-x-0 z-10 p-3 pb-4 bg-gradient-to-t from-slate-900/85 to-transparent">
+        {hint.length > 0 && !done && (
+          <div className="mb-2 rounded-lg bg-slate-900/75 px-3 py-2 text-[12px] leading-snug text-white space-y-0.5">
+            {hint.map((c) => (
+              <p key={c.type}>
+                <b className="text-amber-300">근처 {NEAR_LABEL[c.type] ?? VIOLATION_LABEL[c.type]}</b>
+                {c.name ? ` (${c.name}, 약 ${Math.round(c.distance)}m)` : ` (약 ${Math.round(c.distance)}m)`}
+                {SHOW_IN_PHOTO[c.type] && <> — {SHOW_IN_PHOTO[c.type]} 사진에 나오게</>}
+              </p>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-3">
           {/* 찍은 두 장 */}
           <div className="flex gap-2 shrink-0">
