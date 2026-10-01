@@ -6,3 +6,8 @@ dist
 
 # 엑셀 임시 잠금 파일
 ~$*
+
+# 사진 표본 — 사람 얼굴·무관 차량 번호판이 찍히므로 깃에 올리지 않는다
+data/samples/*
+!data/samples/README.md
+!data/samples/answers.csv
