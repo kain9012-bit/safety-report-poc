@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Camera, Check, Info, MapPin, RotateCcw, TriangleAlert, X } from 'lucide-react';
 import { captureFrame, formatStamp, startCamera, stopCamera } from '../lib/camera';
 import { clearDraft, loadDraft, saveDraft } from '../lib/draft';
-import { MIN_INTERVAL_SEC } from '../lib/rules';
+import { CAPTURE_WAIT_SEC, MIN_INTERVAL_SEC } from '../lib/rules';
 import type { Shot } from '../types/report';
 
 /** 위치를 기다리는 최대 시간(초). 넘으면 위치 없이도 찍게 한다. */
@@ -94,7 +94,7 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
   }, []);
 
   const first = shots[0];
-  const remainSec = first ? Math.max(0, Math.ceil(MIN_INTERVAL_SEC - (now - first.takenAt) / 1000)) : 0;
+  const remainSec = first ? Math.max(0, Math.ceil(CAPTURE_WAIT_SEC - (now - first.takenAt) / 1000)) : 0;
   const canShootSecond = Boolean(first) && remainSec === 0;
   const done = shots.length >= 2;
   // 좌표 없는 사진은 신고서의 발생지역을 못 채운다. 위치를 받을 때까지 셔터를 잠깐 막는다.
@@ -196,6 +196,11 @@ export default function CaptureScreen({ onComplete, onCancel }: Props) {
           <p className="text-7xl font-bold tabular-nums leading-none">{remainSec}</p>
           <p className="mt-3 text-sm font-bold">초 뒤에 둘째 장을 찍습니다</p>
           <p className="mt-2 text-xs text-slate-200">앱을 나가셔도 시간은 계속 흐릅니다</p>
+          {CAPTURE_WAIT_SEC < MIN_INTERVAL_SEC && (
+            <p className="mt-3 px-2.5 py-1 rounded-full bg-amber-500 text-xs font-bold">
+              테스트용 {CAPTURE_WAIT_SEC}초 · 실제 기준 {MIN_INTERVAL_SEC}초
+            </p>
+          )}
         </div>
       )}
 

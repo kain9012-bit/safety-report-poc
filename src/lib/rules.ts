@@ -20,6 +20,12 @@ export const THRESHOLD_METERS: Record<ViolationType, number | undefined> = {
 /** 두 컷 사이 최소 간격(초) */
 export const MIN_INTERVAL_SEC = 60;
 
+/**
+ * 촬영 화면이 둘째 장을 기다리는 시간(초). **지금은 현장 테스트용으로 3초.**
+ * 시연·실사용 전에는 MIN_INTERVAL_SEC 로 되돌린다. 신고 요건(1분)은 위 상수가 지킨다.
+ */
+export const CAPTURE_WAIT_SEC = 3;
+
 /** 어린이보호구역 단속 시간대(평일) */
 export const SCHOOLZONE_HOURS = { from: 8, to: 20 } as const;
 
