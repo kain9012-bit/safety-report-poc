@@ -1,3 +1,4 @@
+import type { PhotoMeta } from '../lib/authenticity';
 /** 안전신문고 불법주정차 신고서 한 건이 채워야 하는 칸 */
 export type ViolationType =
   | 'hydrant'      // 소화전 5m 이내
@@ -26,6 +27,10 @@ export interface Shot {
   /** 좌표가 없을 때 그 이유 — 신고서가 무엇을 하라고 안내할지 정한다 */
   locIssue?: 'denied' | 'unavailable';
   dataUrl: string;
+  /** 앱 카메라로 찍었는지, 앨범에서 골랐는지 */
+  source?: 'camera' | 'album';
+  /** 앨범 사진의 파일 촬영 정보(EXIF) — 진위 점검에 쓴다 */
+  meta?: PhotoMeta;
 }
 
 /** 좌표가 있는 첫 컷. 첫 장에 좌표가 없어도 둘째 장에 있으면 그걸 쓴다. */

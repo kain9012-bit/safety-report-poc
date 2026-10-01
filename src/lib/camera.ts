@@ -32,12 +32,6 @@ export function captureFrame(video: HTMLVideoElement, meta: CaptureMeta): string
   if (!ctx) throw new Error('캔버스를 만들 수 없습니다');
   ctx.drawImage(video, 0, 0, w, h);
 
-  // --- 워터마크 ---
-  const pad = Math.round(h * 0.018);
-  const size = Math.max(14, Math.round(h * 0.028));
-  ctx.font = `bold ${size}px sans-serif`;
-  ctx.textBaseline = 'bottom';
-
   const lines = [formatStamp(meta.takenAt)];
   if (meta.lat !== undefined && meta.lng !== undefined) {
     const acc = meta.accuracy !== undefined ? ` (±${Math.round(meta.accuracy)}m)` : '';
@@ -45,20 +39,27 @@ export function captureFrame(video: HTMLVideoElement, meta: CaptureMeta): string
   } else {
     lines.push('위치 정보 없음');
   }
+  drawStamp(ctx, w, h, lines);
 
+  // 품질 0.92 — 번호판이 읽혀야 한다. 용량보다 판독이 먼저다.
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
+/** 사진 왼쪽 아래에 글줄을 박는다 — 카메라 사진과 앨범 사진이 같은 모양을 쓴다 */
+export function drawStamp(ctx: CanvasRenderingContext2D, w: number, h: number, lines: string[]): void {
+  const pad = Math.round(h * 0.018);
+  const size = Math.max(14, Math.round(h * 0.028));
+  ctx.font = `bold ${size}px sans-serif`;
+  ctx.textBaseline = 'bottom';
   const lineH = Math.round(size * 1.35);
   const boxH = lineH * lines.length + pad;
-  const boxW = Math.max(...lines.map((t) => ctx.measureText(t).width)) + pad * 2;
-
+  const boxW = Math.min(w - pad * 2, Math.max(...lines.map((t) => ctx.measureText(t).width)) + pad * 2);
   ctx.fillStyle = 'rgba(15, 23, 42, 0.68)';
   ctx.fillRect(pad, h - boxH - pad, boxW, boxH);
   ctx.fillStyle = '#ffffff';
   lines.forEach((t, i) => {
     ctx.fillText(t, pad * 2, h - boxH - pad + lineH * (i + 1));
   });
-
-  // 품질 0.92 — 번호판이 읽혀야 한다. 용량보다 판독이 먼저다.
-  return canvas.toDataURL('image/jpeg', 0.92);
 }
 
 export async function startCamera(): Promise<MediaStream> {

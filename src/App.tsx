@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { clearDraft, loadDraft } from './lib/draft';
+import { clearDraft, loadDraft, saveDraft } from './lib/draft';
 import { reverseGeocode } from './lib/reverseGeocode';
 import { loadNearby } from './lib/facilities';
 import { recommend } from './lib/recommend';
@@ -32,6 +32,7 @@ export default function App() {
   const [typeInfo, setTypeInfo] = useState<TypeInfo>({ state: 'idle', candidates: [], missing: [], coverage: {} });
   const [vision, setVision] = useState<{ state: VisionState; result?: VisionResult }>({ state: 'idle' });
   const [visionTry, setVisionTry] = useState(0);
+  const [albumState, setAlbumState] = useState<'idle' | 'busy' | 'error'>('idle');
 
   // 요구사항 R7 — 앱을 껐다 켜도 찍던 사진이 남아 있다.
   useEffect(() => {
@@ -154,6 +155,19 @@ export default function App() {
     }));
   };
 
+  // 앨범 사진 — 파일 기록(EXIF)을 읽어 사진에 박고, 진위 점검은 precheck 가 규칙으로 한다
+  const onPickAlbum = (files: File[]) => {
+    setAlbumState('busy');
+    void import('./lib/album')
+      .then(({ readAlbum }) => readAlbum(files))
+      .then((shots) => {
+        setDraft((prev) => ({ ...prev, shots }));
+        void saveDraft(shots);
+        setAlbumState('idle');
+      })
+      .catch(() => setAlbumState('error'));
+  };
+
   const onReset = () => {
     setDraft({ shots: [] });
     void clearDraft();
@@ -176,6 +190,8 @@ export default function App() {
             onEdit={onEdit}
             onPickAddress={onPickAddress}
             onReset={onReset}
+            onPickAlbum={onPickAlbum}
+            albumState={albumState}
           />
         ) : (
           <CaptureScreen onComplete={onCaptured} onCancel={onCaptured} />

@@ -11,14 +11,18 @@ import {
   X,
   ZoomIn,
 } from 'lucide-react';
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { formatStamp } from '../lib/camera';
-import { BODY_MAX, BODY_MIN, composeBody } from '../lib/compose';
+import { BODY_MAX, composeBody } from '../lib/compose';
 import { reverseGeocode } from '../lib/reverseGeocode';
 import type { NearbyState } from '../lib/facilities';
 import type { Candidate } from '../lib/recommend';
 import { SHOW_IN_PHOTO } from '../lib/crosscheck';
+import { precheck } from '../lib/precheck';
+import type { Precheck } from '../lib/precheck';
+import { worst } from '../lib/authenticity';
+import type { CheckResult, CheckStatus } from '../lib/rules';
 import type { Coverage, Verdict } from '../lib/crosscheck';
 import type { VisionState } from '../lib/vision';
 import type { BoxLabel, Scene, VisionResult } from '../../api/vision';
@@ -42,6 +46,9 @@ interface Props {
   /** 위치찾기에서 고른 주소 */
   onPickAddress: (a: PickedAddress) => void;
   onReset: () => void;
+  /** 앨범에서 고른 사진 파일 */
+  onPickAlbum: (files: File[]) => void;
+  albumState: 'idle' | 'busy' | 'error';
 }
 
 export interface TypeInfo {
@@ -88,8 +95,9 @@ const SOURCE: Record<Source, { cls: string; text: string }> = {
  *
  * 기관 로고·명칭, 범죄예방·로그인 메뉴, 행사 배너는 옮기지 않는다 — 실제 기관 화면으로 오인되면 안 된다.
  */
-export default function ReportForm({ draft, addressState, typeInfo, vision, verdict, onRetryVision, onCapture, onEdit, onPickAddress, onReset }: Props) {
-  const [sheet, setSheet] = useState<'why' | 'type' | 'place' | 'evidence' | null>(null);
+export default function ReportForm({ draft, addressState, typeInfo, vision, verdict, onRetryVision, onCapture, onEdit, onPickAddress, onReset, onPickAlbum, albumState }: Props) {
+  const [sheet, setSheet] = useState<'why' | 'type' | 'place' | 'evidence' | 'source' | 'checks' | null>(null);
+  const albumInput = useRef<HTMLInputElement>(null);
   const [agree, setAgree] = useState(true);
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState(false);
@@ -98,19 +106,15 @@ export default function ReportForm({ draft, addressState, typeInfo, vision, verd
   const first = shots[0];
   const second = shots[1];
   const hasShots = shots.length >= 2;
-  const hasCoord = Boolean(locatedShot(shots));
   const manual = draft.manual ?? {};
 
   const body = manual.body ? (draft.body ?? '') : composeBody(draft);
   const plateOk = draft.plate ? isValidPlate(draft.plate) : false;
 
-  const missing = [
-    !hasShots && '사진 2장',
-    !draft.type && '유형',
-    !draft.address && !hasCoord && '발생지역',
-    !plateOk && '차량번호',
-    body.length < BODY_MIN && '내용',
-  ].filter(Boolean) as string[];
+  // 제출 전 반려 점검 — 전부 규칙(precheck.ts)
+  const pc = useMemo(() => precheck({ draft, body, verdict, vision: vision.result }), [draft, body, verdict, vision.result]);
+  const count = (st: CheckStatus) => pc.checks.filter((c) => c.status === st).length;
+  const isAlbum = shots.some((s) => s.source === 'album');
 
   const copyBody = async () => {
     try {
@@ -165,7 +169,7 @@ export default function ReportForm({ draft, addressState, typeInfo, vision, verd
               label="사진"
               help={() => setSheet('why')}
               button={
-                <OutlineButton onClick={onCapture} icon={<ImageIcon className="w-5 h-5" />}>
+                <OutlineButton onClick={() => setSheet('source')} icon={<ImageIcon className="w-5 h-5" />}>
                   촬영/앨범
                 </OutlineButton>
               }
@@ -176,7 +180,7 @@ export default function ReportForm({ draft, addressState, typeInfo, vision, verd
                 return (
                   <button
                     key={i}
-                    onClick={i < 2 ? onCapture : undefined}
+                    onClick={i < 2 ? () => setSheet('source') : undefined}
                     className="relative aspect-square rounded-xl bg-slate-100 overflow-visible flex items-center justify-center"
                     aria-label={s ? `${i + 1}번째 사진` : `${i + 1}번째 사진 칸`}
                   >
@@ -190,9 +194,14 @@ export default function ReportForm({ draft, addressState, typeInfo, vision, verd
                         필수
                       </span>
                     )}
+                    {s?.source === 'album' && (
+                      <span className="absolute -top-2 -right-1 px-1.5 py-0.5 rounded-full bg-slate-700 text-white text-[11px] font-bold">
+                        앨범
+                      </span>
+                    )}
                     {s && (
                       <span className="absolute bottom-0 inset-x-0 rounded-b-xl bg-slate-900/60 text-white text-[10px] tabular-nums py-0.5">
-                        {formatStamp(s.takenAt).slice(11)}
+                        {s.source === 'album' && s.meta?.takenAt === undefined ? '시각 없음' : formatStamp(s.takenAt).slice(11)}
                       </span>
                     )}
                   </button>
@@ -200,10 +209,28 @@ export default function ReportForm({ draft, addressState, typeInfo, vision, verd
               })}
             </div>
             <Changed>
-              {hasShots
-                ? `${Math.floor(intervalSeconds(first.takenAt, second.takenAt))}초 간격 · 촬영시각과 좌표가 사진에 찍혔습니다`
-                : '사진부터 찍으면 아래 칸이 자동으로 채워집니다'}
+              {albumState === 'busy'
+                ? '앨범 사진의 촬영 정보를 읽는 중…'
+                : albumState === 'error'
+                  ? '앨범 사진을 읽지 못했습니다. 다른 사진을 골라 주세요.'
+                  : hasShots
+                  ? isAlbum
+                    ? shots.some((x) => x.source === 'album' && x.meta?.takenAt === undefined)
+                      ? '촬영시각 기록이 없는 사진이 있습니다 — 캡처·메신저로 받은 사진은 받을 수 없습니다'
+                      : `${Math.floor(intervalSeconds(first.takenAt, second.takenAt))}초 간격 · 앨범 사진의 파일 기록을 사진에 박았습니다`
+                    : `${Math.floor(intervalSeconds(first.takenAt, second.takenAt))}초 간격 · 촬영시각과 좌표가 사진에 찍혔습니다`
+                  : '사진부터 찍으면 아래 칸이 자동으로 채워집니다'}
             </Changed>
+            {isAlbum && pc.album.length > 0 && (
+              <button onClick={() => setSheet('checks')} className="mt-1.5 flex items-center gap-2 text-[13px]">
+                <Light status={worst(pc.album)} />
+                <span className="text-slate-700">
+                  앨범 사진 진위 점검 —{' '}
+                  {worst(pc.album) === 'pass' ? '통과' : worst(pc.album) === 'warn' ? '확인 필요' : '받을 수 없음'}
+                </span>
+                <span className="font-bold text-blue-700 underline underline-offset-2">자세히</span>
+              </button>
+            )}
             {hasShots && <VisionLine vision={vision} onRetry={onRetryVision} onEvidence={() => setSheet('evidence')} />}
           </section>
 
@@ -308,21 +335,16 @@ export default function ReportForm({ draft, addressState, typeInfo, vision, verd
 
       {/* ===== 아래 고정: 제출 / 닫기 ===== */}
       <div className="shrink-0 bg-white px-1.5 pb-1.5">
-        <p className="text-[12px] text-center py-1 text-slate-500">
-          {missing.length === 0 ? (
-            <span className="text-green-700 font-bold">모든 칸이 채워졌습니다</span>
-          ) : (
-            <>
-              남은 칸 <b className="text-slate-800">{missing.length}</b> · {missing.join(', ')}
-            </>
-          )}
-        </p>
+        <button onClick={() => setSheet('checks')} className="w-full text-[12px] py-1 flex items-center justify-center gap-3 text-slate-600">
+          제출 전 점검
+          <span className="flex items-center gap-1"><Light status="pass" />{count('pass')}</span>
+          <span className="flex items-center gap-1"><Light status="warn" />{count('warn')}</span>
+          <span className="flex items-center gap-1"><Light status="fail" />{count('fail')}</span>
+          <span className="font-bold text-blue-700 underline underline-offset-2">보기</span>
+        </button>
         <div className="grid grid-cols-2 gap-1.5">
           <button
-            onClick={() => {
-              setToast(true);
-              setTimeout(() => setToast(false), 2000);
-            }}
+            onClick={() => setSheet('checks')}
             className="h-14 rounded bg-[#3a8fdb] text-white text-[22px] font-bold flex items-center justify-center gap-2"
           >
             <FileCheck2 className="w-7 h-7" aria-hidden="true" />
@@ -340,6 +362,42 @@ export default function ReportForm({ draft, addressState, typeInfo, vision, verd
         </div>
       )}
 
+      <input
+        ref={albumInput}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = '';
+          if (files.length) onPickAlbum(files);
+        }}
+      />
+      {sheet === 'source' && (
+        <SourceSheet
+          onCamera={() => {
+            setSheet(null);
+            onCapture();
+          }}
+          onAlbum={() => {
+            setSheet(null);
+            albumInput.current?.click();
+          }}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {sheet === 'checks' && (
+        <CheckSheet
+          pc={pc}
+          onSubmit={() => {
+            setSheet(null);
+            setToast(true);
+            setTimeout(() => setToast(false), 2000);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      )}
       {sheet === 'why' && <WhyPanel onClose={() => setSheet(null)} />}
       {sheet === 'evidence' && vision.result && (
         <EvidenceSheet shots={draft.shots} result={vision.result} onClose={() => setSheet(null)} />
@@ -710,6 +768,80 @@ const SCENE_TEXT: Record<keyof Scene, string> = {
   fireHydrantNear: '소화전',
 };
 const TRI_TEXT = { yes: '보임', no: '아님', unclear: '모름' } as const;
+
+function Light({ status }: { status: CheckStatus }) {
+  const cls = { pass: 'bg-green-600', warn: 'bg-amber-500', fail: 'bg-red-600' }[status];
+  return <span className={`inline-block w-3 h-3 rounded-full ${cls}`} aria-label={{ pass: '통과', warn: '확인 필요', fail: '불가' }[status]} />;
+}
+
+/** 촬영/앨범 고르기 — 지금 앱은 앱 카메라만 받는다. 개선안은 앨범도 받고 파일 기록으로 진위를 점검한다. */
+function SourceSheet({ onCamera, onAlbum, onClose }: { onCamera: () => void; onAlbum: () => void; onClose: () => void }) {
+  return (
+    <div className="absolute inset-0 z-30 bg-slate-900/50 flex items-end">
+      <div className="w-full bg-white rounded-t-2xl p-4 pb-6 space-y-2.5">
+        <p className="text-[18px] font-bold text-slate-900 mb-1">사진 넣기</p>
+        <button onClick={onCamera} className="w-full h-14 rounded-lg bg-[#3a8fdb] text-white text-[18px] font-bold flex items-center justify-center gap-2">
+          <Camera className="w-6 h-6" aria-hidden="true" /> 카메라로 찍기
+        </button>
+        <button onClick={onAlbum} className="w-full h-14 rounded-lg border-2 border-slate-300 text-slate-800 text-[18px] font-bold flex items-center justify-center gap-2">
+          <ImageIcon className="w-6 h-6" aria-hidden="true" /> 앨범에서 2장 고르기
+        </button>
+        <p className="text-[13px] text-slate-500 leading-snug">
+          앨범 사진은 파일에 남은 촬영시각·카메라 정보·위치로 진위를 점검합니다. 캡처·메신저로 받은 사진처럼 촬영 기록이 없으면 받을 수 없습니다.
+        </p>
+        <button onClick={onClose} className="w-full h-12 rounded-lg bg-slate-100 text-slate-600 text-[16px]">취소</button>
+      </div>
+    </div>
+  );
+}
+
+/** 제출 전 점검 — 신호등. 빨간불이 있으면 제출할 수 없다 */
+function CheckSheet({ pc, onSubmit, onClose }: { pc: Precheck; onSubmit: () => void; onClose: () => void }) {
+  const fails = pc.checks.filter((c) => c.status === 'fail').length;
+  const Item = ({ c }: { c: CheckResult }) => (
+    <li className="flex gap-2.5 py-2 border-b border-slate-100">
+      <span className="pt-1"><Light status={c.status} /></span>
+      <div className="min-w-0">
+        <p className="text-[15px] font-bold text-slate-900">{c.label}</p>
+        <p className="text-[13px] text-slate-600 leading-snug">{c.detail}</p>
+      </div>
+    </li>
+  );
+  return (
+    <div className="absolute inset-0 z-30 bg-white flex flex-col">
+      <BlueBar title="제출 전 점검" onClose={onClose} />
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
+        <p className="text-[13px] text-slate-500 mb-2">
+          담당 공무원이 불수용하는 흔한 사유를 미리 봅니다. 빨간불은 고쳐야 제출할 수 있고, 노란불은 확인만 하면 됩니다.
+        </p>
+        <ul>
+          {pc.checks.map((c) => (
+            <Item key={c.id} c={c} />
+          ))}
+        </ul>
+        {pc.album.length > 0 && (
+          <>
+            <p className="mt-4 mb-1 text-[15px] font-bold text-slate-900">앨범 사진 진위 — 항목별</p>
+            <ul>
+              {pc.album.map((c) => (
+                <Item key={c.id} c={c} />
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+      <div className="shrink-0 p-3 border-t border-slate-200">
+        <button
+          onClick={onSubmit}
+          disabled={pc.blocked}
+          className="w-full h-14 rounded bg-[#3a8fdb] disabled:bg-slate-300 text-white text-[18px] font-bold"
+        >
+          {pc.blocked ? `제출할 수 없습니다 — 빨간불 ${fails}개` : '제출'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /** 근거 보기 — 사진 위에 AI가 근거로 짚은 자리를 상자로, 아래에 장면 항목을 장별로 */
 function EvidenceSheet({ shots, result, onClose }: { shots: Shot[]; result: VisionResult; onClose: () => void }) {
