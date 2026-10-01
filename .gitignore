@@ -11,3 +11,6 @@ dist
 data/samples/*
 !data/samples/README.md
 !data/samples/answers.csv
+
+# 수집 스크립트가 받아 둔 원본 페이지
+.cache/

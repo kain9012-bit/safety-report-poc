@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { clearDraft, loadDraft } from './lib/draft';
 import { reverseGeocode } from './lib/reverseGeocode';
+import { loadNearby } from './lib/facilities';
+import { recommend } from './lib/recommend';
 import type { AddressState } from './lib/reverseGeocode';
 import { PhoneFrame, ProtoNotice } from './components/Ui';
 import CaptureScreen from './components/CaptureScreen';
 import ReportForm from './components/ReportForm';
-import type { PickedAddress } from './components/ReportForm';
+import type { PickedAddress, TypeInfo } from './components/ReportForm';
 import { locatedShot } from './types/report';
 import type { DraftReport, EditableField, Shot } from './types/report';
 
@@ -22,6 +24,7 @@ export default function App() {
   const [step, setStep] = useState<Step>('form');
   const [draft, setDraft] = useState<DraftReport>({ shots: [] });
   const [addressState, setAddressState] = useState<AddressState>('idle');
+  const [typeInfo, setTypeInfo] = useState<TypeInfo>({ state: 'idle', candidates: [], missing: [] });
 
   // 요구사항 R7 — 앱을 껐다 켜도 찍던 사진이 남아 있다.
   useEffect(() => {
@@ -58,6 +61,27 @@ export default function App() {
     // 첫 컷이 바뀌거나, 직접 입력을 되돌렸을 때만 다시 찾는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [first?.takenAt, manualAddress]);
+
+  // 사진 좌표 → 주변 시설 → 위반유형 추천. 사람이 고른 유형은 덮어쓰지 않는다.
+  useEffect(() => {
+    if (!first || first.lat === undefined || first.lng === undefined) {
+      setTypeInfo({ state: 'idle', candidates: [], missing: [] });
+      return;
+    }
+    let stale = false;
+    const at = { lat: first.lat, lng: first.lng, accuracy: first.accuracy };
+    setTypeInfo({ state: 'loading', candidates: [], missing: [] });
+    void loadNearby(at).then((n) => {
+      if (stale) return;
+      const candidates = recommend(at, n);
+      setTypeInfo({ state: n.state, candidates, missing: n.missing });
+      setDraft((prev) => (prev.manual?.type ? prev : { ...prev, type: candidates[0]?.type }));
+    });
+    return () => {
+      stale = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first?.takenAt]);
 
   const onCaptured = (shots: Shot[]) => {
     setDraft((prev) => ({ ...prev, shots }));
@@ -97,6 +121,7 @@ export default function App() {
           <ReportForm
             draft={draft}
             addressState={addressState}
+            typeInfo={typeInfo}
             onCapture={() => setStep('capture')}
             onEdit={onEdit}
             onPickAddress={onPickAddress}

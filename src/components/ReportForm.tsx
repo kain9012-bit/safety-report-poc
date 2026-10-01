@@ -16,6 +16,8 @@ import type { ReactNode } from 'react';
 import { formatStamp } from '../lib/camera';
 import { BODY_MAX, BODY_MIN, composeBody } from '../lib/compose';
 import { reverseGeocode } from '../lib/reverseGeocode';
+import type { NearbyState } from '../lib/facilities';
+import type { Candidate } from '../lib/recommend';
 import type { AddressState } from '../lib/reverseGeocode';
 import type { LatLng } from './PickMap';
 import { intervalSeconds, isValidPlate } from '../lib/rules';
@@ -25,12 +27,19 @@ import type { DraftReport, EditableField, ViolationType } from '../types/report'
 interface Props {
   draft: DraftReport;
   addressState: AddressState;
+  typeInfo: TypeInfo;
   onCapture: () => void;
   /** 사람이 칸을 고쳤다. value가 undefined면 자동 값으로 되돌린다. */
   onEdit: (field: EditableField, value: string | undefined) => void;
   /** 위치찾기에서 고른 주소 */
   onPickAddress: (a: PickedAddress) => void;
   onReset: () => void;
+}
+
+export interface TypeInfo {
+  state: 'idle' | 'loading' | NearbyState;
+  candidates: Candidate[];
+  missing: string[];
 }
 
 export interface PickedAddress {
@@ -45,7 +54,7 @@ const PickMap = lazy(() => import('./PickMap'));
 /** 사진에 좌표가 없을 때 지도를 펼칠 자리 — 전주시청 */
 const DEFAULT_ORIGIN: LatLng = { lat: 35.8242, lng: 127.148 };
 
-type Source = 'gps' | 'photo' | 'cross' | 'auto' | 'manual' | 'map';
+type Source = 'gps' | 'photo' | 'cross' | 'auto' | 'manual' | 'map' | 'likely' | 'possible';
 
 const SOURCE: Record<Source, { cls: string; text: string }> = {
   gps: { cls: 'bg-blue-50 text-blue-700 border-blue-200', text: '사진 좌표에서 자동' },
@@ -54,6 +63,8 @@ const SOURCE: Record<Source, { cls: string; text: string }> = {
   auto: { cls: 'bg-green-50 text-green-700 border-green-200', text: '자동 작성' },
   manual: { cls: 'bg-slate-50 text-slate-600 border-slate-300', text: '직접 입력' },
   map: { cls: 'bg-slate-50 text-slate-600 border-slate-300', text: '지도에서 선택' },
+  likely: { cls: 'bg-blue-50 text-blue-700 border-blue-200', text: '좌표 추천 · 유력' },
+  possible: { cls: 'bg-amber-50 text-amber-800 border-amber-200', text: '좌표 추천 · 확인 필요' },
 };
 
 /**
@@ -69,7 +80,7 @@ const SOURCE: Record<Source, { cls: string; text: string }> = {
  *
  * 기관 로고·명칭, 범죄예방·로그인 메뉴, 행사 배너는 옮기지 않는다 — 실제 기관 화면으로 오인되면 안 된다.
  */
-export default function ReportForm({ draft, addressState, onCapture, onEdit, onPickAddress, onReset }: Props) {
+export default function ReportForm({ draft, addressState, typeInfo, onCapture, onEdit, onPickAddress, onReset }: Props) {
   const [sheet, setSheet] = useState<'why' | 'type' | 'place' | null>(null);
   const [agree, setAgree] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -197,15 +208,12 @@ export default function ReportForm({ draft, addressState, onCapture, onEdit, onP
                 </OutlineButton>
               }
             />
-            {draft.type ? (
-              <Value source={manual.type ? 'manual' : 'cross'}>{VIOLATION_LABEL[draft.type]}</Value>
-            ) : (
-              <Changed muted>
-                {hasShots
-                  ? '좌표와 사진으로 추천합니다 — 공공데이터 연결 전이라 아직 비어 있습니다'
-                  : '찍기 전에 고르지 않습니다. 사진으로 추천합니다'}
-              </Changed>
-            )}
+            <TypeValue
+              draft={draft}
+              info={typeInfo}
+              hasShots={hasShots}
+              onPick={(t) => onEdit('type', t)}
+            />
           </section>
 
           {/* ===== 발생지역 ===== */}
@@ -467,6 +475,68 @@ function Value({ source, children, extra }: { source: Source; children: ReactNod
 function Changed({ children, muted }: { children: ReactNode; muted?: boolean }) {
   return (
     <p className={`mt-2 text-[14px] ${muted ? 'text-slate-500 pl-9' : 'text-blue-700 font-bold'}`}>{children}</p>
+  );
+}
+
+/** 위반유형 값 — 좌표 추천이면 근거 한 줄과 다른 후보를 같이 보여준다 */
+function TypeValue({
+  draft,
+  info,
+  hasShots,
+  onPick,
+}: {
+  draft: DraftReport;
+  info: TypeInfo;
+  hasShots: boolean;
+  onPick: (t: ViolationType) => void;
+}) {
+  const manual = Boolean(draft.manual?.type);
+  const cand = info.candidates.find((c) => c.type === draft.type);
+  const others = info.candidates.filter((c) => c.type !== draft.type);
+  const missingLine = info.missing.length > 0 && (
+    <p className="mt-1 text-[13px] text-slate-500">아직 못 본 자료: {info.missing.join(', ')}</p>
+  );
+
+  if (draft.type) {
+    return (
+      <>
+        <Value source={manual ? 'manual' : cand ? cand.level : 'cross'}>{VIOLATION_LABEL[draft.type]}</Value>
+        <div className="pl-9">
+          {!manual && cand && <p className="mt-1 text-[14px] text-slate-600">{cand.reason}</p>}
+          {others.length > 0 && (
+            <div className="mt-2 flex items-center gap-1.5 flex-wrap text-[13px] text-slate-500">
+              다른 후보
+              {others.map((c) => (
+                <button
+                  key={c.type}
+                  onClick={() => onPick(c.type)}
+                  className="px-2 py-0.5 rounded border border-slate-300 text-slate-700 font-bold"
+                >
+                  {VIOLATION_LABEL[c.type]}
+                </button>
+              ))}
+            </div>
+          )}
+          {!manual && missingLine}
+        </div>
+      </>
+    );
+  }
+
+  if (!hasShots && info.state === 'idle') {
+    return <Changed muted>찍기 전에 고르지 않습니다. 사진 좌표로 추천합니다</Changed>;
+  }
+  return (
+    <div className="pl-9 mt-2">
+      <p className="text-[14px] text-slate-500">
+        {info.state === 'loading'
+          ? '주변 버스정류장·횡단보도·어린이보호구역을 찾는 중…'
+          : info.state === 'idle'
+            ? '사진에 좌표가 있어야 추천할 수 있습니다'
+            : '기준 거리 안에 버스정류장·횡단보도·어린이보호구역이 없습니다. 교차로 모퉁이·인도 등은 유형선택에서 골라 주세요'}
+      </p>
+      {missingLine}
+    </div>
   );
 }
 
