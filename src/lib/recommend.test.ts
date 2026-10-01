@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recommend } from './recommend';
-import { cellsAround, mergeCells } from './facilities';
+import { cellsAround, mergeCells, mergeStops } from './facilities';
 import { parseTago, tagoUrl } from '../../api/stops';
 
 const BASE = { lat: 35.8242, lng: 127.148 };
@@ -63,6 +63,17 @@ describe('격자 파일', () => {
     const m = mergeCells([{ c: [[35.1, 127.1]], s: [[35.2, 127.2, '초등학교']] }, null, { c: [[35.3, 127.3]] }]);
     expect(m.crosswalks).toHaveLength(2);
     expect(m.schools[0].name).toBe('초등학교');
+  });
+});
+
+describe('정류장 합치기', () => {
+  it('실시간과 파일이 3m 안에서 겹치면 하나로, 떨어져 있으면 둘 다', () => {
+    const live = [{ id: 'L', name: '실시간', ...north(0) }];
+    const file = [{ id: 'F1', name: '파일', ...north(1) }, { id: 'F2', name: '파일2', ...north(30) }];
+    expect(mergeStops(live, file).map((s) => s.id)).toEqual(['L', 'F2']);
+  });
+  it('격자 파일의 정류장(b)도 읽는다 — 서울은 실시간 API에 없다', () => {
+    expect(mergeCells([{ b: [[37.5665, 126.978, '시청앞']] }]).busstops[0].name).toBe('시청앞');
   });
 });
 

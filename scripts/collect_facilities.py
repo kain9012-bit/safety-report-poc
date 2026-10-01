@@ -6,6 +6,8 @@
 
 - 키: .env.local 의 DATA_GO_KR_KEY (Decoding 키). 키는 출력하지 않는다.
 - 범위: 서울특별시 · 전북특별자치도(전라북도)
+- 버스정류장: 국토교통부 전국 버스정류장 위치정보(파일, 15067528)도 함께 넣는다.
+  실시간 API(TAGO)에는 서울 정류장이 없어서다. 파일은 키 없이 받는다(연 1회 갱신).
 - 결과: public/fac/{위도칸}_{경도칸}.json  (0.01° 격자, src/lib/facilities.ts 와 같은 규칙)
         public/fac/meta.json                (수집 시각·건수)
 - 표준데이터는 반기마다 갱신된다. 갱신되면 이 스크립트를 다시 돌린다.
@@ -15,6 +17,8 @@
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 import math
 import pathlib
@@ -74,7 +78,8 @@ def get(url: str, params: dict, tries: int = 4) -> dict:
 
 
 def body(j: dict) -> tuple[int, list[dict]]:
-    r = j.get("response", {})
+    # 표준데이터 API는 response 껍질 없이 header/body 가 바로 온다
+    r = j.get("response") or j
     code = r.get("header", {}).get("resultCode")
     if code not in ("00", "0", None):
         if code == "03":  # NODATA
@@ -99,7 +104,11 @@ def fetch_all(kind: str, url: str, key: str) -> list[dict]:
     all_n = total(url, key, {})
     filters: list[dict] = []
     for name in REGION_NAMES:
-        n = total(url, key, {"ctprvnNm": name})
+        try:
+            n = total(url, key, {"ctprvnNm": name})
+        except RuntimeError:  # 시도명 필터를 받지 않는 API도 있다
+            filters = []
+            break
         if 0 < n < all_n:
             filters.append({"ctprvnNm": name})
     if not filters:
@@ -124,6 +133,53 @@ def fetch_all(kind: str, url: str, key: str) -> list[dict]:
             rows.extend(items)
             print(f"[{kind}] {tag} {page}/{pages}쪽 · 누적 {len(rows):,}건", flush=True)
     return rows
+
+
+BUS_DATASET = ("15067528", "uddi:f74b9799-9db1-4754-a5d0-b66e2ae705f3")
+BUS_CITY_PREFIX = ("서울특별시", "전라북도", "전북특별자치도")
+
+
+def fetch_bus_file() -> list[tuple[float, float, str]]:
+    """공공데이터포털 파일데이터 내려받기 — 화면의 [다운로드] 단추와 같은 두 단계 요청."""
+    cp = CACHE / "bus.csv"
+    if not cp.exists():
+        pk, detail = BUS_DATASET
+        req = urllib.request.Request(
+            "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+            data=urllib.parse.urlencode({
+                "publicDataDetailPk": detail, "publicDataPk": pk, "atchFileId": "",
+                "fileDetailSn": "1", "publicDataTyCode": "PR0051",
+            }).encode(),
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        with urllib.request.urlopen(req, timeout=60) as r:
+            info = json.loads(r.read().decode("utf-8"))
+        url = ("https://www.data.go.kr/cmm/cmm/fileDownload.do?"
+               f"atchFileId={info['atchFileId']}&fileDetailSn={info['fileDetailSn']}&insertDataPrcus=N")
+        with urllib.request.urlopen(url, timeout=180) as r:
+            cp.write_bytes(r.read())
+    raw = cp.read_bytes()
+    for enc in ("utf-8-sig", "cp949"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    rows = list(csv.reader(io.StringIO(text)))
+    h = rows[0]
+    i_name, i_lat, i_lng, i_city = h.index("정류장명"), h.index("위도"), h.index("경도"), h.index("도시명")
+    out = []
+    for row in rows[1:]:
+        if not row[i_city].startswith(BUS_CITY_PREFIX):
+            continue
+        try:
+            lat, lng = float(row[i_lat]), float(row[i_lng])
+        except ValueError:
+            continue
+        if 32.5 < lat < 39 and 124 < lng < 132.5:
+            out.append((round(lat, 6), round(lng, 6), row[i_name].strip()))
+    print(f"[bus] 서울·전북 정류장 {len(out):,}곳", flush=True)
+    return out
 
 
 def in_region(row: dict) -> bool:
@@ -188,6 +244,15 @@ def main() -> None:
                 d.setdefault("s", []).append([c[0], c[1], school_name(row)])
             counts[kind] += 1
 
+    counts["bus"] = 0
+    for lat, lng, name in fetch_bus_file():
+        if ("bus", (lat, lng)) in seen:
+            continue
+        seen.add(("bus", (lat, lng)))
+        cell = f"{math.floor(lat / CELL_DEG)}_{math.floor(lng / CELL_DEG)}"
+        cells.setdefault(cell, {}).setdefault("b", []).append([lat, lng, name])
+        counts["bus"] += 1
+
     if counts["crosswalk"] + counts["school"] == 0:
         sys.exit("모은 시설이 0건입니다. 지역 필터나 항목 이름을 확인해야 합니다. 파일은 그대로 둡니다.")
 
@@ -205,11 +270,12 @@ def main() -> None:
         "sources": {
             "crosswalk": "공공데이터포털 전국횡단보도표준데이터 (15028201)",
             "school": "공공데이터포털 전국어린이보호구역표준데이터 (15012891)",
+            "bus": "공공데이터포털 국토교통부_전국 버스정류장 위치정보 (15067528, 파일)",
         },
     }
     (OUT / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     size = sum(p.stat().st_size for p in OUT.glob("*.json"))
-    print(f"완료: 칸 {len(cells):,}개 · 횡단보도 {counts['crosswalk']:,} · 보호구역 {counts['school']:,} · {size/1024:.0f}KB", flush=True)
+    print(f"완료: 칸 {len(cells):,}개 · 횡단보도 {counts['crosswalk']:,} · 보호구역 {counts['school']:,} · 정류장 {counts['bus']:,} · {size/1024:.0f}KB", flush=True)
     print(json.dumps(counts, ensure_ascii=False), flush=True)
 
 
