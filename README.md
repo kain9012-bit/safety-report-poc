@@ -59,6 +59,9 @@ npm run build
 | `DATA_GO_KR_KEY` | 공공데이터포털 표준데이터(소화전·횡단보도·버스정류장·어린이보호구역) |
 | `VWORLD_KEY` / `KAKAO_REST_KEY` | 좌표 → 도로명주소 (`api/address.ts`). 브이월드가 있으면 브이월드, 없으면 카카오 |
 | `VWORLD_DOMAIN` | 브이월드 키에 등록한 서비스 URL. 키 오류가 날 때만 |
+
+`VWORLD_KEY` 하나로 주소 변환(`api/address.ts`, 지오코더 API)과 위치찾기 지도 타일(`api/tile.ts`, WMTS)을 함께 씁니다.
+브이월드 키 신청 시 **지오코더 API · WMTS/TMS API**(+ 나중을 위해 검색 API · 2D 지도 API)를 체크합니다.
 | `VISION_PROVIDER`, `VISION_API_KEY` | 사진 판독(번호판·장면) |
 | `VITE_DEMO_MODE` | 1이면 키 없이 고정 시나리오로 흐름만 시연(화면에 '시연 모드' 띠 표시) |
 

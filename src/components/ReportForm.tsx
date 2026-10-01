@@ -4,7 +4,6 @@ import {
   CopyPlus,
   FileCheck2,
   Image as ImageIcon,
-  LocateFixed,
   MapPin,
   Menu,
   Pointer,
@@ -12,11 +11,13 @@ import {
   X,
   ZoomIn,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { formatStamp } from '../lib/camera';
 import { BODY_MAX, BODY_MIN, composeBody } from '../lib/compose';
+import { reverseGeocode } from '../lib/reverseGeocode';
 import type { AddressState } from '../lib/reverseGeocode';
+import type { LatLng } from './PickMap';
 import { intervalSeconds, isValidPlate } from '../lib/rules';
 import { VIOLATION_LABEL, locatedShot } from '../types/report';
 import type { DraftReport, EditableField, ViolationType } from '../types/report';
@@ -27,10 +28,24 @@ interface Props {
   onCapture: () => void;
   /** 사람이 칸을 고쳤다. value가 undefined면 자동 값으로 되돌린다. */
   onEdit: (field: EditableField, value: string | undefined) => void;
+  /** 위치찾기에서 고른 주소 */
+  onPickAddress: (a: PickedAddress) => void;
   onReset: () => void;
 }
 
-type Source = 'gps' | 'photo' | 'cross' | 'auto' | 'manual';
+export interface PickedAddress {
+  address: string;
+  parcel?: string;
+  from: 'map' | 'typed';
+}
+
+/** 지도 라이브러리는 위치찾기를 열 때만 받는다 — 현장에서 첫 화면이 빨리 떠야 한다 */
+const PickMap = lazy(() => import('./PickMap'));
+
+/** 사진에 좌표가 없을 때 지도를 펼칠 자리 — 전주시청 */
+const DEFAULT_ORIGIN: LatLng = { lat: 35.8242, lng: 127.148 };
+
+type Source = 'gps' | 'photo' | 'cross' | 'auto' | 'manual' | 'map';
 
 const SOURCE: Record<Source, { cls: string; text: string }> = {
   gps: { cls: 'bg-blue-50 text-blue-700 border-blue-200', text: '사진 좌표에서 자동' },
@@ -38,6 +53,7 @@ const SOURCE: Record<Source, { cls: string; text: string }> = {
   cross: { cls: 'bg-blue-50 text-blue-700 border-blue-200', text: '좌표×사진 추천' },
   auto: { cls: 'bg-green-50 text-green-700 border-green-200', text: '자동 작성' },
   manual: { cls: 'bg-slate-50 text-slate-600 border-slate-300', text: '직접 입력' },
+  map: { cls: 'bg-slate-50 text-slate-600 border-slate-300', text: '지도에서 선택' },
 };
 
 /**
@@ -53,7 +69,7 @@ const SOURCE: Record<Source, { cls: string; text: string }> = {
  *
  * 기관 로고·명칭, 범죄예방·로그인 메뉴, 행사 배너는 옮기지 않는다 — 실제 기관 화면으로 오인되면 안 된다.
  */
-export default function ReportForm({ draft, addressState, onCapture, onEdit, onReset }: Props) {
+export default function ReportForm({ draft, addressState, onCapture, onEdit, onPickAddress, onReset }: Props) {
   const [sheet, setSheet] = useState<'why' | 'type' | 'place' | null>(null);
   const [agree, setAgree] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -203,7 +219,7 @@ export default function ReportForm({ draft, addressState, onCapture, onEdit, onR
                 </OutlineButton>
               }
             />
-            <PlaceValue draft={draft} state={addressState} />
+            <PlaceValue draft={draft} state={addressState} onRevert={() => onEdit('address', undefined)} />
           </section>
 
           {/* ===== 차량번호 — 지금 불법주정차 신고서에는 없는 칸(교통위반 탭에는 있음) ===== */}
@@ -315,12 +331,8 @@ export default function ReportForm({ draft, addressState, onCapture, onEdit, onR
       {sheet === 'place' && (
         <PlaceSheet
           draft={draft}
-          onPick={(addr) => {
-            onEdit('address', addr);
-            setSheet(null);
-          }}
-          onReset={() => {
-            onEdit('address', undefined);
+          onPick={(a) => {
+            onPickAddress(a);
             setSheet(null);
           }}
           onClose={() => setSheet(null)}
@@ -458,7 +470,15 @@ function Changed({ children, muted }: { children: ReactNode; muted?: boolean }) 
   );
 }
 
-function PlaceValue({ draft, state }: { draft: DraftReport; state: AddressState }) {
+function PlaceValue({
+  draft,
+  state,
+  onRevert,
+}: {
+  draft: DraftReport;
+  state: AddressState;
+  onRevert: () => void;
+}) {
   const first = locatedShot(draft.shots);
   const acc = first?.accuracy !== undefined ? `±${Math.round(first.accuracy)}m` : undefined;
   const taken = draft.shots[0];
@@ -466,9 +486,15 @@ function PlaceValue({ draft, state }: { draft: DraftReport; state: AddressState 
   if (draft.address) {
     return (
       <Value
-        source={draft.manual?.address ? 'manual' : 'gps'}
+        source={draft.manual?.address ? (draft.addressFrom === 'map' ? 'map' : 'manual') : 'gps'}
         extra={
-          !draft.manual?.address && (
+          draft.manual?.address ? (
+            first && (
+              <button onClick={onRevert} className="text-xs font-bold text-slate-500 underline underline-offset-2">
+                사진 좌표 주소로 되돌리기
+              </button>
+            )
+          ) : (
             <span className="text-xs text-slate-500">
               {acc}
               {draft.addressParcel && ` · 지번 ${draft.addressParcel.split(' ').slice(-2).join(' ')}`}
@@ -561,23 +587,48 @@ function TypeDialog({
 /**
  * 위치찾기 — 지금 앱과 같은 전체 화면(검색 단추 셋 · 지도 · 주소 · 위치선택).
  * 지금은 여기서 핀을 옮겨야 주소가 들어가지만, 개선안은 사진 좌표로 이미 들어와 있어 고칠 때만 연다.
- * 지도는 지도 키 연결 후 붙이고, 그 전에는 주소를 직접 넣을 수 있게 둔다.
+ * 지도를 끌면 가운데 핀 자리의 주소를 바로 보여주고, '위치선택'으로 그 주소를 넣는다.
  */
 function PlaceSheet({
   draft,
   onPick,
-  onReset,
   onClose,
 }: {
   draft: DraftReport;
-  onPick: (addr: string) => void;
-  onReset: () => void;
+  onPick: (a: PickedAddress) => void;
   onClose: () => void;
 }) {
-  const first = locatedShot(draft.shots);
-  const [addr, setAddr] = useState(draft.address ?? '');
+  const shot = locatedShot(draft.shots);
+  const origin: LatLng = shot ? { lat: shot.lat!, lng: shot.lng! } : DEFAULT_ORIGIN;
+  const [typed, setTyped] = useState('');
+  const [here, setHere] = useState<{ state: 'loading' | 'ok' | 'fail'; road?: string; parcel?: string }>({
+    state: 'loading',
+  });
   const inputRef = useRef<HTMLInputElement>(null);
+  const seq = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const focus = () => inputRef.current?.focus();
+
+  // 지도가 멈추면 가운데 자리의 주소를 찾는다(0.4초 기다렸다가 — 끄는 동안 매번 부르지 않게)
+  const onCenter = (c: LatLng) => {
+    clearTimeout(timer.current);
+    const my = ++seq.current;
+    setHere({ state: 'loading' });
+    timer.current = setTimeout(() => {
+      void reverseGeocode(c.lat, c.lng).then((r) => {
+        if (my !== seq.current) return;
+        setHere(r.state === 'ok' ? { state: 'ok', road: r.road, parcel: r.parcel } : { state: 'fail' });
+      });
+    }, 400);
+  };
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const hereText = here.road ?? here.parcel;
+  const pick = () => {
+    if (typed.trim()) onPick({ address: typed.trim(), from: 'typed' });
+    else if (here.state === 'ok' && hereText)
+      onPick({ address: hereText, parcel: here.road ? here.parcel : undefined, from: 'map' });
+  };
 
   return (
     <div className="absolute inset-0 z-30 bg-white flex flex-col">
@@ -589,56 +640,38 @@ function PlaceSheet({
           <button onClick={focus} className="h-12 rounded-sm bg-green-600 text-white text-[16px]">키워드검색</button>
         </div>
 
-        {/* 지도 자리 */}
-        <div className="relative mt-3 aspect-square border border-slate-300 bg-slate-100 overflow-hidden">
-          <div
-            className="absolute inset-0 opacity-60"
-            style={{
-              backgroundImage:
-                'linear-gradient(#cbd5e1 1px, transparent 1px), linear-gradient(90deg, #cbd5e1 1px, transparent 1px)',
-              backgroundSize: '32px 32px',
-            }}
-            aria-hidden="true"
-          />
-          <button
-            onClick={onReset}
-            className="absolute top-3 left-3 w-[76px] h-[76px] rounded-full bg-[#3a8fdb] text-white text-[14px] leading-tight flex flex-col items-center justify-center"
-          >
-            <LocateFixed className="w-5 h-5" aria-hidden="true" />
-            위치
-            <br />
-            초기화
-          </button>
-          <MapPin
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full w-11 h-11 text-[#3a8fdb] fill-[#3a8fdb]/30"
-            aria-hidden="true"
-          />
-          <p className="absolute bottom-2 inset-x-2 text-center text-[13px] text-slate-500">
-            지도는 지도 키 연결 후 표시됩니다
-          </p>
+        <div className="mt-3">
+          <Suspense fallback={<div className="aspect-square border border-slate-300 bg-slate-100" />}>
+            <PickMap origin={origin} accuracy={shot?.accuracy} onCenter={onCenter} />
+          </Suspense>
         </div>
 
-        <p className="mt-4 text-[22px] text-slate-900 leading-snug">
-          {draft.address ??
-            (first ? `${first.lat!.toFixed(5)}, ${first.lng!.toFixed(5)}` : '사진에 좌표가 없습니다')}
+        <p className="mt-4 text-[22px] text-slate-900 leading-snug min-h-[1.4em]">
+          {here.state === 'loading' ? (
+            <span className="text-slate-400">주소 찾는 중…</span>
+          ) : here.state === 'ok' ? (
+            hereText
+          ) : (
+            <span className="text-slate-500 text-[17px]">이 자리의 주소를 찾지 못했습니다. 지도를 조금 옮겨 보세요.</span>
+          )}
         </p>
-        {first && first.accuracy !== undefined && (
-          <p className="mt-1 text-[14px] text-slate-500">
-            사진을 찍은 자리 · 정확도 ±{Math.round(first.accuracy)}m
-            {first.accuracy > 10 && ' — 오차가 커서 옆 건물로 잡힐 수 있습니다'}
-          </p>
-        )}
+        <p className="mt-1 text-[14px] text-slate-500">
+          {shot
+            ? `파란 원은 사진을 찍은 자리의 GPS 오차 범위(±${Math.round(shot.accuracy ?? 0)}m)입니다`
+            : '사진에 좌표가 없어 기본 위치에서 시작합니다. 지도를 끌어 핀을 맞춰 주세요'}
+        </p>
 
         <input
           ref={inputRef}
-          value={addr}
-          onChange={(e) => setAddr(e.target.value)}
-          placeholder="주소 직접 입력 (예: 전주시 완산구 노송광장로 10)"
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          placeholder="지도에서 못 찾으면 주소 직접 입력"
           className="mt-4 w-full h-12 px-4 rounded border border-slate-300 bg-slate-100 text-[17px] placeholder:text-[15px] placeholder:text-slate-400"
         />
         <button
-          onClick={() => (addr.trim() ? onPick(addr.trim()) : onClose())}
-          className="mt-4 w-full h-14 rounded-sm bg-[#3a8fdb] text-white text-[21px]"
+          onClick={pick}
+          disabled={!typed.trim() && here.state !== 'ok'}
+          className="mt-4 w-full h-14 rounded-sm bg-[#3a8fdb] text-white text-[21px] disabled:opacity-50"
         >
           위치선택
         </button>

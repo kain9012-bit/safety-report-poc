@@ -39,6 +39,8 @@ export interface DraftReport {
   address?: string;
   /** 도로명과 함께 받은 지번주소(참고용) */
   addressParcel?: string;
+  /** 사람이 고른 주소의 출처 — 위치찾기 지도에서 골랐는지, 글자로 쳤는지 */
+  addressFrom?: 'map' | 'typed';
   plate?: string;
   type?: ViolationType;
   /** 좌표로 계산한 유형 후보와 사진으로 판독한 유형이 엇갈리면 사람에게 묻는다. */

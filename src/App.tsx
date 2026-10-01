@@ -5,6 +5,7 @@ import type { AddressState } from './lib/reverseGeocode';
 import { PhoneFrame, ProtoNotice } from './components/Ui';
 import CaptureScreen from './components/CaptureScreen';
 import ReportForm from './components/ReportForm';
+import type { PickedAddress } from './components/ReportForm';
 import { locatedShot } from './types/report';
 import type { DraftReport, EditableField, Shot } from './types/report';
 
@@ -67,8 +68,18 @@ export default function App() {
     setDraft((prev) => ({
       ...prev,
       [field]: value,
-      ...(field === 'address' ? { addressParcel: undefined } : {}),
+      ...(field === 'address' ? { addressParcel: undefined, addressFrom: undefined } : {}),
       manual: { ...prev.manual, [field]: value !== undefined },
+    }));
+  };
+
+  const onPickAddress = (a: PickedAddress) => {
+    setDraft((prev) => ({
+      ...prev,
+      address: a.address,
+      addressParcel: a.parcel,
+      addressFrom: a.from,
+      manual: { ...prev.manual, address: true },
     }));
   };
 
@@ -88,6 +99,7 @@ export default function App() {
             addressState={addressState}
             onCapture={() => setStep('capture')}
             onEdit={onEdit}
+            onPickAddress={onPickAddress}
             onReset={onReset}
           />
         ) : (

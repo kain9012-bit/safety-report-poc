@@ -11,16 +11,19 @@ function devApi(): Plugin {
   return {
     name: 'dev-api',
     configureServer(server) {
-      server.middlewares.use('/api/address', async (req, res) => {
+      // /api/<이름> → api/<이름>.ts 의 GET
+      server.middlewares.use('/api', async (req, res, next) => {
+        const url = new URL(req.originalUrl ?? req.url ?? '/', 'http://localhost')
+        const name = url.pathname.replace(/^\/api\//, '')
+        if (!/^[a-z]+$/.test(name)) return next()
         try {
-          const mod = (await server.ssrLoadModule('/api/address.ts')) as {
+          const mod = (await server.ssrLoadModule(`/api/${name}.ts`)) as {
             GET: (r: Request) => Promise<Response>
           }
-          const url = new URL(req.originalUrl ?? req.url ?? '/', 'http://localhost')
           const out = await mod.GET(new Request(url))
           res.statusCode = out.status
           out.headers.forEach((v, k) => res.setHeader(k, v))
-          res.end(await out.text())
+          res.end(Buffer.from(await out.arrayBuffer()))
         } catch (e) {
           res.statusCode = 500
           res.end(JSON.stringify({ error: 'dev_api', message: String(e) }))
