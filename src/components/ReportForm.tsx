@@ -18,6 +18,10 @@ import { BODY_MAX, BODY_MIN, composeBody } from '../lib/compose';
 import { reverseGeocode } from '../lib/reverseGeocode';
 import type { NearbyState } from '../lib/facilities';
 import type { Candidate } from '../lib/recommend';
+import type { Coverage, Verdict } from '../lib/crosscheck';
+import type { VisionState } from '../lib/vision';
+import type { VisionResult } from '../../api/vision';
+import { PLATE_CONFIDENCE_FLOOR } from '../lib/rules';
 import type { AddressState } from '../lib/reverseGeocode';
 import type { LatLng } from './PickMap';
 import { intervalSeconds, isValidPlate } from '../lib/rules';
@@ -28,6 +32,9 @@ interface Props {
   draft: DraftReport;
   addressState: AddressState;
   typeInfo: TypeInfo;
+  vision: { state: VisionState; result?: VisionResult };
+  verdict: Verdict;
+  onRetryVision: () => void;
   onCapture: () => void;
   /** 사람이 칸을 고쳤다. value가 undefined면 자동 값으로 되돌린다. */
   onEdit: (field: EditableField, value: string | undefined) => void;
@@ -40,6 +47,7 @@ export interface TypeInfo {
   state: 'idle' | 'loading' | NearbyState;
   candidates: Candidate[];
   missing: string[];
+  coverage: Coverage;
 }
 
 export interface PickedAddress {
@@ -54,7 +62,7 @@ const PickMap = lazy(() => import('./PickMap'));
 /** 사진에 좌표가 없을 때 지도를 펼칠 자리 — 전주시청 */
 const DEFAULT_ORIGIN: LatLng = { lat: 35.8242, lng: 127.148 };
 
-type Source = 'gps' | 'photo' | 'cross' | 'auto' | 'manual' | 'map' | 'likely' | 'possible';
+type Source = 'gps' | 'photo' | 'cross' | 'auto' | 'manual' | 'map' | 'likely' | 'possible' | 'verified' | 'conflict';
 
 const SOURCE: Record<Source, { cls: string; text: string }> = {
   gps: { cls: 'bg-blue-50 text-blue-700 border-blue-200', text: '사진 좌표에서 자동' },
@@ -65,6 +73,8 @@ const SOURCE: Record<Source, { cls: string; text: string }> = {
   map: { cls: 'bg-slate-50 text-slate-600 border-slate-300', text: '지도에서 선택' },
   likely: { cls: 'bg-blue-50 text-blue-700 border-blue-200', text: '좌표 추천 · 유력' },
   possible: { cls: 'bg-amber-50 text-amber-800 border-amber-200', text: '좌표 추천 · 확인 필요' },
+  verified: { cls: 'bg-green-50 text-green-700 border-green-200', text: '좌표×사진 교차검증' },
+  conflict: { cls: 'bg-red-50 text-red-700 border-red-200', text: '좌표·사진 엇갈림 · 확인 필요' },
 };
 
 /**
@@ -80,7 +90,7 @@ const SOURCE: Record<Source, { cls: string; text: string }> = {
  *
  * 기관 로고·명칭, 범죄예방·로그인 메뉴, 행사 배너는 옮기지 않는다 — 실제 기관 화면으로 오인되면 안 된다.
  */
-export default function ReportForm({ draft, addressState, typeInfo, onCapture, onEdit, onPickAddress, onReset }: Props) {
+export default function ReportForm({ draft, addressState, typeInfo, vision, verdict, onRetryVision, onCapture, onEdit, onPickAddress, onReset }: Props) {
   const [sheet, setSheet] = useState<'why' | 'type' | 'place' | null>(null);
   const [agree, setAgree] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -196,6 +206,7 @@ export default function ReportForm({ draft, addressState, typeInfo, onCapture, o
                 ? `${Math.floor(intervalSeconds(first.takenAt, second.takenAt))}초 간격 · 촬영시각과 좌표가 사진에 찍혔습니다`
                 : '사진부터 찍으면 아래 칸이 자동으로 채워집니다'}
             </Changed>
+            {hasShots && <VisionLine vision={vision} onRetry={onRetryVision} />}
           </section>
 
           {/* ===== 불법 주정차 신고 (유형선택) ===== */}
@@ -211,6 +222,8 @@ export default function ReportForm({ draft, addressState, typeInfo, onCapture, o
             <TypeValue
               draft={draft}
               info={typeInfo}
+              verdict={verdict}
+              photoLoading={vision.state === 'loading'}
               hasShots={hasShots}
               onPick={(t) => onEdit('type', t)}
             />
@@ -236,12 +249,16 @@ export default function ReportForm({ draft, addressState, typeInfo, onCapture, o
             <input
               value={draft.plate ?? ''}
               onChange={(e) => onEdit('plate', e.target.value || undefined)}
-              placeholder={first ? '판독 연결 전 — 직접 입력 (예: 12가3456)' : '사진에서 번호판을 읽어 채웁니다'}
+              placeholder={
+                vision.state === 'loading'
+                  ? '사진에서 번호판을 읽는 중…'
+                  : first
+                    ? '직접 입력 (예: 12가3456)'
+                    : '사진에서 번호판을 읽어 채웁니다'
+              }
               className="mt-3 w-full h-12 px-4 rounded border border-slate-300 bg-slate-100 text-[18px] tabular-nums placeholder:text-[15px] placeholder:text-slate-400"
             />
-            {draft.plate && !plateOk && (
-              <p className="mt-1 text-sm text-red-600">형식이 맞지 않습니다. 예: 12가3456, 123가4567</p>
-            )}
+            <PlateNote draft={draft} vision={vision} plateOk={plateOk} />
           </section>
 
           {/* ===== 내용 ===== */}
@@ -478,41 +495,62 @@ function Changed({ children, muted }: { children: ReactNode; muted?: boolean }) 
   );
 }
 
-/** 위반유형 값 — 좌표 추천이면 근거 한 줄과 다른 후보를 같이 보여준다 */
+/** 위반유형 값 — 좌표 추천과 사진 판독을 맞대어 본 결과(crosscheck)와 그 근거 두 줄 */
 function TypeValue({
   draft,
   info,
+  verdict,
+  photoLoading,
   hasShots,
   onPick,
 }: {
   draft: DraftReport;
   info: TypeInfo;
+  verdict: Verdict;
+  photoLoading: boolean;
   hasShots: boolean;
   onPick: (t: ViolationType) => void;
 }) {
   const manual = Boolean(draft.manual?.type);
-  const cand = info.candidates.find((c) => c.type === draft.type);
-  const others = info.candidates.filter((c) => c.type !== draft.type);
+  const others = (manual ? [verdict.type, ...verdict.alternatives] : verdict.alternatives).filter(
+    (t): t is ViolationType => Boolean(t) && t !== draft.type,
+  );
   const missingLine = info.missing.length > 0 && (
     <p className="mt-1 text-[13px] text-slate-500">아직 못 본 자료: {info.missing.join(', ')}</p>
   );
+  const why = !manual && (
+    <>
+      {verdict.coordReason && (
+        <p className="mt-1 text-[14px] text-slate-600">
+          <b className="text-slate-800">좌표</b> {verdict.coordReason}
+        </p>
+      )}
+      {verdict.photoReason && (
+        <p className="mt-0.5 text-[14px] text-slate-600">
+          <b className="text-slate-800">사진</b> {verdict.photoReason}
+        </p>
+      )}
+      {photoLoading && <p className="mt-0.5 text-[13px] text-slate-500">사진 판독 결과를 기다리는 중…</p>}
+    </>
+  );
 
   if (draft.type) {
+    const src: Source = manual ? 'manual' : verdict.source === 'none' ? 'cross' : verdict.source;
     return (
       <>
-        <Value source={manual ? 'manual' : cand ? cand.level : 'cross'}>{VIOLATION_LABEL[draft.type]}</Value>
+        <Value source={src}>{VIOLATION_LABEL[draft.type]}</Value>
         <div className="pl-9">
-          {!manual && cand && <p className="mt-1 text-[14px] text-slate-600">{cand.reason}</p>}
+          {why}
           {others.length > 0 && (
             <div className="mt-2 flex items-center gap-1.5 flex-wrap text-[13px] text-slate-500">
               다른 후보
-              {others.map((c) => (
+              {others.map((t) => (
                 <button
-                  key={c.type}
-                  onClick={() => onPick(c.type)}
+                  key={t}
+                  onClick={() => onPick(t)}
                   className="px-2 py-0.5 rounded border border-slate-300 text-slate-700 font-bold"
                 >
-                  {VIOLATION_LABEL[c.type]}
+                  {VIOLATION_LABEL[t]}
                 </button>
               ))}
             </div>
@@ -524,20 +562,84 @@ function TypeValue({
   }
 
   if (!hasShots && info.state === 'idle') {
-    return <Changed muted>찍기 전에 고르지 않습니다. 사진 좌표로 추천합니다</Changed>;
+    return <Changed muted>찍기 전에 고르지 않습니다. 사진과 좌표로 추천합니다</Changed>;
   }
   return (
     <div className="pl-9 mt-2">
       <p className="text-[14px] text-slate-500">
-        {info.state === 'loading'
-          ? '주변 버스정류장·횡단보도·어린이보호구역을 찾는 중…'
-          : info.state === 'idle'
-            ? '사진에 좌표가 있어야 추천할 수 있습니다'
-            : '기준 거리 안에 버스정류장·횡단보도·어린이보호구역이 없습니다. 교차로 모퉁이·인도 등은 유형선택에서 골라 주세요'}
+        {info.state === 'loading' || photoLoading
+          ? '사진과 주변 시설을 확인하는 중…'
+          : '사진과 좌표 모두에서 위반 유형을 찾지 못했습니다. 유형선택에서 골라 주세요'}
       </p>
       {missingLine}
     </div>
   );
+}
+
+/** 사진 판독 상태 한 줄 — 무엇을 보냈고, 두 장이 요건에 맞는지 */
+function VisionLine({ vision, onRetry }: { vision: { state: VisionState; result?: VisionResult }; onRetry: () => void }) {
+  const r = vision.result;
+  const msg: Record<VisionState, string> = {
+    idle: '',
+    loading: '사진 판독 중… (10초 안팎)',
+    ok: '사진 판독 완료',
+    no_key: '사진 판독 키가 연결되지 않았습니다',
+    rate_limited: '사진 판독 한도에 걸렸습니다. 잠시 후 다시 시도해 주세요',
+    busy: '판독 서버가 붐빕니다. 잠시 후 다시 시도해 주세요',
+    error: '사진 판독에 실패했습니다',
+  };
+  const retry = vision.state === 'rate_limited' || vision.state === 'busy' || vision.state === 'error';
+  return (
+    <div className="mt-1.5 text-[13px] text-slate-500 space-y-0.5">
+      <p>
+        {msg[vision.state]}
+        {retry && (
+          <button onClick={onRetry} className="ml-2 font-bold text-blue-700 underline underline-offset-2">
+            다시 판독
+          </button>
+        )}
+      </p>
+      {r && (r.sameVehicle === 'no' || r.sameSpot === 'no') && (
+        <p className="text-red-600 font-bold">
+          {r.sameVehicle === 'no' ? '두 장의 차가 달라 보입니다' : '두 장의 찍은 자리가 달라 보입니다'} — 반려될 수 있습니다
+        </p>
+      )}
+      <p className="text-[12px] text-slate-400">판독을 위해 사진을 Google Gemini로 보냅니다(시제품 · 테스트 사진만)</p>
+    </div>
+  );
+}
+
+/** 차량번호 아래 한 줄 — 사진에서 읽었으면 출처와 신뢰도, 못 읽었으면 왜 비웠는지 */
+function PlateNote({
+  draft,
+  vision,
+  plateOk,
+}: {
+  draft: DraftReport;
+  vision: { state: VisionState; result?: VisionResult };
+  plateOk: boolean;
+}) {
+  const r = vision.result;
+  if (draft.plate && !plateOk) {
+    return <p className="mt-1 text-sm text-red-600">형식이 맞지 않습니다. 예: 12가3456, 123가4567</p>;
+  }
+  if (draft.plate && !draft.manual?.plate && r) {
+    return (
+      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+        <span className={`px-2 py-0.5 rounded border text-xs font-bold ${SOURCE.photo.cls}`}>{SOURCE.photo.text}</span>
+        <span className="text-[13px] text-slate-500">신뢰도 {Math.round(r.plate.confidence * 100)}% · 한 글자씩 확인해 주세요</span>
+      </div>
+    );
+  }
+  if (!draft.plate && r) {
+    const why = !r.plate.readable
+      ? '사진에서 번호판을 확실히 읽지 못했습니다'
+      : r.plate.confidence < PLATE_CONFIDENCE_FLOOR
+        ? `읽은 값(${r.plate.text})의 신뢰도가 낮습니다`
+        : `읽은 값(${r.plate.text})이 번호판 형식과 다릅니다`;
+    return <p className="mt-1.5 text-[13px] text-slate-500">{why} — 틀린 번호는 다른 사람에게 과태료가 가므로 비워 두었습니다</p>;
+  }
+  return null;
 }
 
 function PlaceValue({

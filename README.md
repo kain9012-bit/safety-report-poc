@@ -62,7 +62,7 @@ npm run build
 
 `VWORLD_KEY` 하나로 주소 변환(`api/address.ts`, 지오코더 API)과 위치찾기 지도 타일(`api/tile.ts`, WMTS)을 함께 씁니다.
 브이월드 키 신청 시 **지오코더 API · WMTS/TMS API**(+ 나중을 위해 검색 API · 2D 지도 API)를 체크합니다.
-| `VISION_PROVIDER`, `VISION_API_KEY` | 사진 판독(번호판·장면) |
+| `VISION_PROVIDER`, `VISION_API_KEY`, `VISION_MODEL` | 사진 판독(번호판·장면, `api/vision.ts`). 지금은 `gemini` 무료 키. **무료 등급은 보낸 사진이 Google 제품 개선·사람 검토에 쓰일 수 있어 테스트 사진만** |
 | `VITE_DEMO_MODE` | 1이면 키 없이 고정 시나리오로 흐름만 시연(화면에 '시연 모드' 띠 표시) |
 
 `npm run dev` 에서도 `api/` 함수가 같이 돕니다(vite.config.ts 의 dev-api). 키가 없으면 주소 칸은 좌표로 남습니다.

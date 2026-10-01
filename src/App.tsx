@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { clearDraft, loadDraft } from './lib/draft';
 import { reverseGeocode } from './lib/reverseGeocode';
 import { loadNearby } from './lib/facilities';
 import { recommend } from './lib/recommend';
+import { crosscheck } from './lib/crosscheck';
+import { readPhotos } from './lib/vision';
+import type { VisionState } from './lib/vision';
+import type { VisionResult } from '../api/vision';
+import { PLATE_CONFIDENCE_FLOOR, isValidPlate } from './lib/rules';
 import type { AddressState } from './lib/reverseGeocode';
 import { PhoneFrame, ProtoNotice } from './components/Ui';
 import CaptureScreen from './components/CaptureScreen';
@@ -24,7 +29,9 @@ export default function App() {
   const [step, setStep] = useState<Step>('form');
   const [draft, setDraft] = useState<DraftReport>({ shots: [] });
   const [addressState, setAddressState] = useState<AddressState>('idle');
-  const [typeInfo, setTypeInfo] = useState<TypeInfo>({ state: 'idle', candidates: [], missing: [] });
+  const [typeInfo, setTypeInfo] = useState<TypeInfo>({ state: 'idle', candidates: [], missing: [], coverage: {} });
+  const [vision, setVision] = useState<{ state: VisionState; result?: VisionResult }>({ state: 'idle' });
+  const [visionTry, setVisionTry] = useState(0);
 
   // 요구사항 R7 — 앱을 껐다 켜도 찍던 사진이 남아 있다.
   useEffect(() => {
@@ -65,23 +72,63 @@ export default function App() {
   // 사진 좌표 → 주변 시설 → 위반유형 추천. 사람이 고른 유형은 덮어쓰지 않는다.
   useEffect(() => {
     if (!first || first.lat === undefined || first.lng === undefined) {
-      setTypeInfo({ state: 'idle', candidates: [], missing: [] });
+      setTypeInfo({ state: 'idle', candidates: [], missing: [], coverage: {} });
       return;
     }
     let stale = false;
     const at = { lat: first.lat, lng: first.lng, accuracy: first.accuracy };
-    setTypeInfo({ state: 'loading', candidates: [], missing: [] });
+    setTypeInfo({ state: 'loading', candidates: [], missing: [], coverage: {} });
     void loadNearby(at).then((n) => {
       if (stale) return;
       const candidates = recommend(at, n);
-      setTypeInfo({ state: n.state, candidates, missing: n.missing });
-      setDraft((prev) => (prev.manual?.type ? prev : { ...prev, type: candidates[0]?.type }));
+      // 이 자리에 그 유형을 가늠할 공공 위치자료가 있는가 — 없으면 사진 판단과 '엇갈림'으로 보지 않는다
+      const coverage = {
+        busstop: n.busstops.length > 0,
+        crossing: n.crosswalks.length > 0,
+        schoolzone: n.schools.length > 0,
+      };
+      setTypeInfo({ state: n.state, candidates, missing: n.missing, coverage });
     });
     return () => {
       stale = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [first?.takenAt]);
+
+  // 사진 두 장 → 판독(번호판·장면). 같은 사진으로는 한 번만 부른다.
+  const pairKey = draft.shots.length >= 2 ? `${draft.shots[0].takenAt}-${draft.shots[1].takenAt}` : '';
+  useEffect(() => {
+    if (!pairKey) {
+      setVision({ state: 'idle' });
+      return;
+    }
+    let stale = false;
+    setVision({ state: 'loading' });
+    // 사진이 바뀌었으니 전에 자동으로 채운 번호는 지운다
+    setDraft((prev) => (prev.manual?.plate ? prev : { ...prev, plate: undefined }));
+    void readPhotos(draft.shots.map((s) => s.dataUrl)).then((r) => {
+      if (stale) return;
+      setVision(r);
+      // 번호판 — 읽었고, 확신이 높고, 형식이 맞을 때만 채운다. 사람이 친 값은 덮지 않는다.
+      const p = r.result?.plate;
+      if (p && p.readable && p.confidence >= PLATE_CONFIDENCE_FLOOR && isValidPlate(p.text)) {
+        setDraft((prev) => (prev.manual?.plate ? prev : { ...prev, plate: p.text }));
+      }
+    });
+    return () => {
+      stale = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairKey, visionTry]);
+
+  // 좌표 추천 × 사진 판독 → 위반유형. 사람이 고른 유형은 덮어쓰지 않는다.
+  const verdict = useMemo(
+    () => crosscheck(typeInfo.candidates, typeInfo.coverage, vision.result),
+    [typeInfo, vision.result],
+  );
+  useEffect(() => {
+    setDraft((prev) => (prev.manual?.type || prev.type === verdict.type ? prev : { ...prev, type: verdict.type }));
+  }, [verdict]);
 
   const onCaptured = (shots: Shot[]) => {
     setDraft((prev) => ({ ...prev, shots }));
@@ -122,6 +169,9 @@ export default function App() {
             draft={draft}
             addressState={addressState}
             typeInfo={typeInfo}
+            vision={vision}
+            verdict={verdict}
+            onRetryVision={() => setVisionTry((n) => n + 1)}
             onCapture={() => setStep('capture')}
             onEdit={onEdit}
             onPickAddress={onPickAddress}

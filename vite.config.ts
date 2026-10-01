@@ -11,16 +11,35 @@ function devApi(): Plugin {
   return {
     name: 'dev-api',
     configureServer(server) {
-      // /api/<이름> → api/<이름>.ts 의 GET
+      // /api/<이름> → api/<이름>.ts 의 GET·POST
       server.middlewares.use('/api', async (req, res, next) => {
         const url = new URL(req.originalUrl ?? req.url ?? '/', 'http://localhost')
         const name = url.pathname.replace(/^\/api\//, '')
         if (!/^[a-z]+$/.test(name)) return next()
         try {
-          const mod = (await server.ssrLoadModule(`/api/${name}.ts`)) as {
-            GET: (r: Request) => Promise<Response>
+          const mod = (await server.ssrLoadModule(`/api/${name}.ts`)) as Record<
+            string,
+            ((r: Request) => Promise<Response>) | undefined
+          >
+          const method = (req.method ?? 'GET').toUpperCase()
+          const handler = mod[method]
+          if (!handler) {
+            res.statusCode = 405
+            return res.end()
           }
-          const out = await mod.GET(new Request(url))
+          let body: Buffer | undefined
+          if (method !== 'GET' && method !== 'HEAD') {
+            const chunks: Buffer[] = []
+            for await (const c of req) chunks.push(c as Buffer)
+            body = Buffer.concat(chunks)
+          }
+          const out = await handler(
+            new Request(url, {
+              method,
+              headers: { 'content-type': String(req.headers['content-type'] ?? '') },
+              body,
+            }),
+          )
           res.statusCode = out.status
           out.headers.forEach((v, k) => res.setHeader(k, v))
           res.end(Buffer.from(await out.arrayBuffer()))

@@ -24,5 +24,10 @@
   ],
   "regions": [
     "icn1"
-  ]
+  ],
+  "functions": {
+    "api/vision.ts": {
+      "maxDuration": 60
+    }
+  }
 }
