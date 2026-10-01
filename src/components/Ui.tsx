@@ -67,16 +67,21 @@ export const EvidenceBadge: React.FC<{ kind: Evidence }> = ({ kind }) => {
 
 /** 제안용 시제품임을 모든 화면에 밝히는 띠. 실제 기관 화면으로 오인되면 안 된다. */
 export const ProtoNotice: React.FC = () => (
-  <div role="note" className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center">
-    <p className="text-xs font-bold text-amber-900">
+  <div role="note" className="shrink-0 bg-amber-50 border-b border-amber-200 px-3 py-1 text-center">
+    <p className="text-[11px] font-bold text-amber-900 leading-tight">
       개선 제안용 비공식 시제품 · 실제 신고는 접수되지 않습니다
     </p>
   </div>
 );
 
-/** 모바일 흐름을 데스크톱에서 볼 때 감싸는 기기 틀 */
+/**
+ * 모바일 흐름을 데스크톱에서 볼 때 감싸는 기기 틀.
+ *
+ * 높이를 화면에 못박는다 — 촬영 화면은 스크롤 없이 한 눈에 들어와야 한다.
+ * 길 한복판에서 쓰는 화면이라 스크롤을 시키면 안 된다.
+ */
 export const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="w-full sm:max-w-[420px] sm:mx-auto sm:my-6 sm:rounded-[2rem] sm:border-8 sm:border-slate-900 sm:overflow-hidden sm:shadow-2xl bg-white min-h-screen sm:min-h-[860px] flex flex-col">
+  <div className="w-full sm:max-w-[420px] sm:mx-auto sm:my-4 sm:rounded-[2rem] sm:border-8 sm:border-slate-900 sm:shadow-2xl bg-white h-[100dvh] sm:h-[calc(100dvh-2rem)] sm:max-h-[860px] flex flex-col overflow-hidden">
     {children}
   </div>
 );
