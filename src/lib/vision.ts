@@ -14,7 +14,7 @@ export function scaledSize(w: number, h: number, edge = VISION_EDGE): [number, n
   return [Math.round(w * k), Math.round(h * k)];
 }
 
-async function shrink(dataUrl: string): Promise<string> {
+export async function shrink(dataUrl: string): Promise<string> {
   const img = new Image();
   img.src = dataUrl;
   await img.decode();

@@ -58,5 +58,7 @@ export default defineConfig(({ mode }) => {
   return {
     base: './',
     plugins: [react(), tailwindcss(), devApi()],
+    // 신고 화면(index.html) + 판독 채점 화면(eval.html)
+    build: { rollupOptions: { input: { main: 'index.html', eval: 'eval.html' } } },
   }
 })

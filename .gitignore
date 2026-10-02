@@ -7,10 +7,11 @@ dist
 # 엑셀 임시 잠금 파일
 ~$*
 
-# 사진 표본 — 사람 얼굴·무관 차량 번호판이 찍히므로 깃에 올리지 않는다
+# 사진 표본·정답표 — 번호판(개인정보)이 들어 있으므로 깃에 올리지 않는다
+# 올라가는 것은 설명과 빈 양식뿐. 사진과 answers.csv 는 팀 공유 드라이브로 나눈다
 data/samples/*
 !data/samples/README.md
-!data/samples/answers.csv
+!data/samples/answers-template.csv
 
 # 수집 스크립트가 받아 둔 원본 페이지
 .cache/
