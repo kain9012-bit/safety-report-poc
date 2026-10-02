@@ -161,7 +161,10 @@ export default function EvalApp() {
       </div>
       <header className="bg-blue-50 border-b border-blue-100">
         <div className="max-w-6xl mx-auto px-4 py-6">
-          <p className="text-sm font-bold text-blue-700">안전신문고 불법주정차 개선안 · 시제품</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-bold text-blue-700">안전신문고 불법주정차 개선안</p>
+            <a href="/" className="text-sm font-bold text-slate-600 hover:text-blue-700">← 신고 화면</a>
+          </div>
           <h1 className="text-3xl font-bold text-slate-900 mt-1">판독 채점</h1>
           <p className="mt-1 text-slate-600">사진 1장씩, 앱과 같은 규칙(AI 장면 판독 → 규칙 유형 → 번호판 기준)으로 돌려 정답표와 맞대 봅니다.</p>
         </div>
