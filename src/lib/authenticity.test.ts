@@ -108,7 +108,7 @@ describe('제출 전 점검', () => {
     const night = new Date(2026, 9, 2, 22, 0).getTime();
     const d = draft({ type: 'schoolzone', shots: [{ ...shot(0), takenAt: night }, { ...shot(0), takenAt: night + 65_000 }] });
     const r = precheck({ draft: d, body: '내용입니다', verdict: { ...ok, type: 'schoolzone' }, vision, now: night + 120_000 });
-    expect(status(r.checks, 'schoolzone-hours')).toBe('fail');
+    expect(status(r.checks, 'hours')).toBe('fail');
   });
   it('실제 기준(1분)이면 3초 간격은 막는다', () => {
     const r = precheck({ draft: draft({ shots: [shot(0), shot(3)] }), body: '내용입니다', verdict: ok, vision, now: NOW, minInterval: MIN_INTERVAL_SEC });

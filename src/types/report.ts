@@ -1,4 +1,5 @@
 import type { PhotoMeta } from '../lib/authenticity';
+import type { PhotoRead } from '../../api/vision';
 /** 안전신문고 불법주정차 신고서 한 건이 채워야 하는 칸 */
 export type ViolationType =
   | 'hydrant'      // 소화전 5m 이내
@@ -52,6 +53,14 @@ export interface DraftReport {
   typeByLocation?: ViolationType;
   typeByPhoto?: ViolationType;
   body?: string;
+  /** 사진마다 판독 결과(AI는 보이는 것만 읽는다) — shots 와 같은 순서. 실패한 장은 null */
+  reads?: (PhotoRead | null)[];
+  /** 판독에 쓴 모델 */
+  model?: string;
+  /** 첫 사진 판독 결과를 사람이 확인했다(둘째 사진 대기로 넘어감) */
+  firstOk?: boolean;
+  /** 두 사진 겹침 — 규칙 기반 영상 대조(overlap.ts) */
+  overlap?: { ratio: number; score: number; same: boolean };
   /** 사람이 직접 고친 칸. 고친 칸은 자동 작성이 다시 덮어쓰지 않는다. */
   manual?: Partial<Record<EditableField, boolean>>;
 }

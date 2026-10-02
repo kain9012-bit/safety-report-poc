@@ -81,7 +81,7 @@ export const ProtoNotice: React.FC = () => (
  * 길 한복판에서 쓰는 화면이라 스크롤을 시키면 안 된다.
  */
 export const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="w-full sm:max-w-[420px] sm:mx-auto sm:my-4 sm:rounded-[2rem] sm:border-8 sm:border-slate-900 sm:shadow-2xl bg-white h-[100dvh] sm:h-[calc(100dvh-2rem)] sm:max-h-[860px] flex flex-col overflow-hidden">
+  <div className="relative w-full sm:max-w-[420px] sm:mx-auto sm:my-4 sm:rounded-[2rem] sm:border-8 sm:border-slate-900 sm:shadow-2xl bg-white h-[100dvh] sm:h-[calc(100dvh-2rem)] sm:max-h-[860px] flex flex-col overflow-hidden">
     {children}
   </div>
 );

@@ -2,7 +2,7 @@
  * 사진 판독 부르기 — 사진 두 장을 줄여서 /api/vision 에 보낸다.
  * 신고서에 붙는 원본 사진은 그대로 두고, 판독용 사본만 줄인다(전송량·대기시간).
  */
-import type { VisionResult } from '../../api/vision';
+import type { PhotoRead, VisionResult } from '../../api/vision';
 
 export type VisionState = 'idle' | 'loading' | 'ok' | 'no_key' | 'rate_limited' | 'busy' | 'error';
 
@@ -44,4 +44,12 @@ export async function readPhotos(dataUrls: string[]): Promise<{ state: VisionSta
   } catch {
     return { state: 'error' };
   }
+}
+
+/** 사진 한 장 판독 — 첫 사진을 찍자마자 부른다(회의 결정: 둘째 사진 전에 판독·안내) */
+export async function readOne(
+  dataUrl: string,
+): Promise<{ state: VisionState; read?: PhotoRead | null; model?: string }> {
+  const r = await readPhotos([dataUrl]);
+  return r.result ? { state: r.state, read: r.result.photos[0] ?? null, model: r.result.model } : { state: r.state };
 }

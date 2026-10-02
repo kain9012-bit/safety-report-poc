@@ -1,176 +1,272 @@
-import { useEffect, useMemo, useState } from 'react';
-import { clearDraft, loadDraft, saveDraft } from './lib/draft';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { deleteReport, listReports, newId, pickResume, saveReport } from './lib/reports';
+import type { ReportRecord } from './lib/reports';
 import { reverseGeocode } from './lib/reverseGeocode';
+import type { AddressState } from './lib/reverseGeocode';
 import { loadNearby } from './lib/facilities';
 import { recommend } from './lib/recommend';
 import { crosscheck } from './lib/crosscheck';
-import { readPhotos } from './lib/vision';
+import { readOne } from './lib/vision';
 import type { VisionState } from './lib/vision';
-import type { VisionResult } from '../api/vision';
+import { compareShots } from './lib/overlap';
+import { rulesFor } from './lib/localRules';
+import { rankTypes } from './lib/choose';
+import { mergeReads } from '../api/vision';
 import { PLATE_CONFIDENCE_FLOOR, isValidPlate } from './lib/rules';
-import type { AddressState } from './lib/reverseGeocode';
 import { PhoneFrame, ProtoNotice } from './components/Ui';
-import CaptureScreen from './components/CaptureScreen';
-import ReportForm from './components/ReportForm';
-import type { PickedAddress, TypeInfo } from './components/ReportForm';
+import StartScreen from './components/StartScreen';
+import CaptureFlow from './components/CaptureFlow';
+import ReportSteps from './components/ReportSteps';
+import type { PickedAddress, TypeInfo } from './components/FormParts';
 import { locatedShot } from './types/report';
-import type { DraftReport, EditableField, Shot } from './types/report';
+import type { DraftReport, EditableField, Shot, ViolationType } from './types/report';
 
-type Step = 'form' | 'capture';
+type Screen = 'loading' | 'home' | 'capture' | 'form';
+
+const EMPTY: DraftReport = { shots: [] };
+const NO_TYPE: TypeInfo = { state: 'idle', candidates: [], missing: [], coverage: {} };
+
+const statesOf = (d: DraftReport): (VisionState | undefined)[] =>
+  d.shots.map((_, i) => (d.reads?.[i] === undefined ? undefined : d.reads[i] ? 'ok' : 'error'));
 
 /**
- * 첫 화면은 **지금 안전신문고와 같은 신고서**다. 칸을 바꾸지 않았다.
- * 바꾼 것은 둘뿐이다 — 사진이 맨 위로 오고, 나머지 칸은 사진에서 채워진다.
- *
- * 촬영은 전체 화면으로 잠깐 열렸다 닫히는 단계로 둔다(요구사항 R5).
- * 길에서 쓰는 화면이라 스크롤이 없어야 하기 때문이다.
+ * 흐름(회의 결정)
+ *   처음 화면 → 촬영(첫 사진 즉시 판독 → 남은 시간 → 둘째 사진 → 같은 자리·같은 번호판 확인)
+ *   → 신고서 단계별 확인(유형 · 발생지역 · 차량번호 · 내용 · 점검·제출)
+ * 진행 상태는 바뀔 때마다 기기에 저장한다 — 앱을 바꾸거나 꺼도 하던 신고부터 다시 시작한다.
  */
 export default function App() {
-  const [step, setStep] = useState<Step>('form');
-  const [draft, setDraft] = useState<DraftReport>({ shots: [] });
+  const [screen, setScreen] = useState<Screen>('loading');
+  const [rec, setRec] = useState<ReportRecord | null>(null);
+  const [reports, setReports] = useState<ReportRecord[]>([]);
+  const [readStates, setReadStates] = useState<(VisionState | undefined)[]>([]);
   const [addressState, setAddressState] = useState<AddressState>('idle');
-  const [typeInfo, setTypeInfo] = useState<TypeInfo>({ state: 'idle', candidates: [], missing: [], coverage: {} });
-  const [vision, setVision] = useState<{ state: VisionState; result?: VisionResult }>({ state: 'idle' });
-  const [visionTry, setVisionTry] = useState(0);
+  const [typeInfo, setTypeInfo] = useState<TypeInfo>(NO_TYPE);
   const [albumState, setAlbumState] = useState<'idle' | 'busy' | 'error'>('idle');
+  const [toast, setToast] = useState<string | null>(null);
 
-  // 요구사항 R7 — 앱을 껐다 켜도 찍던 사진이 남아 있다.
-  useEffect(() => {
-    void loadDraft().then((d) => {
-      if (d && d.shots.length > 0) setDraft((prev) => ({ ...prev, shots: d.shots }));
-    });
+  const draft = rec?.draft ?? EMPTY;
+  const setDraft = useCallback((fn: (d: DraftReport) => DraftReport) => {
+    setRec((r) => (r ? { ...r, draft: fn(r.draft) } : r));
   }, []);
 
-  // 사진 좌표 → 발생지역. 사람이 직접 고친 주소는 덮어쓰지 않는다.
-  const first = locatedShot(draft.shots);
+  const refresh = useCallback(() => listReports().then(setReports), []);
+
+  // 앱을 열면 — 하던 신고가 있으면 바로 그 자리로
+  const geoKey = useRef<number | undefined>(undefined);
+  const open = useCallback((r: ReportRecord) => {
+    setRec(r);
+    setReadStates(statesOf(r.draft));
+    const at = locatedShot(r.draft.shots);
+    geoKey.current = r.draft.address && at ? at.takenAt : undefined;
+    setScreen(r.phase === 'capture' ? 'capture' : 'form');
+  }, []);
+  useEffect(() => {
+    void listReports().then((list) => {
+      setReports(list);
+      const r = pickResume(list);
+      if (r) open(r);
+      else setScreen('home');
+    });
+  }, [open]);
+
+  // 바뀔 때마다 저장(0.3초 모아서)
+  useEffect(() => {
+    if (!rec || rec.draft.shots.length === 0) return;
+    const t = setTimeout(() => void saveReport(rec), 300);
+    return () => clearTimeout(t);
+  }, [rec]);
+
+  // 사진마다 판독 — 첫 사진은 찍자마자, 둘째 사진도 찍자마자. 한 장씩 따로 읽는다.
+  const inflight = useRef(new Set<number>());
+  useEffect(() => {
+    draft.shots.forEach((s, i) => {
+      if (draft.reads?.[i] !== undefined || inflight.current.has(s.takenAt)) return;
+      inflight.current.add(s.takenAt);
+      setReadStates((st) => Object.assign([...st], { [i]: 'loading' }));
+      void readOne(s.dataUrl).then((r) => {
+        inflight.current.delete(s.takenAt);
+        setDraft((d) => {
+          if (d.shots[i]?.takenAt !== s.takenAt) return d; // 그사이 다시 찍었다
+          const reads = [...(d.reads ?? [])];
+          reads[i] = r.read ?? null;
+          return { ...d, reads, model: r.model ?? d.model };
+        });
+        setReadStates((st) => Object.assign([...st], { [i]: r.state }));
+      });
+    });
+  }, [draft.shots, draft.reads, setDraft]);
+
+  // 두 사진 겹침 — 규칙 기반 영상 대조
+  const ovKey = useRef('');
+  useEffect(() => {
+    const [a, b] = draft.shots;
+    if (!a || !b || draft.overlap) return;
+    const key = `${a.takenAt}-${b.takenAt}`;
+    if (ovKey.current === key) return;
+    ovKey.current = key;
+    void compareShots(a.dataUrl, b.dataUrl).then((o) => {
+      setDraft((d) =>
+        d.shots[0]?.takenAt === a.takenAt && d.shots[1]?.takenAt === b.takenAt
+          ? { ...d, overlap: o ? { ratio: o.ratio, score: o.score, same: o.same } : { ratio: 0, score: -1, same: false } }
+          : d,
+      );
+    });
+  }, [draft.shots, draft.overlap, setDraft]);
+
+  // 사진 좌표 → 발생지역. 사람이 고친 주소는 덮어쓰지 않는다.
+  const located = locatedShot(draft.shots);
   const manualAddress = Boolean(draft.manual?.address);
   useEffect(() => {
-    if (!first || first.lat === undefined || first.lng === undefined || manualAddress) {
+    if (!located || manualAddress) {
       setAddressState('idle');
+      return;
+    }
+    if (geoKey.current === located.takenAt) {
+      setAddressState('ok');
       return;
     }
     let stale = false;
     setAddressState('loading');
-    setDraft((prev) => ({ ...prev, address: undefined, addressParcel: undefined }));
-    void reverseGeocode(first.lat, first.lng).then((r) => {
+    void reverseGeocode(located.lat!, located.lng!).then((r) => {
       if (stale) return;
+      geoKey.current = located.takenAt;
       setAddressState(r.state);
       if (r.state === 'ok') {
-        setDraft((prev) =>
-          prev.manual?.address
-            ? prev
-            : { ...prev, address: r.road ?? r.parcel, addressParcel: r.road ? r.parcel : undefined },
-        );
+        setDraft((d) => (d.manual?.address ? d : { ...d, address: r.road ?? r.parcel, addressParcel: r.road ? r.parcel : undefined }));
       }
     });
     return () => {
       stale = true;
     };
-    // 첫 컷이 바뀌거나, 직접 입력을 되돌렸을 때만 다시 찾는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first?.takenAt, manualAddress]);
+  }, [located?.takenAt, manualAddress]);
 
-  // 사진 좌표 → 주변 시설 → 위반유형 추천. 사람이 고른 유형은 덮어쓰지 않는다.
+  // 사진 좌표 → 주변 시설(참고용 '의심')
   useEffect(() => {
-    if (!first || first.lat === undefined || first.lng === undefined) {
-      setTypeInfo({ state: 'idle', candidates: [], missing: [], coverage: {} });
+    if (!located) {
+      setTypeInfo(NO_TYPE);
       return;
     }
     let stale = false;
-    const at = { lat: first.lat, lng: first.lng, accuracy: first.accuracy };
-    setTypeInfo({ state: 'loading', candidates: [], missing: [], coverage: {} });
+    const at = { lat: located.lat!, lng: located.lng!, accuracy: located.accuracy };
+    setTypeInfo({ ...NO_TYPE, state: 'loading' });
     void loadNearby(at).then((n) => {
       if (stale) return;
-      const candidates = recommend(at, n);
-      // 이 자리에 그 유형을 가늠할 공공 위치자료가 있는가 — 없으면 사진 판단과 '엇갈림'으로 보지 않는다
-      const coverage = {
-        busstop: n.busstops.length > 0,
-        crossing: n.crosswalks.length > 0,
-        schoolzone: n.schools.length > 0,
-      };
-      setTypeInfo({ state: n.state, candidates, missing: n.missing, coverage });
+      setTypeInfo({
+        state: n.state,
+        candidates: recommend(at, n),
+        missing: n.missing,
+        coverage: { busstop: n.busstops.length > 0, crossing: n.crosswalks.length > 0, schoolzone: n.schools.length > 0 },
+      });
     });
     return () => {
       stale = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first?.takenAt]);
+  }, [located?.takenAt]);
 
-  // 사진 두 장 → 판독(번호판·장면). 같은 사진으로는 한 번만 부른다.
-  const pairKey = draft.shots.length >= 2 ? `${draft.shots[0].takenAt}-${draft.shots[1].takenAt}` : '';
+  // 판독 합본(읽힌 장만) → 유형 판정(사진 증거)
+  const merged = useMemo(() => {
+    const reads = (draft.reads ?? []).map((r) => r ?? null);
+    return reads.some(Boolean) ? mergeReads(reads, draft.model ?? '') ?? undefined : undefined;
+  }, [draft.reads, draft.model]);
+  const verdict = useMemo(() => crosscheck(typeInfo.candidates, typeInfo.coverage, merged), [typeInfo, merged]);
+  const rules = useMemo(() => rulesFor(draft.address), [draft.address]);
+  const options = useMemo(() => {
+    if (!verdict.type || !draft.shots[0]) return [];
+    return rankTypes([verdict.type, ...verdict.alternatives], { takenAt: draft.shots[0].takenAt, rules, candidates: typeInfo.candidates });
+  }, [verdict, rules, typeInfo.candidates, draft.shots]);
+
   useEffect(() => {
-    if (!pairKey) {
-      setVision({ state: 'idle' });
-      return;
-    }
-    let stale = false;
-    setVision({ state: 'loading' });
-    // 사진이 바뀌었으니 전에 자동으로 채운 번호는 지운다
-    setDraft((prev) => (prev.manual?.plate ? prev : { ...prev, plate: undefined }));
-    void readPhotos(draft.shots.map((s) => s.dataUrl)).then((r) => {
-      if (stale) return;
-      setVision(r);
-      // 번호판 — 두 장에서 따로 읽은 값이 같고, 확신이 높고, 형식이 맞을 때만 채운다
-      const p = r.result?.plate;
-      if (p && p.agree === true && p.confidence >= PLATE_CONFIDENCE_FLOOR && isValidPlate(p.text)) {
-        setDraft((prev) => (prev.manual?.plate ? prev : { ...prev, plate: p.text }));
-      }
-    });
-    return () => {
-      stale = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pairKey, visionTry]);
+    setDraft((d) => (d.manual?.type || d.type === verdict.type ? d : { ...d, type: verdict.type }));
+  }, [verdict, setDraft]);
 
-  // 좌표 추천 × 사진 판독 → 위반유형. 사람이 고른 유형은 덮어쓰지 않는다.
-  const verdict = useMemo(
-    () => crosscheck(typeInfo.candidates, typeInfo.coverage, vision.result),
-    [typeInfo, vision.result],
-  );
+  // 번호판 — 두 장에서 따로 읽은 값이 같고, 확신이 높고, 형식이 맞을 때만 채운다
   useEffect(() => {
-    setDraft((prev) => (prev.manual?.type || prev.type === verdict.type ? prev : { ...prev, type: verdict.type }));
-  }, [verdict]);
+    const pl = merged?.plate;
+    const ok = pl && pl.agree === true && pl.confidence >= PLATE_CONFIDENCE_FLOOR && isValidPlate(pl.text);
+    setDraft((d) => (d.manual?.plate || d.plate === (ok ? pl!.text : undefined) ? d : { ...d, plate: ok ? pl!.text : undefined }));
+  }, [merged, setDraft]);
 
-  const onCaptured = (shots: Shot[]) => {
-    setDraft((prev) => ({ ...prev, shots }));
-    setStep('form');
+  const visionState: VisionState = readStates.some((s) => s === 'loading')
+    ? 'loading'
+    : merged
+      ? 'ok'
+      : (readStates.find((s) => s && s !== 'ok') ?? 'idle');
+
+  /* ---------------- 동작 ---------------- */
+
+  const startNew = () => {
+    const t = Date.now();
+    setRec({ id: newId(t), draft: { shots: [] }, phase: 'capture', step: 0, createdAt: t, updatedAt: t });
+    setReadStates([]);
+    geoKey.current = undefined;
+    setScreen('capture');
   };
 
-  const onEdit = (field: EditableField, value: string | undefined) => {
-    setDraft((prev) => ({
-      ...prev,
+  const goHome = () => {
+    if (rec && rec.draft.shots.length > 0) void saveReport(rec).then(refresh);
+    else void refresh();
+    setScreen('home');
+  };
+
+  const onEdit = (field: EditableField, value: string | undefined) =>
+    setDraft((d) => ({
+      ...d,
       [field]: value,
       ...(field === 'address' ? { addressParcel: undefined, addressFrom: undefined } : {}),
-      manual: { ...prev.manual, [field]: value !== undefined },
+      manual: { ...d.manual, [field]: value !== undefined },
     }));
-  };
 
-  const onPickAddress = (a: PickedAddress) => {
-    setDraft((prev) => ({
-      ...prev,
-      address: a.address,
-      addressParcel: a.parcel,
-      addressFrom: a.from,
-      manual: { ...prev.manual, address: true },
-    }));
-  };
+  const onPickAddress = (a: PickedAddress) =>
+    setDraft((d) => ({ ...d, address: a.address, addressParcel: a.parcel, addressFrom: a.from, manual: { ...d.manual, address: true } }));
 
-  // 앨범 사진 — 파일 기록(EXIF)을 읽어 사진에 박고, 진위 점검은 precheck 가 규칙으로 한다
-  const onPickAlbum = (files: File[]) => {
+  const onShot = (s: Shot) => setDraft((d) => ({ ...d, shots: [...d.shots, s].slice(0, 2) }));
+
+  const retakeFirst = () => {
+    geoKey.current = undefined;
+    setReadStates([]);
+    setDraft(() => ({ shots: [] }));
+    setRec((r) => (r ? { ...r, phase: 'capture', step: 0 } : r));
+    setScreen('capture');
+  };
+  const retakeSecond = () => {
+    setReadStates((st) => st.slice(0, 1));
+    setDraft((d) => ({ ...d, shots: d.shots.slice(0, 1), reads: (d.reads ?? []).slice(0, 1), overlap: undefined, firstOk: true }));
+    setRec((r) => (r ? { ...r, phase: 'capture' } : r));
+    setScreen('capture');
+  };
+  const retryRead = (i: number) =>
+    setDraft((d) => {
+      const reads = [...(d.reads ?? [])];
+      reads[i] = undefined as never;
+      return { ...d, reads };
+    });
+
+  const onAlbum = (files: File[]) => {
     setAlbumState('busy');
     void import('./lib/album')
       .then(({ readAlbum }) => readAlbum(files))
       .then((shots) => {
-        setDraft((prev) => ({ ...prev, shots }));
-        void saveDraft(shots);
+        const t = Date.now();
+        setRec({ id: newId(t), draft: { shots, firstOk: true }, phase: 'form', step: 0, createdAt: t, updatedAt: t });
+        setReadStates([]);
+        geoKey.current = undefined;
         setAlbumState('idle');
+        setScreen('form');
       })
       .catch(() => setAlbumState('error'));
   };
 
-  const onReset = () => {
-    setDraft({ shots: [] });
-    void clearDraft();
+  const onSubmit = () => {
+    if (!rec) return;
+    const done: ReportRecord = { ...rec, phase: 'submitted' };
+    setRec(done);
+    void saveReport(done).then(refresh);
+    setToast('시제품이라 접수되지 않습니다 — 제출한 신고에 남겼습니다');
+    setTimeout(() => setToast(null), 2500);
+    setScreen('home');
   };
 
   return (
@@ -178,23 +274,67 @@ export default function App() {
       <PhoneFrame>
         <ProtoNotice />
 
-        {step === 'form' ? (
-          <ReportForm
+        {screen === 'loading' && <div className="flex-1" />}
+
+        {screen === 'home' && (
+          <StartScreen
+            reports={reports}
+            onCamera={startNew}
+            onAlbum={onAlbum}
+            albumState={albumState}
+            onResume={open}
+            onDelete={(id) => {
+              void deleteReport(id).then(refresh);
+              if (rec?.id === id) setRec(null);
+            }}
+          />
+        )}
+
+        {screen === 'capture' && rec && (
+          <CaptureFlow
             draft={draft}
+            readStates={readStates}
+            vision={merged}
+            verdict={verdict}
+            options={options}
+            onShot={onShot}
+            onRetakeFirst={retakeFirst}
+            onRetakeSecond={retakeSecond}
+            onAcceptFirst={() => setDraft((d) => ({ ...d, firstOk: true }))}
+            onChooseType={(t: ViolationType) => onEdit('type', t)}
+            onRetryRead={retryRead}
+            onDone={() => {
+              setRec((r) => (r ? { ...r, phase: 'form', step: 0 } : r));
+              setScreen('form');
+            }}
+            onExit={goHome}
+          />
+        )}
+
+        {screen === 'form' && rec && (
+          <ReportSteps
+            draft={draft}
+            step={rec.step}
+            onStep={(n) => setRec((r) => (r ? { ...r, step: n } : r))}
             addressState={addressState}
             typeInfo={typeInfo}
-            vision={vision}
+            vision={{ state: visionState, result: merged }}
             verdict={verdict}
-            onRetryVision={() => setVisionTry((n) => n + 1)}
-            onCapture={() => setStep('capture')}
+            options={options}
+            rules={rules}
+            onRetryVision={() => draft.reads?.forEach((r, i) => r === null && retryRead(i))}
             onEdit={onEdit}
             onPickAddress={onPickAddress}
-            onReset={onReset}
-            onPickAlbum={onPickAlbum}
-            albumState={albumState}
+            onRetake={retakeSecond}
+            onHome={goHome}
+            onSubmit={onSubmit}
           />
-        ) : (
-          <CaptureScreen onComplete={onCaptured} onCancel={onCaptured} />
+        )}
+
+        {toast && (
+          <div role="status" className="absolute bottom-24 inset-x-6 z-40 rounded-lg bg-slate-900/90 text-white text-center text-[15px] font-bold py-3 px-3">
+            {toast}
+          </div>
         )}
       </PhoneFrame>
     </div>

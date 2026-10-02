@@ -14,11 +14,13 @@ import type { DraftReport } from '../types/report';
 export const BODY_MIN = 5;
 export const BODY_MAX = 900;
 
+/**
+ * 개조식으로 쓴다(회의 결정) — 받는 사람이 담당 공무원이라 줄글보다 항목이 빨리 읽힌다.
+ * 값이 없는 항목은 줄째로 뺀다.
+ */
 export function composeBody(d: DraftReport): string {
   const first = d.shots[0];
   if (!first) return '';
-
-  const when = formatStamp(first.takenAt).slice(0, 16); // 초는 뺀다
 
   let where: string | undefined;
   if (d.address) where = d.address;
@@ -26,19 +28,18 @@ export function composeBody(d: DraftReport): string {
     const at = locatedShot(d.shots);
     if (at) where = `좌표 ${at.lat!.toFixed(5)}, ${at.lng!.toFixed(5)} 부근`;
   }
-
   const plate = d.plate?.replace(/\s/g, '');
-  const car = plate && isValidPlate(plate) ? `${plate} 차량이` : '차량이';
-  const what = d.type
-    ? `${VIOLATION_LABEL[d.type]}에 주정차되어 있어 신고합니다.`
-    : '불법 주정차되어 있어 신고합니다.';
 
-  const lines = [`${when}${where ? ` ${where}에서` : ''} ${car} ${what}`];
+  const lines = [`- 일시: ${formatStamp(first.takenAt).slice(0, 16)}`];
+  if (where) lines.push(`- 장소: ${where}`);
+  lines.push(`- 위반: ${d.type ? `${VIOLATION_LABEL[d.type]} 불법 주정차` : '불법 주정차'}`);
+  if (plate && isValidPlate(plate)) lines.push(`- 차량: ${plate}`);
 
   const second = d.shots[1];
   if (second) {
     const gap = Math.floor(intervalSeconds(first.takenAt, second.takenAt));
-    lines.push(`${gap}초 간격으로 같은 자리에서 2장 촬영했습니다.`);
+    const ov = d.overlap ? `, 겹침 ${Math.round(d.overlap.ratio * 100)}%` : '';
+    lines.push(`- 증거: 같은 자리 사진 2장(${gap}초 간격${ov})`);
   }
-  return lines.join(' ');
+  return lines.join('\n');
 }

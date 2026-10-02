@@ -84,6 +84,7 @@ CORS 에 막히고, 비전 AI 키는 프론트에 둘 수 없어 **함수 중계
 
 - **AI보다 규칙이 먼저입니다.** AI(비전)는 "사진에 무엇이 보이는가"만 답합니다 — 번호판 글자, 장면 항목(보임/아님/모름), 근거 위치.
   유형 결정·번호 확정·교차검증·제출 점검은 전부 규칙 코드(`api/vision.ts`의 `mergeReads`·`typesFromScene`, `src/lib/recommend.ts`, `src/lib/crosscheck.ts`, `src/lib/rules.ts`)가 합니다.
+  유형이 여럿일 때 추천(`src/lib/choose.ts`), 지자체 규정(`src/lib/localRules.ts`), 두 사진 겹침(`src/lib/overlap.ts`)도 규칙입니다.
   새 기능을 붙일 때도 규칙으로 될 일은 규칙으로 하고, AI는 사람 눈을 대신하는 자리에만 씁니다.
 - **판정 근거는 사진뿐입니다.** 위치자료(GPS 좌표 × 공공데이터)는 참고용 '의심'입니다. GPS는 ±5~10m(건물 사이는 수십 m) 틀리고 공공데이터도 틀리거나 빠집니다.
   "3m 안에 정류장"이라는 자료가 있어도 사진에 정류장이 안 보이면 그 유형을 채우지 않고, 무엇이 나오게 다시 찍으라고 안내합니다(`src/lib/crosscheck.ts`).
