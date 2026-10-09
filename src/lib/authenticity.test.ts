@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { kstTime } from './kst';
 import { EDIT_APPS, checkAlbum, checkAlbumPair, checkAlbumPhoto, worst } from './authenticity';
 import { precheck } from './precheck';
 import { INTERVAL_SEC, MIN_INTERVAL_SEC } from './rules';
@@ -6,7 +7,7 @@ import type { PhotoMeta } from './authenticity';
 import type { Verdict } from './crosscheck';
 import type { DraftReport, Shot } from '../types/report';
 
-const T = new Date(2026, 9, 2, 14, 0, 0).getTime();
+const T = kstTime(2026, 10, 2, 14, 0, 0);
 const NOW = T + 10 * 60_000;
 const meta = (o: Partial<PhotoMeta> = {}): PhotoMeta => ({
   takenAt: T,
@@ -32,7 +33,7 @@ describe('앨범 사진 한 장', () => {
     expect(status(checkAlbumPhoto(meta({ takenAt: undefined }), NOW), 'time')).toBe('fail');
   });
   it('촬영 익일이 지났으면 받을 수 없다 — 지난 사진 재활용', () => {
-    const old = new Date(2026, 8, 28, 9, 0).getTime();
+    const old = kstTime(2026, 9, 28, 9, 0);
     expect(status(checkAlbumPhoto(meta({ takenAt: old, modifiedAt: old }), NOW), 'time')).toBe('fail');
   });
   it('미래 시각은 받을 수 없다', () => {
@@ -105,7 +106,7 @@ describe('제출 전 점검', () => {
     expect(status(r.checks, 'vehicle')).toBe('fail');
   });
   it('어린이보호구역은 08~20시 밖이면 막는다', () => {
-    const night = new Date(2026, 9, 2, 22, 0).getTime();
+    const night = kstTime(2026, 10, 2, 22, 0);
     const d = draft({ type: 'schoolzone', shots: [{ ...shot(0), takenAt: night }, { ...shot(0), takenAt: night + 65_000 }] });
     const r = precheck({ draft: d, body: '내용입니다', verdict: { ...ok, type: 'schoolzone' }, vision, now: night + 120_000 });
     expect(status(r.checks, 'hours')).toBe('fail');

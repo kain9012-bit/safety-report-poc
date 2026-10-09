@@ -1,5 +1,5 @@
 /**
- * 둘째 사진 차례 알림 — 0초가 되면 소리·진동으로 알린다(회의 결정).
+ * 두 번째 사진 차례 알림 — 0초가 되면 소리·진동으로 알린다(회의 결정).
  *
  * 웹에서 할 수 있는 만큼만 한다.
  *  - 소리: Web Audio 짧은 신호음. 브라우저는 사용자가 누른 뒤에만 소리를 허락하므로 셔터를 누를 때 깨워 둔다.
@@ -56,7 +56,7 @@ export function ringReady(): void {
   }
   try {
     if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-      new Notification('둘째 사진을 찍을 차례입니다', { body: '첫 사진과 같은 자리·방향에서 찍어 주세요', tag: 'second-shot' });
+      new Notification('두 번째 사진을 찍을 차례입니다', { body: '첫 번째 사진과 같은 자리·방향에서 찍어 주세요', tag: 'second-shot' });
     }
   } catch {
     /* 무시 */
@@ -69,5 +69,5 @@ const BASE_TITLE = typeof document !== 'undefined' ? document.title : '';
 export function titleCountdown(remainSec: number | null): void {
   if (typeof document === 'undefined') return;
   document.title =
-    remainSec === null ? BASE_TITLE : remainSec > 0 ? `${remainSec}초 · 둘째 사진 대기` : '지금 둘째 사진 찍기';
+    remainSec === null ? BASE_TITLE : remainSec > 0 ? `${remainSec}초 · 두 번째 사진 대기` : '지금 두 번째 사진 찍기';
 }

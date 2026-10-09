@@ -2,6 +2,7 @@
  * 사진 한 장을 앱과 똑같이 돌린다 — 줄이기(1280px) → /api/vision → 규칙(crosscheck·rankTypes·번호판 기준).
  * 채점 화면 전용. 사진은 저장하지 않는다.
  */
+import { kstTime } from '../lib/kst';
 import { crosscheck } from '../lib/crosscheck';
 import { rankTypes } from '../lib/choose';
 import { rulesFor } from '../lib/localRules';
@@ -11,7 +12,7 @@ import type { VisionResult } from '../../api/vision';
 import type { Outcome, Row, Truth } from './score';
 
 /** 단속 시간이 추천을 흔들지 않게 평일 오전 10시로 고정해 본다 */
-const NEUTRAL_TIME = new Date(2026, 9, 7, 10, 0).getTime();
+const NEUTRAL_TIME = kstTime(2026, 10, 7, 10, 0);
 
 const toDataUrl = (f: File) =>
   new Promise<string>((res, rej) => {

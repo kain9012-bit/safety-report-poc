@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Camera, ChevronRight, Image as ImageIcon, Info, Menu, Trash2, ZoomIn } from 'lucide-react';
 import { formatStamp } from '../lib/camera';
-import { RESUME_MAX_MS } from '../lib/reports';
+import { RESUME_MAX_MS, measure } from '../lib/reports';
 import type { ReportRecord } from '../lib/reports';
 import { VIOLATION_LABEL } from '../types/report';
 import { WhyPanel } from './FormParts';
@@ -15,7 +15,7 @@ interface Props {
   onDelete: (id: string) => void;
 }
 
-const PHASE_TEXT = { capture: '촬영 중', form: '신고서 확인 중', submitted: '제출함(시제품)' } as const;
+const PHASE_TEXT = { capture: '촬영 중', form: '신고서 확인 중', submitted: '제출함(접수 안 됨)' } as const;
 
 /**
  * 처음 화면 — 지금 앱의 불법주정차 탭 모양(파란 띠·탭)을 따르되, 할 일은 하나만 크게: **사진부터 찍기.**
@@ -31,7 +31,7 @@ export default function StartScreen({ reports, onCamera, onAlbum, albumState, on
   return (
     <div className="relative flex-1 min-h-0 flex flex-col bg-white text-slate-900">
       <div className="shrink-0 h-12 bg-[#3a8fdb] flex items-stretch justify-between pl-3">
-        <p className="self-center text-[13px] font-bold text-white/90">개선안 시제품</p>
+        <p className="self-center text-[13px] font-bold text-white/90">개선안</p>
         <div className="flex items-stretch">
           <span className="w-[58px] flex flex-col items-center justify-center text-white gap-0.5" aria-hidden="true">
             <ZoomIn className="w-6 h-6" />
@@ -144,6 +144,9 @@ function ReportItem({ r, expired, onOpen, onDelete }: { r: ReportRecord; expired
           <span className={`block text-[12px] font-bold ${expired ? 'text-red-600' : 'text-blue-700'}`}>
             {expired ? '접수 기한 지남' : PHASE_TEXT[r.phase]}
           </span>
+          {r.phase === 'submitted' && measure(r) && (
+            <span className="block text-[12px] text-slate-500 tabular-nums">{measure(r)!.text}</span>
+          )}
         </span>
         <ChevronRight className="w-5 h-5 text-slate-400 shrink-0" aria-hidden="true" />
       </button>

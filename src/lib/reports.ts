@@ -18,6 +18,10 @@ export interface ReportRecord {
   step: number;
   createdAt: number;
   updatedAt: number;
+  /** 제출한 시각 — 걸린 시간을 재는 끝점(현장 확인 ⑦ 'After' 칸) */
+  submittedAt?: number;
+  /** 시작부터 제출까지 화면을 누른 횟수 */
+  taps?: number;
 }
 
 const DB_NAME = 'parking-report-poc';
@@ -82,3 +86,30 @@ export async function listReports(now = Date.now()): Promise<ReportRecord[]> {
 export function pickResume(list: ReportRecord[], now = Date.now()): ReportRecord | undefined {
   return list.find((r) => r.phase !== 'submitted' && r.draft.shots.length > 0 && now - r.createdAt <= RESUME_MAX_MS);
 }
+
+/**
+ * 걸린 시간과 누른 횟수 — 지금 앱과 나란히 잴 'After' 숫자(docs/field-test.md ⑦).
+ * 시작(사진부터 찍기)부터 제출까지. 두 사진 사이 기다린 시간도 따로 적는다.
+ * 하던 신고를 다음 날 이어 냈다면 시간이 부풀므로 그 사실도 밝힌다.
+ */
+export interface Measure {
+  totalSec: number;
+  waitSec?: number;
+  taps?: number;
+  resumed: boolean;
+  text: string;
+}
+
+export function measure(r: ReportRecord): Measure | null {
+  if (r.submittedAt === undefined) return null;
+  const totalSec = Math.max(0, Math.round((r.submittedAt - r.createdAt) / 1000));
+  const [a, b] = r.draft.shots;
+  const waitSec = a && b ? Math.round(Math.abs(b.takenAt - a.takenAt) / 1000) : undefined;
+  const resumed = totalSec > 30 * 60;
+  const dur = (sec: number) => (sec >= 60 ? `${Math.floor(sec / 60)}분 ${sec % 60}초` : `${sec}초`);
+  const parts = [`걸린 시간 ${dur(totalSec)}`];
+  if (waitSec !== undefined) parts.push(`그중 두 사진 간격 ${dur(waitSec)}`);
+  if (r.taps !== undefined) parts.push(`누른 횟수 ${r.taps}회`);
+  return { totalSec, waitSec, taps: r.taps, resumed, text: parts.join(' · ') + (resumed ? ' (이어서 낸 신고)' : '') };
+}
+

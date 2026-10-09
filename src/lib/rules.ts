@@ -5,6 +5,7 @@
  * 지자체마다 대상 유형이 다를 수 있어(인도 운영 여부 등) 유형 목록은 지역 설정으로 덮을 수 있게 둔다.
  */
 
+import { kstParts, kstTime } from './kst';
 import type { ViolationType } from '../types/report';
 
 /** 유형별 기준 거리(m). 거리 기준이 없는 유형은 undefined. */
@@ -17,7 +18,7 @@ export const THRESHOLD_METERS: Record<ViolationType, number | undefined> = {
   sidewalk: undefined, // 좌표 데이터가 없다. 사진 판독에만 기댄다
 };
 
-/** 두 컷 사이 최소 간격(초) */
+/** 두 사진 사이 최소 간격(초) */
 export const MIN_INTERVAL_SEC = 60;
 
 /**
@@ -36,19 +37,20 @@ export const intervalNote = (min: number) =>
 /** 어린이보호구역 단속 시간대(평일) */
 export const SCHOOLZONE_HOURS = { from: 8, to: 20 } as const;
 
-/** 촬영 시각 기준 접수 기한 — 익일 자정까지 */
-export function submitDeadline(takenAt: number): number {
-  const d = new Date(takenAt);
-  d.setDate(d.getDate() + 1);
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
+/**
+ * 촬영 시각 기준 접수 기한(한국 시각). 기본은 익일 자정까지(안전신문고 안내).
+ * days 는 촬영일 다음 며칠째 자정까지인지 — 1 = 익일, 2 = 이틀 뒤(예: 대전 동구 '촬영일로부터 2일 이내').
+ */
+export function submitDeadline(takenAt: number, days = 1): number {
+  const t = kstParts(takenAt);
+  return kstTime(t.year, t.month, t.day + days, 23, 59, 59, 999);
 }
 
-export function isExpired(takenAt: number, now: number = Date.now()): boolean {
-  return now > submitDeadline(takenAt);
+export function isExpired(takenAt: number, now: number = Date.now(), days = 1): boolean {
+  return now > submitDeadline(takenAt, days);
 }
 
-/** 두 컷 간격(초). 순서가 뒤바뀌어 들어와도 절댓값으로 본다. */
+/** 두 사진 간격(초). 순서가 뒤바뀌어 들어와도 절댓값으로 본다. */
 export function intervalSeconds(a: number, b: number): number {
   return Math.abs(b - a) / 1000;
 }
@@ -85,6 +87,8 @@ export interface CheckInput {
   lng?: number;
   accuracy?: number;
   now?: number;
+  /** 접수 기한 — 촬영일 다음 며칠째 자정까지(지자체 규정, 기본 1 = 익일) */
+  deadlineDays?: number;
 }
 
 /**
@@ -96,7 +100,7 @@ export function runChecks(input: CheckInput, minInterval: number = INTERVAL_SEC)
   const [first, second] = [...input.shotTimes].sort((a, b) => a - b);
   const out: CheckResult[] = [];
 
-  // 1. 두 컷 간격
+  // 1. 두 사진 간격
   if (first === undefined || second === undefined) {
     out.push({
       id: 'interval',
@@ -119,7 +123,7 @@ export function runChecks(input: CheckInput, minInterval: number = INTERVAL_SEC)
 
   // 2. 접수 기한
   if (first !== undefined) {
-    const left = submitDeadline(first) - now;
+    const left = submitDeadline(first, input.deadlineDays ?? 1) - now;
     const hours = Math.floor(left / 3_600_000);
     out.push({
       id: 'deadline',

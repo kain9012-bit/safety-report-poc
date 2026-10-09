@@ -19,5 +19,7 @@ jobs:
         run: npm run lint
       - name: 단위 시험
         run: npm test
+      - name: 단위 시험 — 다른 시간대에서도 같은 답(기한·단속 시간은 한국 시각)
+        run: TZ=America/Los_Angeles npm test
       - name: 빌드
         run: npm run build

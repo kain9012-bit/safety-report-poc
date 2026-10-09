@@ -46,6 +46,8 @@
 | **없는 값을 지어내지 않는다** | 키가 없거나 판독이 안 되면 칸을 비우고 이유를 적는다. 표본 값으로 화면을 채우지 않는다. | `reverseGeocode.ts`, `compose.ts` |
 | **실제 기관 화면을 흉내 내지 않는다** | 로고·기관명·접수번호·로그인·범죄예방 메뉴·이벤트 띠를 만들지 않는다. | `src/components/Ui.tsx`(비공식 화면 띠) |
 | **키는 서버에만** | API 키는 `api/` 함수에서만 읽는다. `VITE_` 접두사를 붙이면 브라우저 번들에 박히므로 붙이지 않는다. | `.env.example`, `vite.config.ts` |
+| **규칙은 어디서 돌든 같은 답** | 판정 규칙 파일은 화면·브라우저·네트워크·기기 현지 시각에 기대지 않는다. 기한·단속 시간·촬영시각은 **한국 시각**으로 따진다. | `src/lib/purity.test.ts`, `src/lib/kst.ts` |
+| **오래된 규정으로 안내하지 않는다** | 지자체 규정은 출처·확인일과 함께 둔다. 확인한 지 180일이 넘으면 경고, 365일이 넘으면 그 지역 값을 쓰지 않고 전국 기준으로 돌아간다. | `src/lib/localRules.ts` `ruleFreshness` |
 | **개인정보** | 번호판은 개인정보다. 채점 사진은 본인·팀원 차량만 쓰고, 사진과 `answers.csv`는 깃에 올리지 않는다. 좌표는 기록·캐시하지 않는다. | `.gitignore`, `api/*.ts` |
 
 ### 용어
@@ -76,14 +78,17 @@
    ▼
 두 사진 확인 ─ 같은 자리(겹침 50% 이상) · 같은 번호판(두 장 모두 읽히고 같음)
    ▼
-신고서 5단계 ─ 유형 → 발생지역 → 차량번호 → 내용(개조식 자동 작성) → 점검·제출
+신고서 5단계 ─ 유형 → 발생지역(적용 규정·기한) → 차량번호(번호판 확대 대조) → 내용(개조식 자동 작성)
+             → 점검·제출(신호등 + '담당 공무원이 받는 내용' 미리 보기)
    ▼
-제출 ─ 접수되지 않음. '제출한 신고'에 남는다.
+제출 ─ 접수되지 않음. '제출한 신고'에 남는다. 걸린 시간·누른 횟수를 함께 보여 준다(현장 확인 ⑦).
 ```
 
 - **이어하기** — 단계마다 기기(IndexedDB)에 저장한다. 앱을 바꾸거나 꺼도 하던 단계로 돌아온다(36시간 안). 7일 지나면 지운다.
 - **앨범 사진** — 사진 파일의 촬영 기록(EXIF)으로 진위를 규칙으로 점검한다(`src/lib/authenticity.ts`).
 - 처음이든 자주든 **흐름은 하나**다. 사용자를 나눠 흐름을 따로 두지 않는다(팀 결정).
+- **담당 공무원 쪽** — 제출하는 내용 끝에 '사전 점검 요약'(간격·겹침·두 장 번호 일치·위반 근거·적용 규정과 확인일·확인 필요 항목)이 붙는다.
+  담당자는 사진을 다시 재지 않고 확인만 하면 된다. 근거와 효과 추정은 `docs/officer-impact.md`.
 
 ---
 
@@ -98,12 +103,14 @@
 | 부적합 안내 | 규칙 | 근거·번호판이 안 보이면 이유를 알리고 첫 번째 사진을 다시 찍게 한다 | `src/components/CaptureFlow.tsx` |
 | 유형 추천 | 규칙 | 단속 시간 안 → 과태료 큰 것 → 위치자료 일치 → 판독 순서 | `src/lib/choose.ts` |
 | 유형 선택 | 사람 | 여럿이면 고른다 | |
-| 지자체 규정 | 규칙 | 주소로 관할을 찾아 간격·단속 시간 적용(없으면 전국 기준) | `src/lib/localRules.ts` |
+| 지자체 규정 | 규칙 | 주소로 관할을 찾아 간격·단속 시간·접수 기한 적용(없거나 오래되면 전국 기준) | `src/lib/localRules.ts` |
 | 남은 시간 알림 | 규칙 | 0초에 소리·진동·시스템 알림·탭 제목 | `src/lib/alert.ts` |
 | 같은 자리 | 규칙 | 두 사진 윤곽 대조, 겹침 50%·닮음 0.45 이상 | `src/lib/overlap.ts` |
 | 같은 차 | 규칙 | 두 장에서 **따로** 읽은 번호가 같을 때만 확정 | `api/vision.ts` `mergeReads` |
 | 주소 | 규칙(외부 API) | 좌표 → 도로명주소 | `api/address.ts` |
 | 내용 작성 | 규칙 | 있는 값만 이어 붙인 개조식 문장 | `src/lib/compose.ts` |
+| 담당자용 점검 요약 | 규칙 | 잰 값·적용 규정·확인 필요 항목을 내용 끝에 붙임(900자 안) | `src/lib/officer.ts` |
+| 번호판 확대 | 규칙 | AI가 짚은 번호판 자리를 두 사진에서 잘라 나란히 보여 줌 | `src/components/FormParts.tsx` `PlateZoom` |
 | 제출 전 점검 | 규칙 | 빨강이면 제출을 막는다(아래 표) | `src/lib/precheck.ts`, `src/lib/rules.ts` |
 | 확인·제출 | 사람 | 채워진 칸을 확인하고 낸다 | `src/components/ReportSteps.tsx` |
 
@@ -114,7 +121,7 @@
 | 항목 | 출처 | 막는 경우 |
 | --- | --- | --- |
 | 두 사진 간격 | rules | 지자체 간격 미만 |
-| 접수 기한 | rules | 촬영 익일 자정 경과 |
+| 접수 기한 | rules | 촬영일 다음 날 자정 경과(지역 규정이 이틀이면 이틀) — 한국 시각 |
 | 촬영시각 표시 | rules | 사진에 촬영시각 없음 |
 | 차량번호 | rules | 형식 불일치·확신도 0.8 미만 |
 | 위치 | rules | 좌표 없음 |
@@ -161,13 +168,17 @@ src/
     camera.ts            촬영, 촬영시각·좌표 새기기
     vision.ts            판독용 사본 줄이기(긴 변 1280px) + /api/vision 호출
     compose.ts           내용 칸 자동 작성(템플릿)
+    officer.ts           담당 공무원에게 함께 가는 사전 점검 요약
+    kst.ts               한국 시각 계산(기기 시간대와 무관)
+    exifTime.ts          사진 파일 촬영시각 읽기 — 시간대 기록이 없으면 한국 시각으로 가정
     reports.ts           신고 보관함(IndexedDB) — 이어하기·제출한 신고
     alert.ts             0초 알림(소리·진동·시스템 알림·탭 제목)
     reverseGeocode.ts    /api/address 호출
-    *.test.ts            단위 시험(vitest)
+    *.test.ts            단위 시험(vitest). purity.test.ts 는 규칙 파일의 순수성을 강제한다
   eval/                  판독 채점 화면(/eval.html)
     EvalApp.tsx · main.tsx · run.ts(사진 1장을 앱과 같은 규칙으로) · score.ts(채점·Wilson 범위)
   types/report.ts        신고서 칸 타입, 6대 유형 이름
+  build-info.d.ts        빌드 표식(__BUILD_SHA__·__BUILD_TIME__) 타입
 public/fac/              주변 시설 격자 파일(0.01°, 약 1km 칸). scripts/collect_facilities.py 가 만든다
 scripts/
   collect_facilities.py  횡단보도·어린이보호구역·버스정류장 수집 → public/fac/
@@ -175,7 +186,7 @@ data/                    리뷰·통계 원자료와 분석(→ data/README.md)
   samples/               채점 사진·정답표 자리. README와 빈 양식만 깃에 올린다
 docs/                    요구사항·설계 결정·근거 자료(→ 13장)
 index.html · eval.html   두 화면 진입 HTML (vite 다중 페이지 빌드)
-vite.config.ts           dev에서 api/ 함수를 그대로 돌리는 미들웨어 + 다중 페이지 입력
+vite.config.ts           dev에서 api/ 함수를 그대로 돌리는 미들웨어 + 다중 페이지 입력 + 빌드 표식(커밋 해시)
 vercel.json              빌드 설정, 보안 헤더, 함수 지역 서울(icn1), vision 함수 60초
 .github/workflows/ci.yml 타입 검사 → 단위 시험 → 빌드
 ```
@@ -190,7 +201,9 @@ vercel.json              빌드 설정, 보안 헤더, 함수 지역 서울(icn1
 | --- | --- | --- | --- | --- |
 | `INTERVAL_SEC` | `src/lib/rules.ts` | **3 (시험용)** | 두 사진 간격으로 실제로 쓰는 값 | **발표·현장 확인 전 `MIN_INTERVAL_SEC`(60)로 되돌린다.** 화면에 '테스트용' 표시가 자동으로 붙는다 |
 | `MIN_INTERVAL_SEC` | `src/lib/rules.ts` | 60 | 실제 신고 기준 간격 | 법령·안내 기준. 임의로 바꾸지 않는다 |
-| `NATIONAL` / `LOCAL_RULES` | `src/lib/localRules.ts` | 전국 6대 1분, 광명·안동·아산 | 지자체별 간격·단속 시간·추가 유형 | 출처 URL과 확인일(`checkedAt`) 없이는 넣지 않는다 |
+| `NATIONAL` / `LOCAL_RULES` | `src/lib/localRules.ts` | 전국 6대 1분, 광명·안동·아산·서울·대전 동구·중구·대덕구 | 지자체별 간격·단속 시간·추가 유형 | 출처 URL과 확인일(`checkedAt`) 없이는 넣지 않는다 |
+| `RULE_AGING_DAYS` / `RULE_STALE_DAYS` | `src/lib/localRules.ts` | 180 / 365일 | 지역 규정 신선도 — 경고 / 쓰지 않음 | 줄이면 더 자주 출처를 다시 확인해야 한다 |
+| `deadlineDays` | `src/lib/localRules.ts`(지역별) | 기본 1(익일), 대전 동구 2 | 접수 기한(촬영일 다음 며칠째 자정까지) | 출처에 적힌 대로만. 적혀 있지 않으면 가장 짧은 기준(익일) |
 | `FINE_KRW` | `src/lib/localRules.ts` | 4만~12만 원 | 추천 순서(과태료 큰 것 먼저) | 정책브리핑(2023-08-10) 기준 |
 | `THRESHOLD_METERS` | `src/lib/rules.ts` | 소화전·모퉁이 5m, 정류소 10m | 위치자료 기준 거리 | 위치자료는 참고용이라 판정에 쓰지 않는다 |
 | `PHOTO_TYPE_FLOOR` | `src/lib/crosscheck.ts` | 0.5 | 사진 증거로 유형을 채우는 최소 확신도 | 채점(`/eval.html`) 전후 비교 후에만 바꾼다 |
@@ -288,13 +301,19 @@ python scripts/collect_facilities.py   # .env.local 의 DATA_GO_KR_KEY(Decoding 
 2. `src/lib/localRules.ts`의 `LOCAL_RULES`에 `region`·`match`(주소 정규식)·`types`·`extra`·`source`·`checkedAt`을 적는다.
 3. `src/lib/localRules.test.ts`에 그 지역 주소로 간격·단속 시간 시험을 하나 더한다.
 4. 표에 없는 지자체는 전국 기준을 쓰고 화면에 '전국 기준'이라고 밝힌다 — 이 동작은 바꾸지 않는다.
+5. `match`는 시·도 이름부터 맞춘다(예: `/^대전(광역시)?\s+동구/`). '동구'만 쓰면 부산·인천 동구에도 걸린다.
+6. 규정을 다시 확인하면 `checkedAt`만 고쳐도 신선도 경고가 풀린다. 출처가 바뀌었으면 `source`도 고친다.
+
+등록된 지역: 경기 광명시, 경북 안동시, 충남 아산시(2026-10-02 확인), 서울특별시(시 단위, 2026-10-02),
+대전 동구·중구·대덕구(2026-09-18). 서울·대전은 팀원 저장소 [kjy-arch/parking-report](https://github.com/kjy-arch/parking-report)의
+확인 기록(`docs/evidence/`)을 옮겼다. 대전 3개 구는 어린이보호구역을 24시간 접수한다(08~20시는 과태료 3배 구간).
 
 ---
 
 ## 9. 시험(테스트)과 CI
 
 ```bash
-npm test     # 11개 파일 · 144개 시험 (2026-10-09 기준)
+npm test     # 19개 파일 · 220개 시험 (2026-10-09 기준)
 ```
 
 | 시험 파일 | 지키는 것 |
@@ -308,9 +327,17 @@ npm test     # 11개 파일 · 144개 시험 (2026-10-09 기준)
 | `compose.test.ts` | 내용 자동 작성, 없는 값은 빼기 |
 | `address.test.ts` · `tile.test.ts` | 서버 함수의 입력 검사·응답 해석 |
 | `eval/score.test.ts` | 정답표 해석, 채점, Wilson 범위 |
+| `crosscheck.test.ts` | 장면 → 유형 규칙(`typesFromScene`), 두 장 번호 대조(`mergeReads`), 판독 응답 다듬기 |
+| `precheck.test.ts` | 제출 전 점검 12항목의 빨강·노랑 경계, 지역별 기한 |
+| `choose.test.ts` | 추천 순서와 추천 문장, 조사 |
+| `reports.test.ts` | 이어하기 기한, 걸린 시간·누른 횟수 |
+| `facilities.test.ts` | 시설 격자 규칙(수집 스크립트와 같은지) |
+| `officer.test.ts` | 담당자용 점검 요약 — 숫자, 확인 필요 숨기지 않기, 900자 |
+| `kst.test.ts` · `exifTime.test.ts` | 한국 시각, 시간대 없는 EXIF 시각 |
+| `purity.test.ts` | 규칙 파일이 화면·브라우저·네트워크·현지 시각에 기대지 않는지 |
 
-- **아직 시험이 없는 곳**: `api/vision.ts`의 `typesFromScene`·`mergeReads`(판정의 핵심), `precheck.ts`, `choose.ts`, `reports.ts`, `alert.ts`, `album.ts`, `facilities.ts`. 이곳을 고칠 때는 시험부터 더한다(14장).
-- CI(`.github/workflows/ci.yml`): main push와 PR마다 **타입 검사 → 단위 시험 → 빌드**. 빨간불이면 합치지 않는다.
+- **아직 시험이 없는 곳**: 화면 코드(`src/components/`), 브라우저 기능에 기대는 `alert.ts`·`album.ts`·`camera.ts`·`overlap.ts`의 그림 처리. 판정에 쓰는 값은 `src/lib`의 순수 함수로 내려서 시험한다.
+- CI(`.github/workflows/ci.yml`): main push와 PR마다 **타입 검사 → 단위 시험 → 다른 시간대(미국 서부)에서 다시 시험 → 빌드**. 빨간불이면 합치지 않는다.
 
 ---
 
@@ -331,6 +358,7 @@ AI+규칙이 위반 유형과 번호판을 얼마나 맞히는지 **사진 1장 
 - data.go.kr은 브라우저에서 부르면 CORS에 막히고, AI 키는 화면에 둘 수 없어 **함수 중계가 필수**다.
 - `main`에 올리면 배포본이 바뀐다고 보고 작업한다. **push는 곧 배포** — 팀에 알리고 올린다.
 - 보안 헤더(`vercel.json`): 카메라·위치는 이 사이트에서만, `nosniff`, `strict-origin-when-cross-origin`.
+- **빌드 표식** — PC 화면 오른쪽 아래에 커밋 해시와 빌드 시각이 보인다. "방금 고친 게 올라갔나"는 이걸로 확인한다(`+`가 붙으면 커밋하지 않은 변경이 섞인 빌드).
 
 ---
 
@@ -354,6 +382,7 @@ AI+규칙이 위반 유형과 번호판을 얼마나 맞히는지 **사진 1장 
 | `docs/design.md` | 설계 결정과 이유(날짜별 기록), 하지 않기로 한 것 | 코드를 고치기 전 |
 | `docs/requirements.md` | 리뷰 불만 → 요구사항 R1~R7 → 화면, 10/2 회의 결정 → 화면 | 기능을 더하거나 뺄 때 |
 | `docs/painpoints.md` | 현행 절차와 국민·공무원 양쪽 불편, 예상 반론 | 발표·제안서 쓸 때 |
+| `docs/officer-impact.md` | **현업 공무원에게 무엇이 달라지나** — 줄어드는 업무, 가정을 밝힌 효과 추정, 인터뷰 질문지 | 공무원 효과를 말할 때 |
 | `docs/statistics.md` | 월별 신고·처리 통계(불수용률 20.7%), 정보공개청구 할 것 | 숫자를 인용할 때 |
 | `docs/test-data.md` | 시설 자료 범위, 사진 표본 방침, 합성 시험 | 자료를 늘릴 때 |
 | `docs/field-test.md` | 현장 확인 점검표와 결과 기록 칸 | 폰으로 나가서 시험할 때 |
@@ -371,17 +400,17 @@ AI+규칙이 위반 유형과 번호판을 얼마나 맞히는지 **사진 1장 
 
 | 구분 | 내용 | 어디 | 갚는 법 |
 | --- | --- | --- | --- |
-| 시험 누락 | 판정 핵심인 `typesFromScene`·`mergeReads`에 시험이 없다 | `api/vision.ts` | 장면 항목 조합별·두 장 번호 불일치 시험 추가 |
-| 시험 누락 | `precheck`·`choose`·`reports` 시험이 없다 | `src/lib/` | 빨강/노랑 경계, 추천 순서, 이어하기 기한 시험 |
+| 비용 | 공개 배포에서 누구나 `/api/vision`을 불러 Gemini 사용량을 소진할 수 있다 | `api/vision.ts` | 날짜·IP별 호출 상한(내구 저장소 필요 — Vercel KV 등). 팀원 저장소 `src/server/quota.ts` 참고 |
+| 기한 | 앨범 사진 진위 점검의 기한은 지역 규정과 상관없이 익일로 본다 | `authenticity.ts` | 지역 `deadlineDays`를 넘겨 받기 |
 | 임시 값 | 두 사진 간격이 시험용 3초 | `rules.ts` `INTERVAL_SEC` | 발표·현장 확인 전 60으로 |
-| 용어 | 화면에 '시제품', '첫 사진·둘째 사진'이 남아 있다 | `Ui.tsx`·`StartScreen.tsx`·`FormParts.tsx`·`App.tsx`·`CaptureFlow.tsx`·`index.html`·`eval.html` | 1장 용어표대로 바꾸기 |
 | 미검증 기준 | 겹침 50%·닮음 0.45는 합성 장면으로만 맞췄다 | `overlap.ts` | 현장 사진 쌍으로 다시 맞추기 |
-| 범위 | 지자체 규정은 광명·안동·아산만 | `localRules.ts` | 8장 절차로 추가 |
+| 범위 | 지자체 규정은 광명·안동·아산·서울·대전 3구만(전북 시군 없음) | `localRules.ts` | 8장 절차로 추가 — 전북 시군부터 |
 | 범위 | 시설 자료는 서울·전북만, 소화전·교차로 모퉁이 없음 | `public/fac/` | 지역 추가 시 수집 스크립트 범위 확장 |
 | 웹의 한계 | 아이폰은 진동 불가, 화면 맨 위 남은 시간(다이내믹 아일랜드)은 앱으로만 가능 | `alert.ts` | 제안서에 '앱 구현 시'로 적음 |
 | 저장 | 보관함은 그 기기에만 있다. 사생활 보호 모드에서는 저장 안 됨 | `reports.ts` | 의도된 동작(서버로 보내지 않음) |
 | 개인정보 | 외부 AI(Gemini 무료 등급)로 사진을 보낸다 | `api/vision.ts` | PoC 한정. 제안서에 자체 처리 명시 |
 | 현장 확인 | `docs/field-test.md` 결과 칸이 비어 있다 | docs | 현장 확인 후 채우기 |
+| 효과 추정 | 공무원 업무 감소 추정이 가정(요건 미달 비중·건당 시간)에 기댄다 | `docs/officer-impact.md` | 인터뷰·정보공개청구로 가정 교체 |
 
 ---
 

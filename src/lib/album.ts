@@ -4,15 +4,13 @@
  */
 import { drawStamp, formatStamp } from './camera';
 import type { PhotoMeta } from './authenticity';
+import { parseExifInstant } from './exifTime';
 import type { Shot } from '../types/report';
 
 /** 신고서에 붙일 사진의 긴 변 상한(px) — 번호판이 읽히는 선에서 용량을 줄인다 */
 const MAX_EDGE = 1920;
 
 interface ExifTags {
-  DateTimeOriginal?: Date;
-  CreateDate?: Date;
-  ModifyDate?: Date;
   Software?: string;
   Make?: string;
   Model?: string;
@@ -20,16 +18,22 @@ interface ExifTags {
   longitude?: number;
 }
 
-const ms = (d?: Date) => (d instanceof Date && !Number.isNaN(d.getTime()) ? d.getTime() : undefined);
 
 export async function readMeta(file: File): Promise<Omit<PhotoMeta, 'width' | 'height'>> {
   const exifr = (await import('exifr')).default;
   const t = ((await exifr
     .parse(file, { tiff: true, exif: true, gps: true, xmp: false, icc: false, iptc: false })
     .catch(() => null)) ?? {}) as ExifTags;
+  // 시각은 글자 그대로 받아 시간대를 직접 따진다(exifr 이 기기 현지 시각으로 읽지 않게)
+  const raw = ((await exifr
+    .parse(file, { tiff: true, exif: true, gps: false, xmp: false, icc: false, iptc: false, reviveValues: false })
+    .catch(() => null)) ?? {}) as Record<string, unknown>;
+  const taken = parseExifInstant(raw.DateTimeOriginal, raw.OffsetTimeOriginal) ?? parseExifInstant(raw.CreateDate, raw.OffsetTimeDigitized);
+  const modified = parseExifInstant(raw.ModifyDate, raw.OffsetTime);
   return {
-    takenAt: ms(t.DateTimeOriginal) ?? ms(t.CreateDate),
-    modifiedAt: ms(t.ModifyDate),
+    takenAt: taken?.at,
+    assumedKst: taken?.assumedKst,
+    modifiedAt: modified?.at,
     software: t.Software?.trim() || undefined,
     make: t.Make?.trim() || undefined,
     model: t.Model?.trim() || undefined,

@@ -5,6 +5,7 @@
  * 그래서 찍는 순간 시각·좌표를 사진 위에 직접 그려 넣는다.
  * 화질은 건드리지 않는다 — 번호판이 안 읽히면 그것도 반려 사유다(요구사항 R2).
  */
+import { kstStamp } from './kst';
 
 export interface CaptureMeta {
   takenAt: number;
@@ -13,12 +14,9 @@ export interface CaptureMeta {
   accuracy?: number;
 }
 
+/** 사진에 새기는 촬영시각 — 기기 시간대와 상관없이 한국 시각 */
 export function formatStamp(ms: number): string {
-  const d = new Date(ms);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(
-    d.getMinutes(),
-  )}:${p(d.getSeconds())}`;
+  return kstStamp(ms);
 }
 
 /** 비디오 한 프레임을 원본 해상도로 떠서 워터마크를 얹은 JPEG 데이터 URL */

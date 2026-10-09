@@ -756,11 +756,11 @@ export function PlaceSheet({
 export function WhyPanel({ onClose }: { onClose: () => void }) {
   const items: [string, string][] = [
     ['사진부터', '유형을 고르기 전에 카메라가 열립니다. 고르는 사이 차가 떠나지 않게.'],
-    ['첫 사진 바로 확인', '찍자마자 유형·번호판을 읽습니다. 위반 장소나 번호판이 안 보이면 이유를 알려 드리고 첫 사진을 다시 찍게 합니다 — 1분 기다린 뒤에 반려되지 않게.'],
+    ['첫 번째 사진 바로 확인', '찍자마자 유형·번호판을 읽습니다. 위반 장소나 번호판이 안 보이면 이유를 알려 드리고 첫 번째 사진을 다시 찍게 합니다 — 1분 기다린 뒤에 반려되지 않게.'],
     ['유형이 여럿이면 고르기', '사진에 유형이 둘 이상 보이면 직접 고릅니다. 앱은 단속 시간·과태료·위치자료로 추천만 합니다.'],
     ['남은 시간 알림', '60초에서 0초로 세고, 0초가 되면 소리·진동으로 알립니다. 그동안 자리를 떠도 됩니다.'],
     ['우리 동네 규정', '찍기 전 위치로 관할 지자체를 찾아 그 규정(간격·단속 시간)을 적용합니다.'],
-    ['같은 자리·같은 차 확인', '둘째 사진은 첫 사진 잔상에 맞춰 찍고, 두 사진 겹침과 두 장 번호판 일치를 확인합니다.'],
+    ['같은 자리·같은 차 확인', '두 번째 사진은 첫 번째 사진 잔상에 맞춰 찍고, 두 사진 겹침과 두 장 번호판 일치를 확인합니다.'],
     ['이어하기', '앱을 바꾸거나 꺼도 하던 신고부터 다시 시작합니다. 처음 화면에 이어할 신고가 남습니다.'],
     ['단계별 화면', '한 화면에 한 가지만 확인합니다. 내용은 담당자가 읽기 쉽게 항목으로 씁니다.'],
   ];
@@ -783,7 +783,7 @@ export function WhyPanel({ onClose }: { onClose: () => void }) {
           판정은 규칙이 합니다. AI는 사진에 보이는 것(장면·번호판)만 읽고, 좌표·공공데이터는 참고로만 씁니다.
         </p>
         <p className="mt-3 text-xs text-slate-500 pt-3 border-t border-slate-200">
-          근거: 2026년 구글플레이 리뷰 분류(docs/painpoints.md) · 팀 회의(docs/meeting-2026-10-02.html) · 국민제안 준비용 비공식 시제품이며 실제 신고는 접수되지 않습니다.
+          근거: 2026년 구글플레이 리뷰 분류(docs/painpoints.md) · 팀 회의(docs/meeting-2026-10-02.html) · 국민제안 준비용 비공식 화면이며 실제 신고는 접수되지 않습니다.
         </p>
       </div>
     </div>
@@ -831,3 +831,64 @@ export function TypeChooser({
     </div>
   );
 }
+
+/**
+ * 번호판 확대 확인(요구사항 R2) — 두 사진에서 AI가 짚은 번호판 자리를 잘라 크게 보여 준다.
+ * 판독이 맞는지 사람이 한 글자씩 대조하게 하려는 것이다. 자르기만 하고 화질은 건드리지 않는다.
+ * 번호판 자리를 못 찾은 사진은 그렇다고 적는다(지어내지 않는다).
+ */
+export function PlateZoom({ shots, reads }: { shots: DraftReport['shots']; reads?: DraftReport['reads'] }) {
+  if (shots.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <p className="text-[13px] font-bold text-slate-600">번호판 확대 — 사진과 한 글자씩 맞춰 보세요</p>
+      <div className="mt-1.5 grid grid-cols-2 gap-2">
+        {shots.slice(0, 2).map((s, i) => {
+          const r = reads?.[i];
+          const box = r?.boxes.find((b) => b.label === 'plate')?.box;
+          return (
+            <figure key={i} className="rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
+              {box ? (
+                <PlateCrop src={s.dataUrl} box={box} label={`${i + 1}번째 사진 번호판`} />
+              ) : (
+                <div className="h-[72px] flex items-center justify-center px-2 text-center text-[12px] text-slate-500">
+                  번호판 자리를 찾지 못했습니다
+                </div>
+              )}
+              <figcaption className="px-2 py-1 text-[12px] text-slate-600 tabular-nums">
+                {i === 0 ? '첫 번째' : '두 번째'} 사진 · {r?.plate.readable ? r.plate.text : '못 읽음'}
+              </figcaption>
+            </figure>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** 사진에서 상자([위, 왼쪽, 아래, 오른쪽], 0~1000) 자리를 여백을 조금 두고 잘라 그린다 */
+function PlateCrop({ src, box, label }: { src: string; box: [number, number, number, number]; label: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      const c = ref.current;
+      if (!c) return;
+      const [t, l, b, r] = box;
+      const padX = (r - l) * 0.25;
+      const padY = (b - t) * 0.6;
+      const x0 = (Math.max(0, l - padX) / 1000) * img.naturalWidth;
+      const y0 = (Math.max(0, t - padY) / 1000) * img.naturalHeight;
+      const x1 = (Math.min(1000, r + padX) / 1000) * img.naturalWidth;
+      const y1 = (Math.min(1000, b + padY) / 1000) * img.naturalHeight;
+      const w = Math.max(1, x1 - x0);
+      const h = Math.max(1, y1 - y0);
+      c.width = Math.round(Math.min(640, w * 2));
+      c.height = Math.round((c.width * h) / w);
+      c.getContext('2d')?.drawImage(img, x0, y0, w, h, 0, 0, c.width, c.height);
+    };
+    img.src = src;
+  }, [src, box]);
+  return <canvas ref={ref} role="img" aria-label={label} className="block w-full h-auto bg-slate-900" />;
+}
+

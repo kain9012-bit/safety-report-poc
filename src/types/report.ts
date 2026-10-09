@@ -34,7 +34,7 @@ export interface Shot {
   meta?: PhotoMeta;
 }
 
-/** 좌표가 있는 첫 컷. 첫 장에 좌표가 없어도 둘째 장에 있으면 그걸 쓴다. */
+/** 좌표가 있는 첫 번째 사진. 첫 번째 사진에 좌표가 없어도 두 번째 사진에 있으면 그걸 쓴다. */
 export function locatedShot(shots: readonly Shot[]): Shot | undefined {
   return shots.find((s) => s.lat !== undefined && s.lng !== undefined);
 }
@@ -57,7 +57,7 @@ export interface DraftReport {
   reads?: (PhotoRead | null)[];
   /** 판독에 쓴 모델 */
   model?: string;
-  /** 첫 사진 판독 결과를 사람이 확인했다(둘째 사진 대기로 넘어감) */
+  /** 첫 번째 사진 판독 결과를 사람이 확인했다(두 번째 사진 대기로 넘어감) */
   firstOk?: boolean;
   /** 두 사진 겹침 — 규칙 기반 영상 대조(overlap.ts) */
   overlap?: { ratio: number; score: number; same: boolean };

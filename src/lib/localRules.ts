@@ -7,7 +7,13 @@
  * 촬영 전에 휴대폰 좌표 → 주소 → 관할 지자체를 찾아 이 표를 적용한다.
  * 표에 없는 지자체는 전국 기준을 쓰고, 화면에 '전국 기준'이라고 밝힌다.
  * 규정은 바뀐다 — 지역마다 확인한 날짜와 출처를 함께 둔다.
+ *
+ * **오래 확인하지 않은 규정으로는 안내하지 않는다(신선도).** 확인한 지 180일이 지나면 경고하고,
+ * 365일이 지나면 그 지역 값을 쓰지 않고 전국 기준으로 돌아가며 그 사실을 화면에 적는다.
+ * 지자체가 안내를 바꿔도 우리는 알 수 없으므로 코드가 스스로 멈추는 편이 낫다.
+ * (팀원 저장소 kjy-arch/parking-report 의 정책 신선도 게이트를 따랐다.)
  */
+import { kstParts, kstTime } from './kst';
 import { INTERVAL_SEC, MIN_INTERVAL_SEC } from './rules';
 import type { ViolationType } from '../types/report';
 
@@ -36,7 +42,10 @@ export interface LocalRule {
   extra?: string[];
   /** 단속을 미루는 시간 등 — 유형별 적용 범위가 안내문에 분명하지 않아 안내만 한다 */
   notes?: string[];
+  /** 접수 기한 — 촬영일 다음 며칠째 자정까지. 없으면 전국 기준(익일) */
+  deadlineDays?: number;
   source: string;
+  /** 출처를 마지막으로 확인한 날(한국 날짜 YYYY-MM-DD) */
   checkedAt: string;
 }
 
@@ -88,7 +97,74 @@ export const LOCAL_RULES: LocalRule[] = [
     source: 'https://www.asan.go.kr/main/cms/?no=475',
     checkedAt: '2026-10-02',
   },
+  // 아래 서울·대전은 팀원 저장소(kjy-arch/parking-report)의 확인 기록을 옮겼다.
+  // 근거: 그 저장소의 docs/evidence/2026-10-02-seoul.md, docs/evidence/2026-09-18-daejeon.md
+  {
+    region: '서울특별시',
+    match: /^서울(특별시)?\s/,
+    types: {},
+    extra: ['소방활동장애지역 24시간', '안전지대 24시간'],
+    notes: [
+      '서울시 공통 안내 기준 — 25개 자치구를 하나씩 확인하지는 않아 구에 따라 다를 수 있습니다',
+      '서울시 스마트 불편신고 앱으로 내면 기한이 3일로 다릅니다(이 화면은 안전신문고 기준 익일)',
+    ],
+    deadlineDays: 1,
+    source: 'https://smartreport.seoul.go.kr/w100/w142.do',
+    checkedAt: '2026-10-02',
+  },
+  {
+    region: '대전 동구',
+    match: /^대전(광역시)?\s+동구/,
+    // 어린이보호구역은 24시간 접수 — 평일 08~20시는 접수 여부가 아니라 과태료(3배) 구간이다
+    types: { schoolzone: { weekday: undefined, weekend: undefined } },
+    extra: ['황색복선 24시간(점심 11:30~14:00 유예)', '그 밖의 구역 24시간(점심 유예)'],
+    notes: ['어린이보호구역은 평일 08~20시 과태료 3배, 그 밖의 시간 1배', '터널·다리 위는 촬영 간격 5분 초과'],
+    deadlineDays: 2,
+    source: 'https://www.donggu.go.kr/dg/kor/contents/235',
+    checkedAt: '2026-09-18',
+  },
+  {
+    region: '대전 중구',
+    match: /^대전(광역시)?\s+중구/,
+    types: { schoolzone: { weekday: undefined, weekend: undefined } },
+    extra: ['황색복선 07~20시(점심 11:30~14:00 유예)'],
+    notes: ['어린이보호구역은 평일 08:00~20:00 과태료 3배, 그 밖의 시간 1배'],
+    deadlineDays: 1,
+    source: 'https://www.djjunggu.go.kr/kr/sub02_03_13.do',
+    checkedAt: '2026-09-18',
+  },
+  {
+    region: '대전 대덕구',
+    match: /^대전(광역시)?\s+대덕구/,
+    types: { schoolzone: { weekday: undefined, weekend: undefined } },
+    extra: ['황색복선·그 밖의 구역 07~20시(점심 11:30~14:00 유예)'],
+    notes: [
+      '어린이보호구역은 평일 08:00~18:00 과태료 3배, 그 밖의 시간 1배',
+      '구청 안내에 신고 기한이 없어 가장 짧은 기준(익일)으로 안내합니다',
+    ],
+    deadlineDays: 1,
+    source: 'https://www.daedeok.go.kr/dpt/goContents.do?link=/dpt/dpt06/DPT06010409&menuId=DPT06010409',
+    checkedAt: '2026-09-18',
+  },
 ];
+
+/** 이 날수를 넘기면 경고한다 */
+export const RULE_AGING_DAYS = 180;
+/** 이 날수를 넘기면 그 지역 값을 쓰지 않는다 */
+export const RULE_STALE_DAYS = 365;
+
+export type Freshness = 'fresh' | 'aging' | 'stale';
+
+/** 규정 신선도 — 확인일로부터 지난 날수(한국 날짜 기준). 확인일을 못 읽으면 확인하지 않은 것과 같다. */
+export function ruleFreshness(rule: LocalRule, now = Date.now()): { level: Freshness; ageDays: number | null } {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(rule.checkedAt);
+  if (!m) return { level: 'stale', ageDays: null };
+  const checked = kstTime(Number(m[1]), Number(m[2]), Number(m[3]));
+  const t = kstParts(now);
+  const today = kstTime(t.year, t.month, t.day);
+  const ageDays = Math.floor((today - checked) / 86_400_000);
+  return { level: ageDays > RULE_STALE_DAYS ? 'stale' : ageDays > RULE_AGING_DAYS ? 'aging' : 'fresh', ageDays };
+}
 
 export interface AppliedRules {
   /** 표에 있는 지자체면 그 이름, 아니면 undefined(전국 기준) */
@@ -96,15 +172,30 @@ export interface AppliedRules {
   local?: LocalRule;
   /** 유형마다 전국 기준에 지역 값을 덮은 결과 */
   types: Record<ViolationType, TypeRule>;
+  /** 접수 기한 — 촬영일 다음 며칠째 자정까지 */
+  deadlineDays: number;
+  /** 표에 있는데 확인한 지 오래돼 쓰지 않은 지역(전국 기준으로 돌아감) */
+  staleRegion?: string;
+  /** 쓰고 있는 지역 규정이 확인한 지 180일을 넘었다 */
+  aging?: boolean;
 }
 
-/** 주소 → 적용 규정. 주소를 모르면 전국 기준. */
-export function rulesFor(address?: string): AppliedRules {
-  const local = address ? LOCAL_RULES.find((r) => r.match.test(address)) : undefined;
+/** 주소 → 적용 규정. 주소를 모르거나 표에 없으면 전국 기준. 오래된 지역 규정은 쓰지 않는다. */
+export function rulesFor(address?: string, now = Date.now()): AppliedRules {
+  const found = address ? LOCAL_RULES.find((r) => r.match.test(address.trim())) : undefined;
+  const fresh = found ? ruleFreshness(found, now) : undefined;
+  const local = found && fresh?.level !== 'stale' ? found : undefined;
   const types = Object.fromEntries(
     (Object.keys(NATIONAL) as ViolationType[]).map((t) => [t, { ...NATIONAL[t], ...(local?.types[t] ?? {}) }]),
   ) as Record<ViolationType, TypeRule>;
-  return { region: local?.region, local, types };
+  return {
+    region: local?.region,
+    local,
+    types,
+    deadlineDays: local?.deadlineDays ?? 1,
+    staleRegion: found && !local ? found.region : undefined,
+    aging: fresh?.level === 'aging' || undefined,
+  };
 }
 
 /** 유형을 아직 모를 때 쓰는 간격 — 6대 유형 중 가장 긴 값(놓치지 않게) */
@@ -112,17 +203,17 @@ export function maxInterval(rules: AppliedRules): number {
   return Math.max(...Object.values(rules.types).map((r) => r.intervalSec));
 }
 
-const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
+const isWeekend = (weekday: number) => weekday === 0 || weekday === 6;
 const hm = (h: Hours) => `${String(h.from).padStart(2, '0')}~${String(h.to).padStart(2, '0')}시`;
 
-/** 그 시각이 단속 시간 안인가. 공휴일은 판단하지 않는다(달력 자료 없음). */
+/** 그 시각이 단속 시간 안인가(한국 시각). 공휴일은 판단하지 않는다(달력 자료 없음). */
 export function inEnforcement(rule: TypeRule, at: number): { ok: boolean; text: string } {
-  const d = new Date(at);
-  const weekend = isWeekend(d);
+  const t = kstParts(at);
+  const weekend = isWeekend(t.weekday);
   const hours = weekend ? (rule.weekend === undefined ? rule.weekday : rule.weekend) : rule.weekday;
   if (hours === null) return { ok: false, text: '주말에는 단속하지 않습니다' };
   if (!hours) return { ok: true, text: '24시간 단속' };
-  const h = d.getHours();
+  const h = t.hour;
   const ok = h >= hours.from && h < hours.to;
   return { ok, text: `${weekend ? '주말' : '평일'} ${hm(hours)} 단속` };
 }
@@ -131,7 +222,9 @@ export function inEnforcement(rule: TypeRule, at: number): { ok: boolean; text: 
 export function describeRules(rules: AppliedRules): string {
   const sec = maxInterval(rules);
   const gap = sec % 60 === 0 ? `${sec / 60}분` : `${sec}초`;
-  return `${rules.region ?? '전국'} 기준 · 두 장 ${gap} 간격`;
+  const stale = rules.staleRegion ? ` (${rules.staleRegion} 규정은 확인한 지 1년이 넘어 쓰지 않음)` : '';
+  const aging = rules.aging ? ' (규정 확인한 지 반년 넘음)' : '';
+  return `${rules.region ?? '전국'} 기준 · 두 장 ${gap} 간격${stale}${aging}`;
 }
 
 /**

@@ -12,6 +12,7 @@
  *
  * 통과(pass)·확인 필요(warn)·불가(fail). 불가가 하나라도 있으면 제출 점검에서 막힌다.
  */
+import { kstShort } from './kst';
 import { distanceMeters } from './geo';
 import { INTERVAL_SEC, intervalNote, submitDeadline } from './rules';
 import type { CheckResult, CheckStatus } from './rules';
@@ -20,6 +21,8 @@ import type { CheckResult, CheckStatus } from './rules';
 export interface PhotoMeta {
   /** EXIF 원본 촬영시각(DateTimeOriginal). 없으면 undefined */
   takenAt?: number;
+  /** 파일에 시간대 기록이 없어 한국 시각으로 가정했다(exifTime.ts) */
+  assumedKst?: boolean;
   /** EXIF 수정시각(ModifyDate) */
   modifiedAt?: number;
   software?: string;
@@ -46,11 +49,7 @@ export const SAME_SPOT_M = 30;
 /** 기기 시계 차이를 봐주는 여유(초) — 이보다 미래면 불가 */
 const FUTURE_SLACK_SEC = 300;
 
-const at = (ms: number) => {
-  const d = new Date(ms);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
-};
+const at = (ms: number) => kstShort(ms);
 
 /** 사진 한 장 점검 */
 export function checkAlbumPhoto(m: PhotoMeta, now: number = Date.now(), n = 1): CheckResult[] {
@@ -74,7 +73,12 @@ export function checkAlbumPhoto(m: PhotoMeta, now: number = Date.now(), n = 1): 
       detail: `${at(m.takenAt)}에 찍은 사진입니다. 촬영 익일이 지나 접수 기한을 넘겼습니다.`,
     });
   } else {
-    out.push({ id: `a${n}-time`, label: `${tag} 촬영시각`, status: 'pass', detail: `${at(m.takenAt)}에 찍었습니다(사진 파일 기록).` });
+    out.push({
+      id: `a${n}-time`,
+      label: `${tag} 촬영시각`,
+      status: 'pass',
+      detail: `${at(m.takenAt)}에 찍었습니다(사진 파일 기록${m.assumedKst ? ' · 시간대 기록이 없어 한국 시각으로 봄' : ''}).`,
+    });
   }
 
   const edited = m.software && EDIT_APPS.test(m.software);

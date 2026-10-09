@@ -31,7 +31,7 @@ describe('접수 기한', () => {
   });
 });
 
-describe('두 컷 간격', () => {
+describe('두 사진 간격', () => {
   it('순서가 뒤바뀌어도 절댓값으로 본다', () => {
     expect(intervalSeconds(1000, 62_000)).toBe(61);
     expect(intervalSeconds(62_000, 1000)).toBe(61);

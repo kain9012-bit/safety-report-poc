@@ -5,7 +5,7 @@
  * 그런데 그 문장의 재료(촬영시각·위치·유형·차량번호)는 이미 다른 칸에 있다.
  * 그래서 있는 값만 이어 붙인다. **없는 값은 지어내지 않고 문장에서 뺀다.**
  */
-import { formatStamp } from './camera';
+import { kstStamp } from './kst';
 import { intervalSeconds, isValidPlate } from './rules';
 import { VIOLATION_LABEL, locatedShot } from '../types/report';
 import type { DraftReport } from '../types/report';
@@ -30,7 +30,7 @@ export function composeBody(d: DraftReport): string {
   }
   const plate = d.plate?.replace(/\s/g, '');
 
-  const lines = [`- 일시: ${formatStamp(first.takenAt).slice(0, 16)}`];
+  const lines = [`- 일시: ${kstStamp(first.takenAt).slice(0, 16)}`];
   if (where) lines.push(`- 장소: ${where}`);
   lines.push(`- 위반: ${d.type ? `${VIOLATION_LABEL[d.type]} 불법 주정차` : '불법 주정차'}`);
   if (plate && isValidPlate(plate)) lines.push(`- 차량: ${plate}`);

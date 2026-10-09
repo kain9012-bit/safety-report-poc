@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 import { formatStamp } from '../lib/camera';
 import { BODY_MAX, composeBody } from '../lib/compose';
 import { precheck } from '../lib/precheck';
-import { describeRules } from '../lib/localRules';
+import { describeRules, effectiveInterval, maxInterval } from '../lib/localRules';
+import { officerLines, withOfficerSummary } from '../lib/officer';
 import type { AppliedRules } from '../lib/localRules';
 import type { TypeOption } from '../lib/choose';
 import type { CheckStatus } from '../lib/rules';
@@ -23,6 +24,7 @@ import {
   PlaceSheet,
   PlaceValue,
   PlateNote,
+  PlateZoom,
   SOURCE,
   TypeDialog,
   TypeValue,
@@ -66,12 +68,18 @@ export default function ReportSteps(p: Props) {
   const body = manual.body ? (draft.body ?? '') : composeBody(draft);
   const pc = useMemo(() => precheck({ draft, body, verdict, vision: vision.result }), [draft, body, verdict, vision.result]);
   const fails = pc.checks.filter((c) => c.status === 'fail').length;
+  // 담당 공무원에게 함께 가는 사전 점검 요약 — 규칙으로 잰 값(수용 여부는 담당자 판단)
+  const minInterval = effectiveInterval(draft.type ? p.rules.types[draft.type].intervalSec : maxInterval(p.rules));
+  const sent = useMemo(
+    () => withOfficerSummary(body, officerLines({ draft, precheck: pc, rules: p.rules, minInterval })),
+    [body, draft, pc, p.rules, minInterval],
+  );
   const count = (st: CheckStatus) => pc.checks.filter((c) => c.status === st).length;
   const last = STEPS.length - 1;
 
   const copyBody = async () => {
     try {
-      await navigator.clipboard.writeText(body);
+      await navigator.clipboard.writeText(sent);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -178,10 +186,11 @@ export default function ReportSteps(p: Props) {
                     : '24시간'}
                 </p>
               )}
+              <p>접수 기한: 촬영일 {p.rules.deadlineDays === 1 ? '다음 날' : `${p.rules.deadlineDays}일 뒤`} 자정까지</p>
               {p.rules.local?.extra && <p>이 지역 추가 유형: {p.rules.local.extra.join(', ')}</p>}
               {p.rules.local?.notes && <p>{p.rules.local.notes.join(' · ')}</p>}
               <p className="text-slate-400">
-                {p.rules.local ? `출처 ${p.rules.local.region} 누리집 · 확인 ${p.rules.local.checkedAt}` : '출처 정책브리핑(2023-08) 6대 유형 전국 기준'}
+                {p.rules.local ? `출처 ${p.rules.local.region} 누리집 · 확인 ${p.rules.local.checkedAt}${p.rules.aging ? ' · 확인한 지 반년이 넘었습니다' : ''}` : '출처 정책브리핑(2023-08) 6대 유형 전국 기준'}
               </p>
             </div>
           </Step>
@@ -201,6 +210,7 @@ export default function ReportSteps(p: Props) {
               plateOk={draft.plate ? isValidPlate(draft.plate) : false}
               onUse={(t) => p.onEdit('plate', t)}
             />
+            <PlateZoom shots={draft.shots} reads={draft.reads} />
           </Step>
         )}
 
@@ -264,6 +274,14 @@ export default function ReportSteps(p: Props) {
                   </li>
                 ))}
             </ul>
+            <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-3">
+              <p className="text-[15px] font-bold text-slate-900">담당 공무원이 받는 내용</p>
+              <p className="mt-0.5 text-[12.5px] text-slate-600 leading-snug">
+                앱이 규칙으로 잰 값을 함께 보냅니다. 담당자는 사진을 다시 재지 않고 확인만 하면 됩니다.
+              </p>
+              <pre className="mt-2 whitespace-pre-wrap break-keep font-sans text-[12.5px] leading-relaxed text-slate-800">{sent}</pre>
+              <p className="mt-1 text-right text-[12px] text-slate-500 tabular-nums">{sent.length} / {BODY_MAX}자</p>
+            </div>
             {pc.album.length > 0 && (
               <>
                 <p className="mt-4 mb-1 text-[15px] font-bold text-slate-900">앨범 사진 진위 — 항목별</p>

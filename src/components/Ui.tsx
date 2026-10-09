@@ -65,14 +65,27 @@ export const EvidenceBadge: React.FC<{ kind: Evidence }> = ({ kind }) => {
   return <Badge tone={map.tone}>{map.label}</Badge>;
 };
 
-/** 제안용 시제품임을 모든 화면에 밝히는 띠. 실제 기관 화면으로 오인되면 안 된다. */
+/** 제안용 비공식 화면임을 모든 화면에 밝히는 띠. 실제 기관 화면으로 오인되면 안 된다. */
 export const ProtoNotice: React.FC = () => (
   <div role="note" className="shrink-0 bg-amber-50 border-b border-amber-200 px-3 py-1 text-center">
     <p className="text-[11px] font-bold text-amber-900 leading-tight">
-      개선 제안용 비공식 시제품 · 실제 신고는 접수되지 않습니다
+      개선 제안용 비공식 화면 · 실제 신고는 접수되지 않습니다
     </p>
   </div>
 );
+
+/** 어느 빌드를 보고 있는지 — 커밋 해시와 빌드 시각(한국 시각). PC 화면 구석에만 보인다. */
+export const BuildBadge: React.FC<{ className?: string }> = ({ className = '' }) => {
+  const sha = typeof __BUILD_SHA__ === 'string' ? __BUILD_SHA__ : 'dev';
+  const t = typeof __BUILD_TIME__ === 'string' ? Date.parse(__BUILD_TIME__) : NaN;
+  const when = Number.isFinite(t) ? new Date(t + 9 * 3_600_000).toISOString().slice(5, 16).replace('T', ' ') : '';
+  return (
+    <p className={`text-[11px] text-slate-400 tabular-nums ${className}`} title="빌드 표식 — 커밋 해시(+는 커밋하지 않은 변경 포함)">
+      빌드 {sha}
+      {when && ` · ${when}`}
+    </p>
+  );
+};
 
 /**
  * 모바일 흐름을 데스크톱에서 볼 때 감싸는 기기 틀.

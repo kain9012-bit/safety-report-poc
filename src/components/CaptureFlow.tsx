@@ -44,12 +44,12 @@ interface Props {
   /** 지금까지 읽은 사진으로 낸 판독 합본 */
   vision?: VisionResult;
   verdict: Verdict;
-  /** 첫 사진에 보인 유형이 둘 이상일 때 고를 목록 */
+  /** 첫 번째 사진에 보인 유형이 둘 이상일 때 고를 목록 */
   options: TypeOption[];
   onShot: (s: Shot) => void;
   onRetakeFirst: () => void;
   onRetakeSecond: () => void;
-  /** 첫 사진 판독을 확인했다 — 둘째 사진 대기로 */
+  /** 첫 번째 사진 판독을 확인했다 — 두 번째 사진 대기로 */
   onAcceptFirst: () => void;
   onChooseType: (t: ViolationType) => void;
   onRetryRead: (i: number) => void;
@@ -61,10 +61,10 @@ interface Props {
 /**
  * 촬영 흐름 — 회의에서 정한 순서 그대로.
  *
- *  1. 첫 사진 → **바로 판독**(유형·번호판). 유형 근거나 번호판이 안 보이면 이유를 알려 주고 첫 사진을 다시 찍게 한다.
+ *  1. 첫 번째 사진 → **바로 판독**(유형·번호판). 유형 근거나 번호판이 안 보이면 이유를 알려 주고 첫 번째 사진을 다시 찍게 한다.
  *     유형이 둘 이상 보이면 사람이 고르고, 앱은 규칙으로 추천만 한다.
  *  2. 남은 시간 카운트다운(60→0초). 간격은 그 자리 지자체·유형 규정. 0초에 소리·진동. 자리를 떠도 된다.
- *  3. 둘째 사진 — 첫 사진 잔상을 겹쳐 같은 구도로.
+ *  3. 두 번째 사진 — 첫 번째 사진 잔상을 겹쳐 같은 구도로.
  *  4. 두 사진 겹침(규칙 기반 영상 대조)과 두 장 번호판 일치를 확인 → 맞으면 신고서 확인으로.
  *
  * 길에서 한 손으로 쓰는 화면이라 스크롤이 없다. 영상이 화면을 채우고 나머지는 위에 겹친다.
@@ -193,7 +193,7 @@ export default function CaptureFlow(p: Props) {
     <div className="relative flex-1 min-h-0 bg-slate-900 overflow-hidden">
       <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
 
-      {/* 첫 사진 잔상 — 같은 구도를 잡게 */}
+      {/* 첫 번째 사진 잔상 — 같은 구도를 잡게 */}
       {first && !second && (
         <img src={first.dataUrl} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover opacity-35 pointer-events-none" />
       )}
@@ -215,16 +215,16 @@ export default function CaptureFlow(p: Props) {
             aria-live="off"
             className={`px-3 py-1.5 rounded-full text-white text-sm font-bold tabular-nums ${remainSec > 0 ? 'bg-slate-900/80' : 'bg-green-600'}`}
           >
-            {remainSec > 0 ? `둘째 사진까지 ${remainSec}초` : '지금 둘째 사진'}
+            {remainSec > 0 ? `두 번째 사진까지 ${remainSec}초` : '지금 두 번째 사진'}
           </span>
         )}
       </div>
 
-      {/* 가운데: 큰 카운트다운(첫 사진 확인 뒤) */}
+      {/* 가운데: 큰 카운트다운(첫 번째 사진 확인 뒤) */}
       {phase === 'wait' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/50 text-white text-center px-8 pointer-events-none">
           <p className="text-[96px] font-bold tabular-nums leading-none">{remainSec}</p>
-          <p className="mt-3 text-[17px] font-bold">초 뒤에 둘째 사진</p>
+          <p className="mt-3 text-[17px] font-bold">초 뒤에 두 번째 사진</p>
           <p className="mt-2 text-[14px] text-slate-200 leading-snug">
             자리를 옮겨도 됩니다.
             <br />
@@ -239,7 +239,7 @@ export default function CaptureFlow(p: Props) {
       )}
       {phase === 'second' && (
         <p className="absolute top-16 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-green-600 text-white text-sm font-bold whitespace-nowrap">
-          첫 사진과 같은 자리·방향에서
+          첫 번째 사진과 같은 자리·방향에서
         </p>
       )}
 
@@ -281,7 +281,7 @@ export default function CaptureFlow(p: Props) {
             >
               <Camera className="w-6 h-6" aria-hidden="true" />
               {phase === 'wait'
-                ? `${remainSec}초 뒤 둘째 사진`
+                ? `${remainSec}초 뒤 두 번째 사진`
                 : locBlocking
                   ? `위치 찾는 중… ${Math.max(0, LOC_WAIT_SEC - waitedSec)}초`
                   : !pos
@@ -364,7 +364,7 @@ const READ_FAIL: Partial<Record<VisionState, string>> = {
   error: '사진 판독에 실패했습니다',
 };
 
-/** 1단계 — 첫 사진 판독 결과: 부적합이면 이유와 재촬영, 유형이 여럿이면 고르기, 맞으면 확인 */
+/** 1단계 — 첫 번째 사진 판독 결과: 부적합이면 이유와 재촬영, 유형이 여럿이면 고르기, 맞으면 확인 */
 function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
   const { draft, verdict, options } = p;
   const st = p.readStates[0];
@@ -374,9 +374,9 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
   if (!st || st === 'loading' || read === undefined) {
     return (
       <div className="space-y-2">
-        <p className="text-[19px] font-bold">첫 사진 확인 중</p>
+        <p className="text-[19px] font-bold">첫 번째 사진 확인 중</p>
         <Spinner text="유형과 번호판을 읽고 있습니다" />
-        <p className="text-[13px] text-slate-500">판독하는 동안에도 둘째 사진까지 남은 시간은 줄어듭니다.</p>
+        <p className="text-[13px] text-slate-500">판독하는 동안에도 두 번째 사진까지 남은 시간은 줄어듭니다.</p>
       </div>
     );
   }
@@ -384,7 +384,7 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
   if (st !== 'ok' || !read) {
     return (
       <div className="space-y-3">
-        <p className="text-[19px] font-bold">첫 사진을 판독하지 못했습니다</p>
+        <p className="text-[19px] font-bold">첫 번째 사진을 판독하지 못했습니다</p>
         <p className="text-[14px] text-slate-600">{READ_FAIL[st] ?? '사진 판독에 실패했습니다'}</p>
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => p.onRetryRead(0)} className="h-12 rounded-lg bg-[#3a8fdb] text-white font-bold">다시 판독</button>
@@ -422,7 +422,7 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
           ))}
         </ul>
         <button onClick={p.onRetakeFirst} className="w-full h-14 rounded-lg bg-[#3a8fdb] text-white text-[18px] font-bold flex items-center justify-center gap-2">
-          <RotateCcw className="w-5 h-5" aria-hidden="true" /> 첫 사진 다시 찍기
+          <RotateCcw className="w-5 h-5" aria-hidden="true" /> 첫 번째 사진 다시 찍기
         </button>
         <button onClick={p.onAcceptFirst} className="w-full text-[13px] text-slate-500 underline underline-offset-2">
           그래도 계속 (제출 전 점검에서 다시 확인합니다)
@@ -441,7 +441,7 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
   return (
     <div className="space-y-3">
       <p className="text-[19px] font-bold text-green-700 flex items-center gap-1.5">
-        <Check className="w-6 h-6" aria-hidden="true" /> 첫 사진 확인
+        <Check className="w-6 h-6" aria-hidden="true" /> 첫 번째 사진 확인
       </p>
       {multiple ? (
         <>
@@ -451,16 +451,16 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
       ) : (
         <dl className="rounded-lg border border-slate-200 divide-y divide-slate-100 text-[15px]">
           <Item k="유형" v={draft.type ? VIOLATION_LABEL[draft.type] : '—'} note={verdict.photoReason} />
-          <Item k="번호판" v={read.plate.text || '—'} note="둘째 사진에서 한 번 더 읽어 맞춰 봅니다" />
+          <Item k="번호판" v={read.plate.text || '—'} note="두 번째 사진에서 한 번 더 읽어 맞춰 봅니다" />
           <Item k="발생지역" v={draft.address ?? '주소 찾는 중…'} />
         </dl>
       )}
       <p className="text-[13px] text-slate-500">{describeRules(p.rules)} · 내용은 자동으로 씁니다</p>
       <button onClick={accept} className="w-full h-14 rounded-lg bg-[#3a8fdb] text-white text-[18px] font-bold">
-        {p.remainSec > 0 ? `확인 · 둘째 사진까지 ${p.remainSec}초` : '확인 · 둘째 사진 찍기'}
+        {p.remainSec > 0 ? `확인 · 두 번째 사진까지 ${p.remainSec}초` : '확인 · 두 번째 사진 찍기'}
       </button>
       <button onClick={p.onRetakeFirst} className="w-full text-[13px] text-slate-500 underline underline-offset-2">
-        첫 사진 다시 찍기
+        첫 번째 사진 다시 찍기
       </button>
     </div>
   );
@@ -521,7 +521,7 @@ function SecondCheck(p: Props) {
         </button>
       ) : done ? (
         <>
-          <p className="text-[14px] text-slate-600">첫 사진과 같은 자리·방향에서, 번호판이 보이게 다시 찍어 주세요. 기다릴 필요는 없습니다.</p>
+          <p className="text-[14px] text-slate-600">첫 번째 사진과 같은 자리·방향에서, 번호판이 보이게 다시 찍어 주세요. 기다릴 필요는 없습니다.</p>
           <button onClick={p.onRetakeSecond} className="w-full h-14 rounded-lg bg-[#3a8fdb] text-white text-[18px] font-bold flex items-center justify-center gap-2">
             <RotateCcw className="w-5 h-5" aria-hidden="true" /> 두 번째 다시 찍기
           </button>

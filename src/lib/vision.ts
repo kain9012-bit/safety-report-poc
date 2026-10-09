@@ -46,7 +46,7 @@ export async function readPhotos(dataUrls: string[]): Promise<{ state: VisionSta
   }
 }
 
-/** 사진 한 장 판독 — 첫 사진을 찍자마자 부른다(회의 결정: 둘째 사진 전에 판독·안내) */
+/** 사진 한 장 판독 — 첫 번째 사진을 찍자마자 부른다(회의 결정: 두 번째 사진 전에 판독·안내) */
 export async function readOne(
   dataUrl: string,
 ): Promise<{ state: VisionState; read?: PhotoRead | null; model?: string }> {

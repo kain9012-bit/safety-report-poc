@@ -6,6 +6,7 @@
  * 여기서 사진 증거·같은 차(두 장 번호판)·같은 자리(겹침)·지자체 단속 시간·앨범 진위·주소·내용을 더한다.
  * 간격과 단속 시간은 발생지역 주소로 찾은 지자체 규정(localRules.ts)을 따른다.
  */
+import { kstParts } from './kst';
 import { checkAlbum, worst } from './authenticity';
 import { BODY_MIN } from './compose';
 import { runChecks } from './rules';
@@ -36,7 +37,7 @@ export interface Precheck {
 
 export function precheck({ draft, body, verdict, vision, now = Date.now(), minInterval }: PrecheckInput): Precheck {
   const shots = draft.shots;
-  const rules = rulesFor(draft.address);
+  const rules = rulesFor(draft.address, now);
   minInterval ??= effectiveInterval(draft.type ? rules.types[draft.type].intervalSec : maxInterval(rules));
   const at = locatedShot(shots);
   const albumShots = shots.filter((s) => s.source === 'album' && s.meta);
@@ -53,6 +54,7 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
     lng: at?.lng,
     accuracy: at?.accuracy,
     now,
+    deadlineDays: rules.deadlineDays,
   }, minInterval).map((c) => {
     if (noTime && (c.id === 'interval' || c.id === 'timestamp')) {
       return { ...c, status: 'fail' as const, detail: '촬영시각 기록이 없는 앨범 사진이 있어 확인할 수 없습니다.' };
@@ -112,8 +114,8 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
         : ov.same
           ? `두 사진이 ${pct}% 겹칩니다(기준 ${Math.round(OVERLAP_MIN * 100)}%).`
           : ov.ratio < OVERLAP_MIN
-            ? `두 사진이 ${pct}%만 겹칩니다(기준 ${Math.round(OVERLAP_MIN * 100)}%). 첫 사진과 같은 자리·방향에서 다시 찍어 주세요.`
-            : '두 사진이 같은 장면으로 보이지 않습니다. 첫 사진과 같은 자리·방향에서 다시 찍어 주세요.',
+            ? `두 사진이 ${pct}%만 겹칩니다(기준 ${Math.round(OVERLAP_MIN * 100)}%). 첫 번째 사진과 같은 자리·방향에서 다시 찍어 주세요.`
+            : '두 사진이 같은 장면으로 보이지 않습니다. 첫 번째 사진과 같은 자리·방향에서 다시 찍어 주세요.',
     });
   }
 
@@ -121,7 +123,7 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
   if (draft.type && shots[0]) {
     const e = inEnforcement(rules.types[draft.type], shots[0].takenAt);
     if (e.text !== '24시간 단속') {
-      const h = new Date(shots[0].takenAt).getHours();
+      const h = kstParts(shots[0].takenAt).hour;
       const where = rules.region ?? '전국';
       out.push({
         id: 'hours',

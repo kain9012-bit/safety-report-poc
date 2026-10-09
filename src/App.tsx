@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { deleteReport, listReports, newId, pickResume, saveReport } from './lib/reports';
+import { deleteReport, listReports, measure, newId, pickResume, saveReport } from './lib/reports';
 import type { ReportRecord } from './lib/reports';
 import { reverseGeocode } from './lib/reverseGeocode';
 import type { AddressState } from './lib/reverseGeocode';
@@ -13,7 +13,7 @@ import { rulesFor } from './lib/localRules';
 import { rankTypes } from './lib/choose';
 import { mergeReads } from '../api/vision';
 import { PLATE_CONFIDENCE_FLOOR, isValidPlate } from './lib/rules';
-import { PhoneFrame, ProtoNotice } from './components/Ui';
+import { BuildBadge, PhoneFrame, ProtoNotice } from './components/Ui';
 import StartScreen from './components/StartScreen';
 import CaptureFlow from './components/CaptureFlow';
 import ReportSteps from './components/ReportSteps';
@@ -31,7 +31,7 @@ const statesOf = (d: DraftReport): (VisionState | undefined)[] =>
 
 /**
  * 흐름(회의 결정)
- *   처음 화면 → 촬영(첫 사진 즉시 판독 → 남은 시간 → 둘째 사진 → 같은 자리·같은 번호판 확인)
+ *   처음 화면 → 촬영(첫 번째 사진 즉시 판독 → 남은 시간 → 두 번째 사진 → 같은 자리·같은 번호판 확인)
  *   → 신고서 단계별 확인(유형 · 발생지역 · 차량번호 · 내용 · 점검·제출)
  * 진행 상태는 바뀔 때마다 기기에 저장한다 — 앱을 바꾸거나 꺼도 하던 신고부터 다시 시작한다.
  */
@@ -77,7 +77,7 @@ export default function App() {
     return () => clearTimeout(t);
   }, [rec]);
 
-  // 사진마다 판독 — 첫 사진은 찍자마자, 둘째 사진도 찍자마자. 한 장씩 따로 읽는다.
+  // 사진마다 판독 — 첫 번째 사진은 찍자마자, 두 번째 사진도 찍자마자. 한 장씩 따로 읽는다.
   const inflight = useRef(new Set<number>());
   useEffect(() => {
     draft.shots.forEach((s, i) => {
@@ -261,16 +261,23 @@ export default function App() {
 
   const onSubmit = () => {
     if (!rec) return;
-    const done: ReportRecord = { ...rec, phase: 'submitted' };
+    const done: ReportRecord = { ...rec, phase: 'submitted', submittedAt: Date.now() };
     setRec(done);
     void saveReport(done).then(refresh);
-    setToast('시제품이라 접수되지 않습니다 — 제출한 신고에 남겼습니다');
-    setTimeout(() => setToast(null), 2500);
+    const m = measure(done);
+    setToast(`개선 제안용 화면이라 접수되지 않습니다 — 제출한 신고에 남겼습니다${m ? `\n${m.text}` : ''}`);
+    setTimeout(() => setToast(null), 4000);
     setScreen('home');
   };
 
   return (
-    <div className="bg-slate-100 text-slate-800 font-sans antialiased selection:bg-blue-600 selection:text-white">
+    <div
+      className="bg-slate-100 text-slate-800 font-sans antialiased selection:bg-blue-600 selection:text-white"
+      onPointerDown={() => {
+        // 걸린 시간·누른 횟수 재기(현장 확인 ⑦) — 신고를 하는 동안만 센다
+        if (screen === 'capture' || screen === 'form') setRec((r) => (r && r.phase !== 'submitted' ? { ...r, taps: (r.taps ?? 0) + 1 } : r));
+      }}
+    >
       <PhoneFrame>
         <ProtoNotice />
 
@@ -332,7 +339,7 @@ export default function App() {
         )}
 
         {toast && (
-          <div role="status" className="absolute bottom-24 inset-x-6 z-40 rounded-lg bg-slate-900/90 text-white text-center text-[15px] font-bold py-3 px-3">
+          <div role="status" className="absolute bottom-24 inset-x-6 z-40 rounded-lg bg-slate-900/90 text-white text-center text-[15px] font-bold py-3 px-3 whitespace-pre-line">
             {toast}
           </div>
         )}
@@ -345,6 +352,7 @@ export default function App() {
       >
         판독 채점 화면 →
       </a>
+      <BuildBadge className="hidden lg:block fixed bottom-4 right-5" />
     </div>
   );
 }

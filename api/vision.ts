@@ -52,7 +52,7 @@ export interface PhotoRead {
 }
 
 export interface VisionResult {
-  /** 장마다 읽은 결과(0: 첫 장, 1: 둘째 장). 한 장이 실패하면 null */
+  /** 장마다 읽은 결과(0: 첫 번째 사진, 1: 두 번째 사진). 한 장이 실패하면 null */
   photos: (PhotoRead | null)[];
   /** 두 장을 맞대어 정한 번호판. agree=true 일 때만 앱이 채운다 */
   plate: { text: string; readable: boolean; confidence: number; agree: boolean | null; reads: string[] };
