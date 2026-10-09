@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<script>/* /deck 으로 들어와도 상대 경로(assets/…)가 맞도록 /deck/ 으로 옮긴다 */ if (/\/deck$/.test(location.pathname)) location.replace(location.pathname + '/' + location.search + location.hash);</script>
+<!--
+  최종 발표자료 — 직접 고치는 원본이다. 빌드 없이 그대로 배포된다(public/deck → /deck/).
+  · 장(슬라이드)은 <section class="slide"> 하나. 순서를 바꾸면 쪽 번호는 저절로 맞는다.
+  · 한 번 누를 때마다 나오는 조각: class="f"(또는 "pop") + data-step="n", 장에는 data-steps="최대 n".
+  · 발표자 노트: 각 장의 <aside class="notes"> (발표 중 N 키).
+  · 영상·그림은 assets/ 에 있다. 영상을 다시 만드는 방법은 README '발표자료' 장.
+  · 고친 뒤에는 README의 조판 점검(외톨이 줄·어절 쪼개짐)을 한 번 돌린다.
+-->
+
+<title>신고해도 될까요 — 최종 발표</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700;900&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{
+  --paper:#F4EFE6; --paper2:#EAE3D5; --card:#FBF8F2;
+  --ink:#1E1C19; --sub:#6B655C; --muted:#A39C90; --line:#D8CFBF;
+  --amber:#D99A2B; --rec:#D9412B; --orange:#F08A3C; --sky:#8EC5FF; --black:#050505;
+  --t1:#3E6B4F; --t2:#2F5D8A; --t3:#B8562E; --t4:#7A4E86;
+  --ai:#D99A2B; --rule:#3E6B4F; --person:#2F5D8A;
+  --serif:"Noto Serif KR","Noto Serif CJK KR","Batang","바탕",serif;
+  --sans:"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#12110F;overflow:hidden;font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:break-word}
+#stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:center center}
+.slide{position:absolute;inset:0;background:var(--paper);opacity:0;visibility:hidden;transition:opacity .6s ease,visibility .6s;overflow:hidden}
+.slide.active{opacity:1;visibility:visible}
+.slide.dark{background:var(--ink);color:#F4EFE6}
+.center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+
+/* 공통 타이포 */
+.eyebrow{font-size:24px;font-weight:600;letter-spacing:.18em;color:var(--sub)}
+.dark .eyebrow{color:#9C9588}
+.serif{font-family:var(--serif)}
+.title{font-family:var(--serif);font-weight:700;font-size:64px;line-height:1.35;letter-spacing:-.02em}
+.top-title{position:absolute;left:0;right:0;top:118px;text-align:center}
+.top-title .eyebrow{margin-bottom:22px}
+.footnote{position:absolute;left:0;right:0;bottom:46px;text-align:center;font-size:19px;color:var(--muted)}
+.pg{position:absolute;right:56px;bottom:40px;font-size:18px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.05em}
+.dark .pg{color:#5E584F}
+.pill{display:inline-block;font-size:24px;font-weight:600;padding:9px 30px;border-radius:999px;background:#F4EFE6;color:var(--ink)}
+.u{border-bottom:5px solid var(--amber)}
+
+/* 조각 단계 */
+.f{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.f.on{opacity:1;transform:none}
+.pop{opacity:0;transform:scale(.86);transition:opacity .5s ease,transform .5s cubic-bezier(.3,1.5,.5,1)}
+.pop.on{opacity:1;transform:none}
+
+/* 1. 표지 */
+#cover .bg{position:absolute;inset:0;background-size:cover;background-position:60% 30%;filter:saturate(.75) brightness(.42)}
+#cover .veil{position:absolute;inset:0;background:radial-gradient(ellipse 62% 70% at 50% 52%,rgba(5,5,5,.86),rgba(5,5,5,.55) 60%,rgba(5,5,5,.25))}
+#cover .vf{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
+#cover .rec{position:absolute;left:150px;top:118px;display:flex;align-items:center;font-size:22px;font-weight:700;letter-spacing:.14em;color:#E9735C}
+#cover .ttl{font-family:var(--serif);font-weight:900;font-size:108px;line-height:1.2;letter-spacing:-.035em;position:relative}
+#cover .ttl em{font-style:normal;color:var(--orange)}
+#cover .sub{font-size:34px;color:#C9C1B3;margin-top:40px;position:relative}
+#cover .meta{position:absolute;left:0;right:0;bottom:88px;display:flex;justify-content:center;gap:56px;font-size:24px;color:#9C9588}
+#cover .meta span b{color:#F4EFE6;font-weight:600;margin-left:12px}
+.recdot{width:22px;height:22px;border-radius:50%;background:var(--rec);display:inline-block;margin-right:16px;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(217,65,43,.45)}60%{box-shadow:0 0 0 18px rgba(217,65,43,0)}}
+
+/* 2. 순서 */
+.tline{position:absolute;left:120px;right:120px;top:440px}
+.tline .blocks{display:flex;gap:10px;height:280px}
+.tline .b{position:relative;border-radius:22px;background:var(--paper2);display:flex;flex-direction:column;justify-content:flex-end;padding:26px 28px}
+.tline .b .nm{font-size:34px;font-weight:700;line-height:1.3}
+.tline .b .nm small{display:block;font-size:22px;font-weight:500;color:var(--sub);margin-top:8px;line-height:1.45}
+.tline .b .mn{position:absolute;top:24px;left:28px;font-size:22px;color:var(--sub);font-weight:600;letter-spacing:.06em}
+.tline .b.free{background:var(--ink);color:#F4EFE6}
+.tline .b.free .nm{font-family:var(--serif);font-size:52px}
+.tline .b.free .nm small{color:var(--amber);font-family:var(--sans);font-size:24px}
+.tline .b.free .mn{color:var(--amber)}
+
+/* 구획 */
+.slide.sec{background:var(--black)}
+.sec .pill{font-size:20px;padding:6px 34px;background:#F4EFE6;color:#111;font-weight:600;letter-spacing:.02em}
+.sec h2{font-size:52px;font-weight:500;letter-spacing:-.01em;margin-top:28px;color:#F4EFE6;line-height:1.4}
+.sec p{font-size:28px;color:#77716A;margin-top:20px}
+.sec em{font-style:normal;color:var(--orange)}
+
+/* 4. 일곱 단계 */
+.seven{position:absolute;left:220px;right:220px;top:470px;height:340px}
+.seven .rail{position:absolute;left:0;right:0;top:44px;height:3px;background:var(--line)}
+.seven .band{position:absolute;left:122px;width:990px;top:-34px;height:200px;border:3px dashed var(--amber);border-radius:28px;background:rgba(217,154,43,.08)}
+.seven .bandl{position:absolute;left:122px;width:990px;top:-84px;text-align:center;font-size:26px;font-weight:800;color:#A8701A}
+.seven .nd{position:absolute;top:0;width:220px;margin-left:-110px;text-align:center}
+.seven .nd i{display:flex;margin:0 auto;width:90px;height:90px;border-radius:50%;background:var(--card);border:3px solid var(--line);align-items:center;justify-content:center;font-family:var(--serif);font-style:normal;font-size:38px;font-weight:700;color:var(--muted);transition:all .5s}
+.seven .nd b{display:block;margin-top:20px;font-size:30px;font-weight:700}
+.seven.hot .nd.h i{background:var(--amber);border-color:var(--amber);color:#fff}
+.seven .nt{position:absolute;top:212px;width:232px;margin-left:-116px;display:flex;gap:8px;padding:14px 16px;background:var(--card);border:2px solid var(--line);border-radius:20px;font-size:21px;font-weight:600;line-height:1.45;text-align:left}
+.seven .nt em{flex:none;font-style:normal;color:var(--rec);font-weight:900}
+
+/* 5. 리뷰 막대 */
+.bars{position:absolute;left:200px;top:330px;width:1100px}
+.bars .r{display:grid;grid-template-columns:300px 1fr 70px;align-items:center;height:56px}
+.bars .l{font-size:24px;font-weight:600;color:var(--sub);text-align:right;padding-right:26px;transition:color .5s}
+.bars .t{height:26px;border-radius:6px;background:transparent;position:relative}
+.bars .t i{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:#D9D0BF;width:0;transition:width 1s cubic-bezier(.2,.7,.2,1),background .5s}
+.bars .n{font-size:24px;font-weight:700;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;transition:color .5s}
+#reviews.st1 .bars .t i{width:var(--w)}
+#reviews.st2 .bars .t i{width:var(--w)}
+#reviews.st2 .bars .r.hi .t i{background:var(--orange)}
+#reviews.st2 .bars .r.hi .l,#reviews.st2 .bars .r.hi .n{color:var(--ink)}
+.call{position:absolute;right:150px;top:380px;width:380px;text-align:right}
+.call .n{font-family:var(--serif);font-weight:900;font-size:150px;line-height:1;color:var(--orange);letter-spacing:-.04em}
+.call .n small{font-size:48px;margin-left:6px}
+.call p{font-size:26px;color:var(--sub);margin-top:20px;line-height:1.55}
+
+/* 6. 핵심 문제(취지 배치) */
+.purpose{display:grid;grid-template-columns:1fr 1040px 1fr;align-items:center;height:100%;padding:0 70px}
+.purpose .side{text-align:center}
+.purpose .side .n{font-family:var(--serif);font-weight:900;font-size:136px;line-height:1;letter-spacing:-.04em}
+.purpose .side .n small{font-size:44px;margin-left:6px}
+.purpose .side .l{font-size:24px;color:var(--sub);margin-top:18px;line-height:1.5}
+.purpose .mid{text-align:center}
+.purpose .mid .q{font-family:var(--serif);font-weight:700;font-size:66px;line-height:1.42;letter-spacing:-.025em}
+.purpose .mid .q mark{background:linear-gradient(transparent 62%,rgba(217,154,43,.42) 62%);color:inherit;padding:0 4px}
+.purpose .mid .d{font-size:28px;color:var(--sub);margin-top:46px;line-height:1.7}
+
+/* 8. 원칙 */
+.rules{position:absolute;left:0;right:0;top:430px;display:flex;justify-content:center}
+.rulec{width:540px;text-align:center;padding:0 40px;border-left:2px solid var(--line)}
+.rulec:first-child{border-left:none}
+.rulec .k{font-family:var(--serif);font-size:30px;color:var(--amber);font-weight:700}
+.rulec h3{font-family:var(--serif);font-size:50px;font-weight:700;line-height:1.35;margin-top:22px}
+.rulec p{font-size:26px;color:var(--sub);margin-top:24px;line-height:1.6}
+
+/* 경로(흐름·과제) */
+.path{position:absolute;left:140px;right:140px;top:470px}
+.path .ln{position:absolute;left:120px;right:120px;top:54px;height:3px;background:var(--line)}
+.path .ln i{display:block;height:100%;width:0;background:var(--ink);transition:width 1s ease}
+.path .nodes{position:relative;display:flex;justify-content:space-between}
+.path .nd{width:240px;text-align:center}
+.path .nd .dot{width:110px;height:110px;border-radius:50%;background:var(--paper);border:3px solid var(--line);margin:0 auto;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:44px;font-weight:700;color:var(--muted);transition:all .5s ease}
+.path .nd.on .dot{border-color:var(--ink);background:var(--ink);color:#F4EFE6}
+.path .nd h3{font-size:30px;font-weight:700;margin-top:30px;line-height:1.35;transition:color .5s}
+.path .nd p{font-size:23px;color:var(--sub);margin-top:12px;line-height:1.5;transition:color .5s}
+.path .nd:not(.on) h3,.path .nd:not(.on) p{color:var(--muted)}
+.path .nd p em{font-style:normal;color:var(--rec);font-weight:700}
+
+/* 10. AI와 규칙 */
+.ph{position:absolute;left:120px;top:330px;width:560px;height:404px;border-radius:22px;overflow:hidden;box-shadow:0 14px 36px rgba(60,45,20,.16)}
+.ph img{width:100%;height:100%;display:block}
+.ph .bx{position:absolute;border:4px solid #F2A541;border-radius:8px}
+.ph .bx span{position:absolute;left:-4px;top:-38px;padding:4px 12px;border-radius:8px;background:#F2A541;color:#2A1D0A;font-size:19px;font-weight:800;white-space:nowrap}
+.arw{position:absolute;top:510px;color:#B9AA92}
+.card2{position:absolute;top:330px;height:404px;border-radius:22px;padding:26px 30px;border:2.5px solid}
+.card2 h4{display:flex;align-items:center;gap:12px;font-size:24px;font-weight:800}
+.chip{display:inline-flex;align-items:center;justify-content:center;height:30px;min-width:58px;padding:0 14px;border-radius:15px;color:#fff;font-size:17px;font-weight:800;font-style:normal;letter-spacing:0}
+.chip.ai{background:var(--ai)} .chip.r{background:var(--rule)} .chip.p{background:var(--person)}
+.cai{left:760px;width:420px;background:#F8EBD2;border-color:var(--ai)}
+.crl{left:1260px;width:540px;background:#E3ECE5;border-color:var(--rule)}
+.kv{display:flex;justify-content:space-between;align-items:center;height:42px;font-size:22px;font-weight:600;border-bottom:1px solid rgba(168,112,26,.18)}
+.kv:first-of-type{margin-top:12px}
+.kv b{font-size:17px;padding:3px 12px;border-radius:999px;background:rgba(255,255,255,.75);color:var(--muted)}
+.kv b.y{background:var(--ai);color:#fff}
+.kv.plate b{background:#fff;color:var(--ink);font-size:19px}
+.rr{margin-top:18px;display:grid;gap:14px}
+.rr div{font-size:23px;font-weight:600;line-height:1.4;padding:14px 18px;background:rgba(255,255,255,.75);border-radius:14px}
+.rr div span{color:var(--sub);font-weight:500}
+.rr div b{color:var(--rule)}
+.bound{position:absolute;left:120px;right:120px;top:790px;display:flex;align-items:center;gap:28px;padding:22px 32px;background:var(--card);border:2px solid var(--line);border-radius:20px}
+.bound .k{flex:none;font-family:var(--serif);font-weight:700;font-size:25px;color:#A8701A;padding-right:28px;border-right:2px solid var(--line)}
+.bound ul{list-style:none;display:flex;gap:34px;flex-wrap:wrap}
+.bound li{font-size:22px;font-weight:600;display:flex;gap:10px}
+.bound li em{flex:none;font-style:normal;color:var(--rec);font-weight:900}
+
+/* 11. 구현 화면 */
+.phone{position:absolute;left:240px;top:110px;width:424px;padding:14px;border-radius:54px;background:#1F2328;box-shadow:0 34px 70px rgba(40,25,5,.28)}
+.phone video{display:block;width:396px;height:792px;border-radius:42px;background:#fff;object-fit:cover}
+.demo-h{position:absolute;left:780px;top:130px}
+.demo-h .eyebrow{margin-bottom:22px}
+.steps{position:absolute;left:780px;top:350px;width:1000px;list-style:none}
+.steps li{position:relative;display:flex;gap:24px;padding:16px 0 16px 4px;border-bottom:2px solid var(--line);opacity:.4;transition:opacity .4s}
+.steps li.on{opacity:1}
+.steps i{flex:none;width:52px;height:52px;border-radius:50%;border:3px solid #B9AA92;display:flex;align-items:center;justify-content:center;font-style:normal;font-family:var(--serif);font-weight:700;font-size:24px;transition:all .4s}
+.steps li.on i{background:var(--ink);border-color:var(--ink);color:#F4EFE6}
+.steps b{display:block;font-size:30px;font-weight:800;letter-spacing:-.02em}
+.steps span{display:block;margin-top:4px;font-size:22px;color:var(--sub)}
+.steps .bar{position:absolute;left:0;bottom:-2px;height:3px;background:var(--amber);width:0}
+
+/* 12. 비교 */
+.cmp{position:absolute;left:150px;right:150px;top:330px}
+.cmp .hd{display:grid;grid-template-columns:270px 660px 90px 1fr;font-size:20px;font-weight:800;letter-spacing:.12em;color:var(--muted);padding-bottom:14px}
+.cmp .r{display:grid;grid-template-columns:270px 660px 90px 1fr;align-items:center;height:94px;border-top:2px solid var(--line)}
+.cmp .r:last-child{border-bottom:2px solid var(--line)}
+.cmp .k{font-family:var(--serif);font-size:32px;font-weight:700}
+.cmp .old{position:relative;justify-self:start;font-size:27px;color:var(--sub)}
+.cmp .old::after{content:"";position:absolute;left:-6px;right:-6px;top:52%;height:3px;background:var(--rec);transform:scaleX(0);transform-origin:left;transition:transform .5s ease .5s}
+.cmp .r.on .old::after{transform:scaleX(1)}
+.cmp .to{color:#B9AA92;font-size:34px}
+.cmp .new{font-size:29px;font-weight:800;color:var(--t1)}
+
+/* 14. 담당자 요약 */
+.now{position:absolute;left:120px;top:330px;width:660px}
+.now h4,.sum h4{font-size:22px;font-weight:800;letter-spacing:.08em;color:var(--muted);margin-bottom:18px}
+.now ul{list-style:none}
+.now li{display:flex;align-items:center;gap:18px;height:66px;padding:0 24px;margin-bottom:12px;border-radius:18px;background:var(--card);border:2px solid var(--line);font-size:27px;font-weight:700;transition:background .4s ease,color .4s ease,border-color .4s}
+.now li small{margin-left:auto;font-size:20px;font-weight:600;color:var(--sub)}
+.now .mk{flex:none;position:relative;width:34px;height:34px;border-radius:50%;border:3px solid #C9BBA3}
+.now .ck{position:absolute;inset:-3px;border-radius:50%;background:var(--t1);opacity:0;transform:scale(.4);transition:opacity .35s ease,transform .35s cubic-bezier(.3,1.6,.5,1)}
+.now .ck::after{content:"";position:absolute;left:11px;top:6px;width:8px;height:15px;border:solid #fff;border-width:0 4px 4px 0;transform:rotate(45deg)}
+.now .ck.on{opacity:1;transform:none}
+.now li:has(.ck.on){background:#E3ECE5;border-color:#C5D6CA;color:#5E6B63}
+.arr2{position:absolute;left:806px;top:560px;color:#B9AA92}
+.sum{position:absolute;left:880px;top:330px;width:920px}
+.paperx{padding:30px 36px 26px;border-radius:22px;background:#fff;border:2px solid #D9CDB8;box-shadow:0 16px 36px rgba(60,40,10,.10)}
+.paperx .hd{font-size:22px;font-weight:800;color:var(--t1);padding-bottom:16px;margin-bottom:10px;border-bottom:2px dashed #D9CDB8}
+.paperx p{font-size:25px;line-height:1.72;font-weight:600;font-variant-numeric:tabular-nums}
+.paperx p b{display:inline-block;width:140px;color:var(--sub);font-weight:600}
+.paperx p em{font-style:normal;color:var(--t1);font-weight:800}
+.paperx.on p{animation:lnin .5s ease both}
+@keyframes lnin{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+.verdict{position:absolute;left:120px;right:120px;top:880px;display:flex;align-items:center;gap:28px;padding:22px 32px;background:var(--ink);color:#F4EFE6;border-radius:20px;font-size:25px;font-weight:600}
+.verdict .k{flex:none;font-family:var(--serif);font-weight:700;font-size:27px;color:var(--orange);padding-right:28px;border-right:2px solid #3A362F}
+
+/* 15. 네 지점 */
+.quad{position:absolute;left:110px;right:110px;top:380px;display:grid;grid-template-columns:repeat(4,1fr)}
+.qd{padding:0 40px;border-left:2px solid var(--line);text-align:center}
+.qd:first-child{border-left:none}
+.qd .no{font-family:var(--serif);font-size:120px;font-weight:900;line-height:1}
+.qd h3{font-family:var(--serif);font-size:40px;font-weight:700;line-height:1.35;margin-top:30px}
+.qd p{font-size:24px;color:var(--sub);margin-top:22px;line-height:1.55}
+
+/* 16. 규모·추정 */
+#scale .big{position:absolute;left:130px;top:350px;width:560px}
+#scale .big .inp{font-size:21px;font-weight:700;letter-spacing:.06em;color:#9C9588;margin-bottom:22px}
+#scale .big .kv2{display:flex;align-items:baseline;gap:18px;padding:18px 0;border-bottom:2px solid #36322C;font-size:24px;color:#B6AE9F}
+#scale .big .kv2 b{font-family:var(--serif);font-size:52px;color:#F4EFE6;min-width:300px}
+#scale .big .src2{margin-top:18px;font-size:19px;color:#7E776C}
+#scale .big .n{font-family:var(--serif);font-size:150px;font-weight:900;line-height:1;color:var(--orange);letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+#scale .big .n small{font-size:52px;margin-left:8px}
+#scale .big p{margin-top:24px;font-size:25px;line-height:1.6;color:#B6AE9F}
+#scale .big p b{color:#F4EFE6}
+#scale .big .yr{margin-top:34px;padding-top:28px;border-top:2px solid #36322C}
+#scale .big .yr b{font-family:var(--serif);font-size:44px;margin-right:10px}
+#scale .est{position:absolute;left:800px;top:340px;width:1000px}
+#scale .est h4{font-size:21px;font-weight:700;letter-spacing:.06em;color:#9C9588;margin-bottom:10px}
+#scale .est .q{font-size:30px;font-weight:700;margin-bottom:24px}
+.ebar{display:grid;grid-template-columns:200px 1fr 150px;align-items:center;height:76px;font-variant-numeric:tabular-nums}
+.ebar .l{font-size:22px;color:#9C9588;font-weight:600}
+.ebar .l b{color:#F4EFE6;font-size:28px}
+.ebar .t{position:relative;height:42px;border-radius:10px;background:#2A2723;overflow:hidden}
+.ebar .t i{position:absolute;left:0;top:0;bottom:0;border-radius:10px;background:linear-gradient(90deg,#3E6B4F,#5FA582);width:var(--w);transform-origin:left;transform:scaleX(0);transition:transform 1.1s cubic-bezier(.2,.7,.2,1)}
+.ebar.on .t i{transform:none}
+.ebar .t span{position:absolute;left:18px;top:8px;font-size:20px;font-weight:700;color:#E2EEE6;white-space:nowrap}
+.ebar .v{text-align:right;font-family:var(--serif);font-size:40px;font-weight:700;color:#8DD0AC}
+.ebar .v small{font-size:20px;margin-left:3px}
+.two{margin-top:30px;padding:22px 28px;border-radius:18px;background:#2A2723;display:flex;align-items:center;gap:20px;font-size:24px;color:#B6AE9F;line-height:1.5}
+.two .n2{flex:none;align-self:flex-start;font-size:26px;color:#F4EFE6}
+.two b{color:#F4EFE6}
+.two strong{margin-left:auto;font-family:var(--serif);font-size:42px;color:#8DD0AC;white-space:nowrap}
+.two strong small{font-size:20px;margin-left:3px}
+#scale .fx{position:absolute;left:130px;right:130px;top:860px;padding:16px 28px;border-left:4px solid var(--orange);font-size:22px;line-height:1.7;color:#B6AE9F}
+#scale .fx b{color:#F4EFE6}
+
+/* 18. 검증 목표 */
+.goals{position:absolute;left:0;right:0;top:420px;display:flex;justify-content:center}
+.goal{width:500px;text-align:center;padding:0 40px;border-left:2px solid var(--line)}
+.goal:first-child{border-left:none}
+.goal .n{font-family:var(--serif);font-weight:900;font-size:150px;line-height:1;letter-spacing:-.04em;color:var(--t1);font-variant-numeric:tabular-nums}
+.goal .n small{font-size:50px;margin-left:6px}
+.goal.red .n{color:var(--rec)}
+.goal p{font-size:28px;color:var(--sub);margin-top:24px;line-height:1.5}
+
+/* 인터뷰: 가운데 질문 + 흩어진 말풍선 */
+.ivw{position:absolute;left:0;right:0;top:400px;display:flex;justify-content:center;gap:28px}
+.ivw .m{min-width:400px;padding:34px 40px;border-radius:26px;background:var(--card);border:2px solid var(--line);text-align:center}
+.ivw .m .k{font-size:22px;font-weight:700;letter-spacing:.1em;color:var(--sub)}
+.ivw .m .v{font-family:var(--serif);font-size:40px;font-weight:700;margin-top:14px}
+.todo{color:var(--muted)!important;border-style:dashed!important}
+.ivq{position:absolute;left:0;right:0;top:640px;text-align:center;font-size:26px;color:var(--sub);line-height:1.7}
+.tq{position:absolute;inset:0}
+.tq .tag{position:absolute;left:0;right:0;top:96px;text-align:center}
+.tq .tag .pill{color:#fff}
+.tq .tag .nm{font-size:26px;color:var(--sub);margin-top:16px;font-weight:600}
+.tq .q{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:1000px;text-align:center;font-family:var(--serif);font-weight:900;font-size:76px;line-height:1.36;letter-spacing:-.03em}
+.bub{position:absolute;max-width:470px;background:var(--card);border:2px solid var(--line);border-radius:30px;padding:26px 32px;font-size:27px;line-height:1.5;color:var(--ink);box-shadow:0 10px 30px rgba(60,45,20,.06)}
+.bub::after{content:"";position:absolute;width:26px;height:26px;background:var(--card);border-right:2px solid var(--line);border-bottom:2px solid var(--line);bottom:-15px;transform:rotate(45deg)}
+.bub.todo::after{border-right-style:dashed;border-bottom-style:dashed}
+.bub.tl{left:110px;top:250px}.bub.tl::after{right:70px}
+.bub.tr{right:110px;top:300px}.bub.tr::after{left:70px}
+.bub.bl{left:150px;bottom:150px}.bub.bl::after{right:90px;bottom:auto;top:-15px;transform:rotate(225deg)}
+.bub.br{right:140px;bottom:120px}.bub.br::after{left:90px;bottom:auto;top:-15px;transform:rotate(225deg)}
+.bub b{font-weight:800}
+.bub small{display:block;margin-top:8px;font-size:20px;color:var(--muted)}
+.tq .time{position:absolute;left:0;right:0;bottom:46px;text-align:center;font-size:20px;color:var(--muted)}
+
+/* 지금 앱 영상 자리 */
+.cur-ph{position:absolute;left:200px;top:150px;width:400px;height:800px;border-radius:52px;border:4px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;color:var(--muted)}
+.cur-ph b{font-family:var(--serif);font-size:32px;color:var(--sub)}
+.cur-ph span{font-size:21px;line-height:1.6}
+.cur-r{position:absolute;left:720px;top:150px;width:1060px}
+.cur-r .eyebrow{margin-bottom:20px}
+.pain{list-style:none;margin-top:46px;display:grid;gap:18px}
+.pain li{display:flex;gap:22px;align-items:flex-start;padding:24px 28px;background:var(--card);border:2px solid var(--line);border-radius:22px}
+.pain li i{flex:none;width:48px;height:48px;border-radius:50%;background:var(--rec);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-style:normal;font-size:24px;font-weight:700}
+.pain li b{display:block;font-size:30px;font-weight:800;letter-spacing:-.01em}
+.pain li span{display:block;font-size:22px;color:var(--sub);margin-top:6px;line-height:1.5}
+
+/* 시연 영상(화면 가득) */
+video.full{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#F4EFE6}
+
+/* 담당자 업무 절차 */
+.proc{position:absolute;left:100px;right:100px;top:300px;display:grid;grid-template-columns:repeat(5,1fr);gap:22px 22px}
+.pc{position:relative;height:250px;padding:22px 24px;border-radius:22px;background:var(--card);border:2px solid var(--line);transition:background .45s,border-color .45s}
+.pc .no{font-family:var(--serif);font-size:34px;font-weight:700;color:var(--muted);line-height:1}
+.pc h3{font-size:27px;font-weight:800;margin-top:16px;letter-spacing:-.01em;line-height:1.3}
+.pc p{font-size:19px;color:var(--sub);margin-top:8px;line-height:1.45}
+.pc .tg{position:absolute;right:20px;top:20px;font-size:17px;font-weight:800;padding:5px 14px;border-radius:999px;color:#fff}
+.pc .ef{position:absolute;left:24px;right:20px;bottom:18px;font-size:18px;font-weight:700;line-height:1.4}
+.pc.big .tg{background:var(--t1)} .pc.big .ef{color:var(--t1)}
+.pc.part .tg{background:var(--amber)} .pc.part .ef{color:#A8701A}
+.pc.same .tg{background:#B7AE9F} .pc.same .ef{color:var(--muted)}
+.pc.big:has(.tg.on){background:#E3ECE5;border-color:#9DBBA7}
+.pc.part:has(.tg.on){background:#F8EBD2;border-color:#E2C38A}
+.pc.same:has(.tg.on){opacity:.7}
+.procsum{position:absolute;left:0;right:0;top:880px;text-align:center;font-size:28px;color:var(--sub)}
+.procsum b{font-weight:800}
+.procsum .g{color:var(--t1)} .procsum .a{color:#A8701A}
+
+/* 검증 결과 */
+.goal .tgt{font-size:22px;color:var(--muted);margin-top:14px;font-weight:600}
+.goal .n.todo-n{color:transparent;-webkit-text-stroke:2.5px #C9C0B0}
+.goal .n.todo-n small{color:var(--muted);-webkit-text-stroke:0}
+
+/* 영상 재생바 */
+.vbar{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);width:1240px;display:flex;align-items:center;gap:18px;padding:12px 22px;border-radius:999px;background:rgba(20,18,15,.78);color:#F4EFE6;font-size:18px;font-variant-numeric:tabular-nums;opacity:.28;transition:opacity .3s;z-index:4}
+.vbar:hover,body.moving .vbar{opacity:1}
+.vbar button{all:unset;cursor:pointer;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.12);font-size:16px}
+.vbar button:hover{background:rgba(255,255,255,.25)}
+.vbar input{flex:1;accent-color:#F08A3C;height:6px;cursor:pointer}
+.vbar .vt{min-width:120px;text-align:right}
+
+/* 진행 UI */
+#progress{position:fixed;left:0;bottom:0;height:4px;background:var(--amber);transition:width .4s ease;z-index:5}
+#notes{position:fixed;left:0;right:0;bottom:0;max-height:38vh;overflow:auto;background:rgba(18,17,15,.96);color:#EDE7DC;font-size:18px;line-height:1.75;padding:20px 30px 28px;display:none;z-index:6;border-top:3px solid var(--amber)}
+#notes.show{display:block}
+#notes h4{font-size:14px;color:var(--amber);letter-spacing:.06em;margin-bottom:8px}
+aside.notes{display:none}
+@media print{
+  html,body{overflow:visible;background:#fff}
+  #stage{position:static;transform:none!important;width:auto;height:auto}
+  .slide{position:relative;opacity:1;visibility:visible;width:1920px;height:1080px;page-break-after:always}
+  .f,.pop,.ck{opacity:1;transform:none}
+  .ebar .t i{transform:none}
+  #progress,#notes{display:none}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+
+<!-- 1 표지 -->
+<section class="slide dark center" id="cover" style="background:var(--black)" data-title="표지">
+  <div class="bg" style="background-image:url(assets/cover.jpg)"></div>
+  <div class="veil"></div>
+  <svg class="vf" width="1920" height="1080" viewBox="-960 -540 1920 1080" fill="none" stroke="#5A534A" stroke-width="4" stroke-linecap="round">
+    <path d="M-820 -330v-90h120M820 -330v-90h-120M-820 330v90h120M820 330v90h-120"/>
+  </svg>
+  <div class="rec"><span class="recdot"></span>REC</div>
+  <div class="eyebrow" style="position:relative;margin-bottom:46px">안전신문고 불법주정차 신고 개선 · 최종 발표</div>
+  <div class="ttl">횡단보도 위 저 차,<br><em>신고해도 될까요?</em></div>
+  <div class="sub">사진부터 찍으면, 신고서는 앱이 씁니다</div>
+  <div class="meta">
+    <span>팀<b>2조 「신고해도 될까요」</b></span>
+    <span>대상<b>안전신문고 불법주정차 신고</b></span>
+    <span>제안<b>2026 국민제안</b></span>
+  </div>
+  <aside class="notes">
+    길을 가다 횡단보도 위에 선 차를 보면, 신고해도 될까? 하고 망설이게 됩니다. 저희 팀 이름도 거기서 나왔습니다.
+    2조 「신고해도 될까요」입니다. 한 문장으로 말씀드리면, 사진부터 찍으면 신고서는 앱이 씁니다.
+  </aside>
+</section>
+
+<!-- 2 순서 -->
+<section class="slide" data-title="순서">
+  <div class="top-title">
+    <div class="eyebrow">오늘의 순서</div>
+    <div class="title">가장 긴 이야기는 <span class="u">사진부터 찍는 신고</span>입니다</div>
+  </div>
+  <div class="tline">
+    <div class="blocks">
+      <div class="b" style="flex:16"><div class="mn">PART 1</div><div class="nm">문제<small>왜 망설이나</small></div></div>
+      <div class="b free" style="flex:36"><div class="mn">PART 2</div><div class="nm">해결<small>사진부터 찍으면 앱이 쓰는 신고서</small></div></div>
+      <div class="b" style="flex:26"><div class="mn">PART 3</div><div class="nm">현업 공무원<small>담당자 일이 어떻게 줄어드나</small></div></div>
+      <div class="b" style="flex:16"><div class="mn">PART 4</div><div class="nm">검증<small>숫자로 확인</small></div></div>
+    </div>
+  </div>
+  <div class="pg"></div>
+  <aside class="notes">
+    네 부분으로 말씀드립니다. 문제, 해결, 현업 공무원에게 달라지는 점, 그리고 검증과 남은 과제입니다.
+    현업 공무원 부분은 중간발표 때 받은 질문에 대한 답으로 새로 보강했습니다.
+  </aside>
+</section>
+
+<!-- 3 Part 1 -->
+<section class="slide dark center sec" data-title="Part 1">
+  <span class="pill">Part 1</span>
+  <h2>길에서 본 저 차, <em>왜 망설일까요?</em></h2>
+</section>
+
+<!-- 4 일곱 단계 -->
+<section class="slide" data-title="문제 펼치기" data-steps="4" id="seven">
+  <div class="top-title">
+    <div class="eyebrow">문제 펼치기 · 실제 앱 확인</div>
+    <div class="title">지금 앱으로 신고하면 일곱 단계를 지납니다</div>
+  </div>
+  <div class="seven">
+    <div class="rail"></div>
+    <div class="band f" data-step="1"></div>
+    <div class="bandl f" data-step="1">우리 팀이 해결할 구간</div>
+    <div class="nd" style="left:0"><i>1</i><b>앱 실행</b></div>
+    <div class="nd h" style="left:16.667%"><i>2</i><b>유형 선택</b></div>
+    <div class="nd h" style="left:33.333%"><i>3</i><b>첫 번째 사진</b></div>
+    <div class="nd h" style="left:50%"><i>4</i><b>60초 대기</b></div>
+    <div class="nd h" style="left:66.667%"><i>5</i><b>두 번째 사진</b></div>
+    <div class="nd" style="left:83.333%"><i>6</i><b>입력·제출</b></div>
+    <div class="nd" style="left:100%"><i>7</i><b>처리 결과</b></div>
+    <p class="nt pop" data-step="2" style="left:16.667%"><em>!</em><span>유형을 골라야<br>카메라가 열림</span></p>
+    <p class="nt pop" data-step="3" style="left:33.333%"><em>!</em><span>안 맞는 사진도<br>그대로 첨부</span></p>
+    <p class="nt pop" data-step="4" style="left:50%"><em>!</em><span>60초 동안 촬영<br>화면이 안 열림</span></p>
+  </div>
+  <div class="footnote">실제 앱 확인 — 팀원 직접 조작, 안전신문고 iOS 2.5.3, 2026. 9. 28.</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    지금 앱으로 신고하면 일곱 단계를 지납니다. 저희가 푸는 곳은 유형을 고르고 사진 두 장을 찍는 2~5단계입니다.
+    (다음) 유형을 고르기 전엔 카메라가 안 열리고,
+    (다음) 요건과 상관없는 사진도 그대로 첨부되고,
+    (다음) 60초 동안은 촬영 화면이 열리지 않습니다. 팀원이 실제 앱을 조작해 확인했습니다.
+  </aside>
+</section>
+
+<!-- 4-1 지금 앱 영상 — 녹화를 받으면 화면 가득 영상으로 바꾼다 -->
+<section class="slide" data-title="지금 앱 시연 영상">
+  <video class="full" data-auto src="assets/demo-current.webm" playsinline preload="auto"></video>
+  <aside class="notes">
+    (영상 약 1분 13초, 해설 음성 포함 · 아래 재생바로 원하는 곳부터 · P 재생/멈춤, J/L 10초 뒤·앞)
+    실제 안전신문고 앱 화면 캡처로 신고 순서를 따라갑니다. 위치·전화번호는 가렸고, 캡처가 없는 동작(유형 알림, 60초 대기)은 팀원 조작 기록을 설명 상자로 보여 줍니다.
+    ① 유형부터 골라야 ② 요건은 혼자 해석 ③ 안 맞는 사진도 첨부 ④ 60초 동안 촬영 불가 ⑤ 발생지역은 지도에서 ⑥ 내용·인증은 직접 ⑦ 결과는 제출 뒤에
+  </aside>
+</section>
+
+<!-- 5 리뷰 -->
+<section class="slide" data-title="근거" data-steps="2" id="reviews">
+  <div class="top-title">
+    <div class="eyebrow">근거 · 앱 리뷰 304건</div>
+    <div class="title">가장 많은 불편 셋이 모두 사진과 제출 단계입니다</div>
+  </div>
+  <div class="bars" id="bars"></div>
+  <div class="call f" data-step="2"><div class="n">216<small>건</small></div><p>상위 3개 유형에 모인 언급<br>전체 455건 중 절반에 가까움</p></div>
+  <div class="footnote">팀 리뷰 분석 — Google Play 219건·App Store 85건, 2024. 9.~2026. 9. · 한 리뷰가 여러 유형에 들어갈 수 있음</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    앱 리뷰 304건을 열 가지 불편으로 나눴습니다.
+    (다음) 가장 많은 세 가지가 첨부·제출, 외부 사진 제한, 촬영 간격과 증거 요건입니다. 모두 사진을 찍고 내는 단계입니다.
+  </aside>
+</section>
+
+<!-- 6 핵심 문제 -->
+<section class="slide" data-title="핵심 문제" data-steps="2">
+  <div class="purpose">
+    <div class="side f" data-step="1"><div class="n">304<small>건</small></div><div class="l">앱 리뷰 속 불편<br>2024. 9.~2026. 9.</div></div>
+    <div class="mid">
+      <div class="q">신고자는 요건을 혼자 해석하고,<br>맞았는지는 <mark>제출 뒤에야</mark> 압니다</div>
+      <div class="d f" data-step="2">유형부터 고르라며 카메라가 잠기고, 1분을 차 옆에서 기다리고,<br>제출하면 '증거 부족'으로 돌아옵니다</div>
+    </div>
+    <div class="side f" data-step="1"><div class="n">20.7<small>%</small></div><div class="l">불법주정차 신고 불수용률<br>최근 15개월 · 2020년의 두 배</div></div>
+  </div>
+  <div class="footnote">불수용률: 안전신문고 월별 운영 현황 2025. 1.~2026. 4.(15개월, 취하·처리중 제외)</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    핵심 문제는 이것입니다. 신고자가 유형과 사진 요건을 혼자 해석하고, 맞았는지는 제출 뒤에야 압니다.
+    그 결과 다섯 건에 한 건이 불수용됩니다. 2020년의 두 배입니다.
+  </aside>
+</section>
+
+<!-- 7 Part 2 -->
+<section class="slide dark center sec" data-title="Part 2">
+  <span class="pill">Part 2</span>
+  <h2>사진부터 찍으면, <em>신고서는 앱이 씁니다</em></h2>
+</section>
+
+<!-- 8 원칙 -->
+<section class="slide" data-title="설계 원칙" data-steps="3">
+  <div class="top-title">
+    <div class="eyebrow">설계 원칙</div>
+    <div class="title">세 가지를 지켰습니다</div>
+  </div>
+  <div class="rules">
+    <div class="rulec f" data-step="1"><div class="k">하나</div><h3>사진부터<br>찍기</h3><p>유형을 고르지 않아도<br>카메라가 바로 열림</p></div>
+    <div class="rulec f" data-step="2"><div class="k">둘</div><h3>AI는 보기만,<br>판정은 규칙</h3><p>왜 그렇게 판정했는지<br>설명할 수 있게</p></div>
+    <div class="rulec f" data-step="3"><div class="k">셋</div><h3>모르면<br>단정하지 않음</h3><p>안 보이면 '없음'이 아니라<br>'모름'으로</p></div>
+  </div>
+  <div class="pg"></div>
+  <aside class="notes">
+    세 가지 원칙입니다. 하나, 사진부터 찍습니다. 둘, AI는 사진을 읽기만 하고 판정은 규칙이 합니다. 그래서 왜 그렇게 판정했는지 설명할 수 있습니다.
+    셋, 모르면 단정하지 않습니다. 화면 밖에 있는 것을 없다고 보지 않습니다.
+  </aside>
+</section>
+
+<!-- 9 흐름 -->
+<section class="slide" data-title="사용자 흐름" data-steps="6">
+  <div class="top-title">
+    <div class="eyebrow">사용자 흐름 · 길에서 불법주정차를 본 시민</div>
+    <div class="title">처음이든 자주든, 흐름은 하나입니다</div>
+  </div>
+  <div class="path">
+    <div class="ln"><i></i></div>
+    <div class="nodes">
+      <div class="nd" data-step="1"><div class="dot">1</div><h3>사진부터 찍기</h3><p>앱을 켜면<br>바로 카메라</p></div>
+      <div class="nd" data-step="2"><div class="dot">2</div><h3>첫 번째 사진<br>바로 판독</h3><p>부족하면 이유 듣고<br><em>"횡단보도가 안 보여요"</em></p></div>
+      <div class="nd" data-step="3"><div class="dot">3</div><h3>칸이 채워짐</h3><p>유형·발생지역·번호판<br>둘이면 추천 보고 선택</p></div>
+      <div class="nd" data-step="4"><div class="dot">4</div><h3>1분 기다리기</h3><p>자리를 떠도 0초에<br>소리·진동</p></div>
+      <div class="nd" data-step="5"><div class="dot">5</div><h3>두 번째 사진</h3><p>같은 자리·같은 번호판<br>바로 확인</p></div>
+      <div class="nd" data-step="6"><div class="dot">6</div><h3>확인하고 제출</h3><p>채워진 칸은<br>확인만</p></div>
+    </div>
+  </div>
+  <div class="pg"></div>
+  <aside class="notes">
+    처음 신고하는 분이든 자주 신고하는 분이든 흐름은 같습니다.
+    앱을 켜면 바로 카메라가 열리고, 첫 번째 사진을 찍으면 바로 판독합니다. 횡단보도가 안 보이면 이유를 듣고 다시 찍습니다.
+    유형·발생지역·번호판은 자동으로 채워지고, 1분 동안은 자리를 떠도 됩니다. 앱을 꺼도 이어집니다.
+    두 번째 사진을 찍으면 같은 자리·같은 번호판인지 바로 확인하고, 채워진 칸은 확인만 하고 제출합니다.
+  </aside>
+</section>
+
+<!-- 10 AI와 규칙 -->
+<section class="slide" data-title="AI와 규칙" data-steps="4">
+  <div class="top-title">
+    <div class="eyebrow">AI와 규칙</div>
+    <div class="title">AI는 보기만, 판정은 규칙이 합니다</div>
+  </div>
+  <div class="ph f" data-step="1"><img src="assets/ai-bus.jpg" alt="버스정류소 앞에 선 회색 승용차(시험용 AI 생성 이미지)">
+    <div class="bx" style="left:230px;top:40px;width:300px;height:210px"><span>버스정류장</span></div>
+    <div class="bx" style="left:300px;top:218px;width:72px;height:29px;border-color:#fff"><span style="background:#fff">번호판</span></div>
+  </div>
+  <svg class="arw f" data-step="2" style="left:698px" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+  <div class="card2 cai f" data-step="2"><h4><i class="chip ai">AI</i>읽은 것</h4>
+    <div class="kv">횡단보도<b>아님</b></div>
+    <div class="kv">보도(인도)<b>아님</b></div>
+    <div class="kv">버스정류장 표지<b class="y">보임</b></div>
+    <div class="kv">보호구역 표시<b>아님</b></div>
+    <div class="kv">교차로 모퉁이<b>아님</b></div>
+    <div class="kv">소화전<b>아님</b></div>
+    <div class="kv plate">번호판<b>20라1119</b></div>
+  </div>
+  <svg class="arw f" data-step="3" style="left:1198px" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+  <div class="card2 crl f" data-step="3"><h4><i class="chip r">규칙</i>판정한 것</h4>
+    <div class="rr">
+      <div><span>정류장 표지 보임 →</span> 유형 <b>버스정류소</b></div>
+      <div><span>근거·번호판 보임 →</span> 첫 번째 사진 <b>통과</b></div>
+      <div><span>발생지역 전주시 →</span> 두 번째 사진까지 <b>1분</b></div>
+      <div><span>두 번째 사진 →</span> 겹침·번호판 <b>일치 확인</b></div>
+    </div>
+  </div>
+  <div class="bound f" data-step="4"><span class="k">모르면 단정하지 않음</span>
+    <ul><li><em>✕</em>화면 밖 시설을 '없음'으로</li><li><em>✕</em>미분류를 '기타'로</li><li><em>✕</em>시간·지역 부족을 재촬영으로</li><li><em>✕</em>요건 확인을 위반 확정으로</li></ul></div>
+  <div class="footnote">AI는 Gemini(사진 한 장씩 따로 판독) · 좌표·공공데이터는 AI에 주지 않고 규칙의 참고로만 사용 · 사진은 시험용 AI 생성 이미지</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    실제로 한 장을 보겠습니다. (다음) AI는 사진에서 보이는 것만 답합니다. 버스정류장이 보이는지, 번호판 글자가 무엇인지까지입니다.
+    (다음) 그 답을 받아 유형을 정하고, 지자체 간격과 단속 시간을 적용하는 건 규칙입니다.
+    (다음) 모를 때는 단정하지 않습니다.
+  </aside>
+</section>
+
+<!-- 11 개선안 시연 영상 -->
+<section class="slide" data-title="개선안 시연 영상" id="demoSlide">
+  <video class="full" id="demo" data-auto src="assets/demo-improved.webm" playsinline preload="auto"></video>
+  <aside class="notes">
+    (영상 약 2분 20초, 해설 음성 포함 · 아래 재생바로 원하는 곳부터 · P 재생/멈춤, J/L 10초 뒤·앞) 실제 웹 화면을 그대로 녹화했습니다. 사진은 시험용 AI 생성 이미지입니다.
+    ① 사진부터 찍기를 누르면 유형을 고르지 않아도 카메라가 열립니다.
+    ② 번호판이 화면에 안 들어온 첫 번째 사진은 그 이유와 함께 바로 돌려받습니다. 제출 뒤에 알게 되지 않습니다.
+    ③ 다시 찍으면 버스정류소 유형·번호판·발생지역이 저절로 채워집니다.
+    ④ 1분 동안은 자리를 떠도 되고, 0초에 소리·진동으로 알려 줍니다.
+    ⑤ 전화가 와서 앱을 닫아도, 다시 켜면 하던 신고로 돌아옵니다.
+    ⑥ 두 번째 사진은 첫 번째 사진을 흐리게 겹쳐 보여 줘서 같은 구도로 맞춰 찍을 수 있습니다.
+    ⑦ 찍자마자 같은 자리인지, 같은 번호판인지 확인합니다.
+    ⑧ 번호판은 두 사진에서 잘라 확대해 한 글자씩 맞춰 봅니다.
+    ⑨ 제출 전에 자주 반려되는 사유를 신호등으로 봅니다.
+    ⑩ 담당 공무원에게는 규칙으로 잰 값이 요약으로 함께 갑니다.
+    ⑪ 소화전·어린이보호구역도 사진만 찍으면 같은 방식으로 유형을 찾아 줍니다.
+  </aside>
+</section>
+
+<!-- 12 비교 -->
+<section class="slide" data-title="비교" data-steps="6">
+  <div class="top-title">
+    <div class="eyebrow">비교</div>
+    <div class="title">지금 앱과 무엇이 달라지나요?</div>
+  </div>
+  <div class="cmp">
+    <div class="hd"><span></span><span>지금 앱</span><span></span><span>개선안</span></div>
+    <div class="r f" data-step="1"><span class="k">시작</span><span class="old">유형을 골라야 카메라가 열림</span><span class="to">→</span><span class="new">켜자마자 촬영</span></div>
+    <div class="r f" data-step="2"><span class="k">사진 확인</span><span class="old">안 맞는 사진도 그대로 첨부</span><span class="to">→</span><span class="new">첫 번째 사진에서 바로 판독·안내</span></div>
+    <div class="r f" data-step="3"><span class="k">기다리는 시간</span><span class="old">60초 표시, 그동안 촬영 불가</span><span class="to">→</span><span class="new">0초에 소리·진동, 자리를 떠도 됨</span></div>
+    <div class="r f" data-step="4"><span class="k">같은 차 확인</span><span class="old">제출 후 담당자가 판단</span><span class="to">→</span><span class="new">겹침·번호판 일치 확인 후 제출</span></div>
+    <div class="r f" data-step="5"><span class="k">이어하기</span><span class="old">작성 중 내용 유실</span><span class="to">→</span><span class="new">앱을 껐다 켜도 이어짐</span></div>
+    <div class="r f" data-step="6"><span class="k">담당자 검토</span><span class="old">사진 두 장을 다시 잼</span><span class="to">→</span><span class="new">점검 요약이 붙어 감</span></div>
+  </div>
+  <div class="footnote">지금 앱: 실제 앱 확인(iOS 2.5.3)·리뷰 분석 · 남은 시간 표시는 기존 기능</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    지금 앱과 비교하면 이렇습니다. 남은 시간 표시는 지금 앱에도 있습니다. 저희는 그 위에 알림과 자리를 떠도 되는 흐름, 이어하기를 더했습니다.
+    마지막 줄, 담당자 검토가 달라지는 부분을 다음 순서에서 자세히 말씀드리겠습니다.
+  </aside>
+</section>
+
+<!-- 13 Part 3 -->
+<section class="slide dark center sec" data-title="Part 3">
+  <span class="pill">Part 3</span>
+  <h2>담당 공무원에게는 <em>무엇이 달라지나요?</em></h2>
+  <p>중간발표에서 받은 질문 — 현장 담당자에게 직접 물었습니다</p>
+</section>
+
+<!-- 인터뷰 개요 — 실제 인터뷰 후 ○ 표시를 채운다 -->
+<section class="slide" data-title="인터뷰 개요" data-steps="2">
+  <div class="top-title">
+    <div class="eyebrow">현장 인터뷰</div>
+    <div class="title">신고를 받아 처리하는<br>담당 공무원에게 물었습니다</div>
+  </div>
+  <div class="ivw f" data-step="1">
+    <div class="m todo"><div class="k">대상</div><div class="v">○○시 ○○과 ○명</div></div>
+    <div class="m todo"><div class="k">일시</div><div class="v">2026. 10. ○.</div></div>
+    <div class="m todo"><div class="k">방식</div><div class="v">대면·전화 ○분</div></div>
+  </div>
+  <div class="ivq f" data-step="2">물은 것: 신고가 들어온 뒤의 업무 절차 · 한 건에 가장 시간이 드는 확인<br>가장 많이 돌려보내는 신고 · 점검 요약이 붙어 오면 도움이 되는지</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    중간발표 뒤, 불법주정차 신고를 실제로 받아 처리하는 담당 공무원께 직접 여쭸습니다. (대상·일시·방식은 실제 인터뷰 후 채움)
+  </aside>
+</section>
+
+<section class="slide" data-title="인터뷰 1" data-steps="4">
+  <div class="tq">
+    <div class="tag"><span class="pill" style="background:var(--t1)">인터뷰 · 질문 1</span><div class="nm">지금 담당자가 하는 일</div></div>
+    <div class="q">한 건을 처리할 때<br>가장 시간이 드는 확인은<br>무엇인가요?</div>
+    <div class="bub tl todo pop" data-step="1">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="bub tr todo pop" data-step="2">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="bub bl todo pop" data-step="3">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="bub br todo pop" data-step="4">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="time">불법주정차 신고 처리 담당 공무원 인터뷰 · 2026. 10.</div>
+  </div>
+  <div class="pg"></div>
+  <aside class="notes">
+    먼저 지금 일이 어떤지 여쭸습니다.
+    (말풍선은 한 개씩 띄우며 실제 답변을 인용)
+  </aside>
+</section>
+
+<section class="slide" data-title="인터뷰 2" data-steps="4">
+  <div class="tq">
+    <div class="tag"><span class="pill" style="background:var(--t3)">인터뷰 · 질문 2</span><div class="nm">돌려보내는 신고</div></div>
+    <div class="q">가장 많이 돌려보내는<br>신고는 어떤<br>신고인가요?</div>
+    <div class="bub tl todo pop" data-step="1">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="bub tr todo pop" data-step="2">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="bub bl todo pop" data-step="3">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="bub br todo pop" data-step="4">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="time">불법주정차 신고 처리 담당 공무원 인터뷰 · 2026. 10.</div>
+  </div>
+  <div class="pg"></div>
+  <aside class="notes">
+    불수용 사유별 통계는 공개되지 않아, 현장에서 체감하는 순위를 여쭸습니다.
+    (말풍선은 한 개씩 띄우며 실제 답변을 인용)
+  </aside>
+</section>
+
+<section class="slide" data-title="인터뷰 3" data-steps="4">
+  <div class="tq">
+    <div class="tag"><span class="pill" style="background:var(--t2)">인터뷰 · 질문 3</span><div class="nm">개선안에 대한 의견</div></div>
+    <div class="q">점검 요약이 붙어 오면<br>도움이 될까요?</div>
+    <div class="bub tl todo pop" data-step="1">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="bub tr todo pop" data-step="2">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="bub bl todo pop" data-step="3">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="bub br todo pop" data-step="4">인터뷰 답변을 넣을 자리<small>담당자 ○ · ○○시 ○○과</small></div>
+    <div class="time">불법주정차 신고 처리 담당 공무원 인터뷰 · 2026. 10.</div>
+  </div>
+  <div class="pg"></div>
+  <aside class="notes">
+    저희 개선안, 신고 내용 끝에 붙는 사전 점검 요약을 보여 드리고 의견을 여쭸습니다. 걱정되는 점도 함께 여쭸습니다.
+    (말풍선은 한 개씩 띄우며 실제 답변을 인용)
+  </aside>
+</section>
+
+<!-- 13-1 담당자 업무 절차 -->
+<section class="slide" data-title="담당자 업무 절차" data-steps="5" id="proc">
+  <div class="top-title">
+    <div class="eyebrow">신고가 들어온 뒤 담당 공무원이 하는 일</div>
+    <div class="title">열 단계 중 여섯 단계가 가벼워집니다</div>
+  </div>
+  <div class="proc">
+      <div class="pc same"><div class="no">1</div><span class="tg f" data-step="4">그대로</span><h3>신고 배정</h3><p>발생지역 담당 기관으로 넘어옴</p><div class="ef f" data-step="4">시스템이 하는 일</div></div>
+      <div class="pc big"><div class="no">2</div><span class="tg f" data-step="2">줄어듦</span><h3>요건 검토</h3><p>두 사진 간격·같은 자리<br>번호판·촬영시각·위반 장소</p><div class="ef f" data-step="2">잰 값이 요약으로 옴</div></div>
+      <div class="pc big"><div class="no">3</div><span class="tg f" data-step="2">줄어듦</span><h3>수용·불수용 판단</h3><p>지역 기준·단속 시간 대조</p><div class="ef f" data-step="2">적용 기준이 함께 옴</div></div>
+      <div class="pc big"><div class="no">4</div><span class="tg f" data-step="2">줄어듦</span><h3>불수용 사유 작성</h3><p>사유를 적고 통지</p><div class="ef f" data-step="2">요건 미달은 제출 전에 걸러짐</div></div>
+      <div class="pc part"><div class="no">5</div><span class="tg f" data-step="3">일부</span><h3>차량 소유자 조회</h3><p>번호로 소유자 확인</p><div class="ef f" data-step="3">두 장이 같은 번호만 옴</div></div>
+      <div class="pc same"><div class="no">6</div><span class="tg f" data-step="4">그대로</span><h3>사전통지·의견 제출</h3><p>10일 이상 의견 받기</p><div class="ef f" data-step="4">법정 절차</div></div>
+      <div class="pc part"><div class="no">7</div><span class="tg f" data-step="3">일부</span><h3>의견 진술 검토</h3><p>위반자 의견 확인</p><div class="ef f" data-step="3">판단 근거가 남아 있음</div></div>
+      <div class="pc same"><div class="no">8</div><span class="tg f" data-step="4">그대로</span><h3>과태료 부과</h3><p>서면으로 고지</p><div class="ef f" data-step="4">법정 절차</div></div>
+      <div class="pc same"><div class="no">9</div><span class="tg f" data-step="4">그대로</span><h3>처리 결과 안내</h3><p>신고인에게 문자 안내</p><div class="ef f" data-step="4">시스템이 하는 일</div></div>
+      <div class="pc part"><div class="no">10</div><span class="tg f" data-step="3">일부</span><h3>이의제기·항의</h3><p>부과 통지 후 60일</p><div class="ef f" data-step="3">이유를 미리 들어 항의 감소</div></div>
+  </div>
+  <div class="procsum f" data-step="5"><b class="g">크게 줄어듦 3</b> · <b class="a">일부 줄어듦 3</b> · 그대로 4 — 법정 절차(통지·부과·이의)는 그대로 둡니다</div>
+  <div class="footnote">공개 자료로 재구성(서울시 시민신고 불수용 기준, 질서위반행위규제법 제16·17·20조, 경북매일 2024. 12. 15.) · 순서는 지자체마다 다를 수 있어 인터뷰로 확인</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    신고가 들어온 뒤 담당 공무원이 하는 일을 열 단계로 나눠 봤습니다.
+    (다음) 크게 줄어드는 곳은 요건 검토, 수용·불수용 판단, 불수용 사유 작성입니다. 사진을 다시 재는 일이 앱이 잰 값을 확인하는 일로 바뀌고, 요건 미달 신고는 처음부터 덜 들어옵니다.
+    (다음) 일부 줄어드는 곳은 소유자 조회, 의견 진술 검토, 이의제기·항의 응대입니다. 번호 오독이 줄고, 판단 근거가 남습니다.
+    (다음) 사전통지·부과 같은 법정 절차와 시스템이 하는 배정·안내는 그대로입니다.
+    (다음) 열 단계 중 여섯 단계가 가벼워집니다.
+  </aside>
+</section>
+
+<!-- 14 담당자 요약 -->
+<section class="slide" data-title="담당자 요약" data-steps="3">
+  <div class="top-title">
+    <div class="eyebrow">현장 출동 없이 사진만으로 과태료를 매기는 일</div>
+    <div class="title">담당 공무원은 다시 재지 않고, 확인만 합니다</div>
+  </div>
+  <div class="now">
+    <h4 class="f" data-step="1">지금 — 담당자가 건마다 하는 일</h4>
+    <ul>
+      <li class="f" data-step="1"><span class="mk"><i class="ck" data-step="2" style="transition-delay:.5s"></i></span>두 사진 촬영 간격 빼 보기<small>몇 초?</small></li>
+      <li class="f" data-step="1"><span class="mk"><i class="ck" data-step="2" style="transition-delay:.9s"></i></span>배경 맞춰 같은 자리 확인<small>같은 방향?</small></li>
+      <li class="f" data-step="1"><span class="mk"><i class="ck" data-step="2" style="transition-delay:1.3s"></i></span>번호판 두 장 읽고 대조<small>같은 차?</small></li>
+      <li class="f" data-step="1"><span class="mk"><i class="ck" data-step="2" style="transition-delay:1.7s"></i></span>위반 장소 근거 찾기<small>정류소 10m?</small></li>
+      <li class="f" data-step="1"><span class="mk"><i class="ck" data-step="2" style="transition-delay:2.1s"></i></span>촬영시각 표시·접수 기한<small>익일 안?</small></li>
+      <li class="f" data-step="1"><span class="mk"><i class="ck" data-step="2" style="transition-delay:2.9s"></i></span>그 지역 기준 대조<small>단속 시간?</small></li>
+    </ul>
+  </div>
+  <svg class="arr2 f" data-step="2" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+  <div class="sum">
+    <h4 class="f" data-step="2">개선안 — 신고 내용 끝에 붙어 가는 사전 점검 요약</h4>
+    <div class="paperx f" data-step="2">
+      <div class="hd">[신고 앱 사전 점검 — 규칙으로 잰 값, 수용 여부는 담당자 판단]</div>
+      <p style="animation-delay:.5s"><b>- 간격</b>61초(기준 60초) <em>충족</em></p>
+      <p style="animation-delay:.9s"><b>- 같은 자리</b>두 사진 겹침 92%(기준 50%) <em>충족</em></p>
+      <p style="animation-delay:1.3s"><b>- 같은 차</b>두 장에서 따로 읽은 번호 <em>일치</em></p>
+      <p style="animation-delay:1.7s"><b>- 위반 근거</b>사진에 버스정류소 근거 <em>보임</em></p>
+      <p style="animation-delay:2.1s"><b>- 촬영시각</b>사진에 표시(앱 카메라 촬영)</p>
+      <p style="animation-delay:2.5s"><b>- 위치</b>오차 약 6m</p>
+      <p style="animation-delay:2.9s"><b>- 적용 기준</b>전국 기준(6대 유형) · 접수 기한 <em>충족</em></p>
+      <p style="animation-delay:3.3s"><b>- 확인 필요</b>없음</p>
+    </div>
+  </div>
+  <div class="verdict f" data-step="3"><span class="k">판정이 아닙니다</span>수용 여부는 담당자가 정합니다. 통과 못 한 항목은 '확인 필요'로 숨기지 않고 적습니다.</div>
+  <div class="footnote">요약 형식은 앱이 실제로 붙이는 그대로, 숫자는 실제 기준 60초일 때의 예시 · 사진으로 부과: 세계일보 2024. 6. 20.</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    중간발표 때 받은 질문, 현업 공무원에게는 무엇이 좋아지나에 대한 답입니다.
+    주민신고는 공무원이 현장에 나가지 않고 사진만으로 과태료를 매깁니다. 그래서 담당자는 건마다 두 사진의 간격을 빼 보고, 배경을 맞춰 보고, 번호판을 두 번 읽습니다.
+    (다음) 저희 앱은 이걸 제출 전에 규칙으로 재서, 신고 내용 끝에 요약으로 붙여 보냅니다. 담당자는 다시 재지 않고 확인만 하면 됩니다.
+    (다음) 다만 이건 판정이 아닙니다. 수용 여부는 담당자가 정하고, 통과 못 한 항목은 확인 필요로 숨기지 않고 적습니다.
+  </aside>
+</section>
+
+<!-- 16 규모·추정 -->
+<section class="slide dark" data-title="규모와 추정" data-steps="4" id="scale">
+  <div class="top-title">
+    <div class="eyebrow">가정을 둔 추정</div>
+    <div class="title">담당자 일이 얼마나 줄어드는지 셈해 봤습니다</div>
+  </div>
+  <div class="big f" data-step="1">
+    <h4 class="inp">계산의 출발점 · 한 해</h4>
+    <p class="kv2"><b>약 122만 건</b>불수용 처리</p>
+    <p class="kv2"><b>약 468만 건</b>수용(조치) 처리</p>
+    <p class="src2">안전신문고 월별 운영 현황 15개월을 한 해로 환산</p>
+  </div>
+  <div class="est">
+    <h4 class="f" data-step="2">줄어드는 담당자 일 — 연 1,800시간을 1명분으로</h4>
+    <p class="q f" data-step="2">① 요건 미달을 제출 전에 막으면</p>
+    <div class="ebar f" data-step="2"><span class="l"><b>30%</b>가 요건 미달</span><span class="t"><i style="--w:42%;transition-delay:.3s"></i><span>약 29만 건 덜 들어옴</span></span><span class="v">약 8<small>명분</small></span></div>
+    <div class="ebar f" data-step="2"><span class="l"><b>50%</b>가 요건 미달</span><span class="t"><i style="--w:71%;transition-delay:.5s"></i><span>약 49만 건 덜 들어옴</span></span><span class="v">약 14<small>명분</small></span></div>
+    <div class="ebar f" data-step="2"><span class="l"><b>70%</b>가 요건 미달</span><span class="t"><i style="--w:100%;transition-delay:.7s"></i><span>약 69만 건 덜 들어옴</span></span><span class="v">약 19<small>명분</small></span></div>
+    <div class="two f" data-step="3"><b class="n2">②</b><span><b>들어온 신고</b>도 요약 덕분에<br>건당 1분 줄면 · 연 조치 약 468만 건</span><strong>약 43<small>명분</small></strong></div>
+  </div>
+  <p class="fx f" data-step="4"><b>식</b> 연 불수용 122만 × 요건 미달 비중 × 앱이 거르는 비율 80% × 건당 처리 3분 ÷ 1,800시간 · 비중·80%·3분·1분은 <b>가정</b><br>불수용 사유별 건수는 공개되지 않아 가정을 두었고, 건당 처리 시간은 <b>현업 담당자 인터뷰</b>로 확인했습니다</p>
+  <div class="footnote" style="color:#5E584F">안전신문고 월별 운영 현황 2025. 1.~2026. 4.(15개월, 취하·처리중 제외) · 건당 3분에는 항의 전화 응대를 넣지 않음</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    담당자 일이 얼마나 줄어드는지 셈해 봤습니다. 출발점은 한 해 불수용 약 122만 건, 수용 약 468만 건입니다.
+    (다음) 불수용 사유별 통계는 공개되지 않아서 가정을 두고 셈했습니다. 요건 미달이 30~70%이고 앱이 그 80%를 거르고 건당 3분이 든다고 하면, 담당자 8~19명분의 일이 줄어듭니다.
+    (다음) 들어온 신고도 요약 덕분에 건당 1분만 줄면 43명분입니다.
+    (다음) 이 숫자는 가정을 둔 추정입니다. 건당 처리 시간은 인터뷰에서 들은 값으로 확인했습니다(인터뷰 후 숫자 고침).
+  </aside>
+</section>
+
+<!-- 17 Part 4 -->
+<section class="slide dark center sec" data-title="Part 4">
+  <span class="pill">Part 4</span>
+  <h2>숫자로 <em>확인했습니다</em></h2>
+</section>
+
+<!-- 18 검증 결과 — 채점 후 ○ 표시를 채운다 -->
+<section class="slide" data-title="검증 결과" data-steps="3">
+  <div class="top-title">
+    <div class="eyebrow">검증 결과 · 본인·팀원 차량 사진</div>
+    <div class="title">목표와 결과를 함께 봅니다</div>
+  </div>
+  <div class="goals">
+    <div class="goal f" data-step="1"><div class="n todo-n">00<small>장</small></div><p>채점한 사진</p><div class="tgt">계획 100장 · 시험용 30장은 한 번만 채점</div></div>
+    <div class="goal f" data-step="2"><div class="n todo-n">00<small>%</small></div><p>유형 정답률</p><div class="tgt">목표 95% · 규칙까지 거친 최종 답</div></div>
+    <div class="goal red f" data-step="3"><div class="n todo-n">0<small>건</small></div><p>틀린 번호판</p><div class="tgt">목표 0건 · 두 장이 같을 때만 채움</div></div>
+  </div>
+  <div class="footnote">테두리 숫자는 채점 후 채움 · 100장 중 95장이면 실제 범위 약 89~98%</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    본인과 팀원 차량 사진으로 채점했습니다. (채점 결과를 채운 뒤 읽기) 유형 정답률은 ○○%로 목표 95%에 …, 틀린 번호판은 ○건입니다.
+  </aside>
+</section>
+
+<!-- 20 마무리 -->
+<section class="slide dark center" id="thanks" style="background:var(--black)" data-title="마무리">
+  <svg class="vf" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)" width="1920" height="1080" viewBox="-960 -540 1920 1080" fill="none" stroke="#2C2925" stroke-width="4" stroke-linecap="round">
+    <path d="M-820 -330v-90h120M820 -330v-90h-120M-820 330v90h120M820 330v90h-120"/>
+  </svg>
+  <div class="eyebrow" style="position:relative;margin-bottom:40px">2조 「신고해도 될까요」</div>
+  <div class="serif" style="position:relative;font-size:100px;font-weight:900;letter-spacing:-.035em;line-height:1.25">현장에서는 찍기만,<br><span style="color:var(--orange)">판단은 앱이 근거와 함께</span></div>
+  <div style="position:relative;font-size:30px;color:#9C9588;margin-top:44px">감사합니다</div>
+  <aside class="notes">마지막 한 문장입니다. 현장에서는 찍기만, 판단은 앱이 근거와 함께. 감사합니다.</aside>
+</section>
+
+</div>
+
+<div id="progress"></div>
+<div id="notes"><h4 id="notesTitle">발표자 노트</h4><div id="notesBody"></div></div>
+
+<script>
+(function(){
+  /* 리뷰 불편 유형(점 하나 = 리뷰 한 건) */
+  const CATS = [['첨부·전송·제출',75],['외부 사진 제한',75],['촬영 간격·증거 요건',66],['실행·접속',55],['처리 결과·불수용',53],
+    ['촬영·저장 오류·유실',48],['현장 촬영 부담',29],['인증·위치·화면',28],['고객지원 응답',23],['화질·번호판 식별',3]];
+  document.getElementById('bars').innerHTML = CATS.map(([l,n],r)=>
+    `<div class="r${r<3?' hi':''}"><span class="l">${l}</span><span class="t"><i style="--w:${(n/75*100).toFixed(1)}%;transition-delay:${(r*0.06).toFixed(2)}s"></i></span><span class="n">${n}</span></div>`).join('');
+
+  const stage = document.getElementById('stage');
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let cur = 0, step = 0;
+
+  function fit(){
+    const s = Math.min(innerWidth/1920, innerHeight/1080);
+    stage.style.transform = `translate(-50%,-50%) scale(${s})`;
+  }
+  addEventListener('resize', fit); fit();
+  slides.forEach((sl,i)=>{ const p = sl.querySelector('.pg'); if(p) p.textContent = String(i+1).padStart(2,'0') + ' / ' + slides.length; });
+
+  /* 경로: 단계만큼 점과 선을 채움 */
+  function renderPath(sl, st){
+    sl.querySelectorAll('.path').forEach(p=>{
+      const nds = p.querySelectorAll('.nd');
+      nds.forEach(n=>n.classList.toggle('on', +n.dataset.step<=st));
+      const k = nds.length;
+      p.querySelector('.ln i').style.width = (st<=1?0:Math.min(1,(st-1)/(k-1))*100)+'%';
+    });
+  }
+
+  /* 영상: 장에 들어오면 처음부터 재생, 다른 장에서는 멈춤 · P 키로 멈춤/재생 */
+  const videos = Array.from(document.querySelectorAll('video[data-auto]'));
+  const mmss = t => { t = Math.max(0, Math.floor(t||0)); return Math.floor(t/60)+':'+String(t%60).padStart(2,'0'); };
+  videos.forEach(v=>{
+    const bar = document.createElement('div'); bar.className='vbar';
+    bar.innerHTML = '<button class="vb" aria-label="10초 뒤로">«</button><button class="vp" aria-label="재생/멈춤">❚❚</button><button class="vf" aria-label="10초 앞으로">»</button><input type="range" min="0" max="1000" value="0" aria-label="재생 위치"><span class="vt">0:00 / 0:00</span>';
+    v.parentNode.appendChild(bar);
+    const rg = bar.querySelector('input'), vt = bar.querySelector('.vt'), vp = bar.querySelector('.vp');
+    const upd = () => { if(!rg.matches(':active')) rg.value = v.duration ? v.currentTime/v.duration*1000 : 0; vt.textContent = mmss(v.currentTime)+' / '+mmss(v.duration); vp.textContent = v.paused ? '▶' : '❚❚'; };
+    ['timeupdate','play','pause','loadedmetadata','seeked'].forEach(ev=>v.addEventListener(ev, upd));
+    rg.addEventListener('input', ()=>{ if(v.duration) v.currentTime = rg.value/1000*v.duration; });
+    rg.addEventListener('change', ()=>rg.blur());
+    vp.onclick = ()=>{ v.paused ? v.play() : v.pause(); };
+    bar.querySelector('.vb').onclick = ()=>{ v.currentTime = Math.max(0, v.currentTime-10); };
+    bar.querySelector('.vf').onclick = ()=>{ v.currentTime = Math.min(v.duration||0, v.currentTime+10); };
+    bar.addEventListener('click', e=>e.stopPropagation());
+    v.addEventListener('click', e=>{ e.stopPropagation(); v.paused ? v.play() : v.pause(); });
+  });
+  let mvT; addEventListener('mousemove', ()=>{ document.body.classList.add('moving'); clearTimeout(mvT); mvT=setTimeout(()=>document.body.classList.remove('moving'),1800); });
+
+  const maxSteps = sl => +(sl.dataset.steps||0);
+  function show(i, st, entering){
+    slides.forEach((s,k)=>s.classList.toggle('active', k===i));
+    cur=i; step=st;
+    const sl = slides[i];
+    sl.querySelectorAll('.f,.pop,.ck').forEach(f=>f.classList.toggle('on', +(f.dataset.step||0)<=st));
+    for(let k=0;k<=6;k++) sl.classList.toggle('st'+k, k===st);
+    if(sl.id==='seven') sl.querySelector('.seven').classList.toggle('hot', st>=1);
+    renderPath(sl, st);
+    videos.forEach(v=>{ if(sl.contains(v)){ if(entering) v.currentTime=0; v.muted=false; v.play().catch(()=>{ v.muted=true; v.play().catch(()=>{}); }); } else v.pause(); });
+    document.getElementById('progress').style.width=((i+1)/slides.length*100)+'%';
+    const n=sl.querySelector('aside.notes');
+    document.getElementById('notesTitle').textContent=(i+1)+'. '+(sl.dataset.title||'')+' · 발표자 노트';
+    document.getElementById('notesBody').innerHTML = n ? n.innerHTML.trim().replace(/\n\s*/g,'<br>') : '(노트 없음)';
+    try{ history.replaceState(null,'','#'+(i+1)); }catch(e){}
+  }
+  function next(){ if(step<maxSteps(slides[cur])) show(cur,step+1,false); else if(cur<slides.length-1) show(cur+1,0,true); }
+  function prev(){ if(step>0) show(cur,step-1,false); else if(cur>0) show(cur-1,maxSteps(slides[cur-1]),true); }
+  addEventListener('keydown', e=>{
+    if(['ArrowRight','ArrowDown','PageDown',' ','Enter'].includes(e.key)){ e.preventDefault(); next(); }
+    else if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(e.key)){ e.preventDefault(); prev(); }
+    else if(e.key==='Home') show(0,0,true);
+    else if(e.key==='End') show(slides.length-1,0,true);
+    else if(e.key==='f'||e.key==='F'){ if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); else document.exitFullscreen(); }
+    else if(e.key==='n'||e.key==='N') document.getElementById('notes').classList.toggle('show');
+    else if(e.key==='p'||e.key==='P'||e.key==='k'||e.key==='K'){ const v=slides[cur].querySelector('video'); if(v) v.paused?v.play():v.pause(); }
+    else if(e.key==='j'||e.key==='J'){ const v=slides[cur].querySelector('video'); if(v) v.currentTime=Math.max(0,v.currentTime-10); }
+    else if(e.key==='l'||e.key==='L'){ const v=slides[cur].querySelector('video'); if(v) v.currentTime=Math.min(v.duration||0,v.currentTime+10); }
+  });
+  stage.addEventListener('click', e=>{ if(e.clientX < innerWidth*0.25) prev(); else next(); });
+  window.__deck = { count: slides.length, go: (i)=>show(i, maxSteps(slides[i]), true) };
+
+  function start(){
+    const h=parseInt((location.hash||'').slice(1),10);
+    show((h>=1&&h<=slides.length)?h-1:0, 0, true);
+  }
+  (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(start);
+})();
+</script>
+</body>
+</html>

@@ -345,13 +345,21 @@ export default function App() {
         )}
       </PhoneFrame>
 
-      {/* 넓은 화면(PC)에서만 — 팀원용 판독 채점 화면으로 가는 단추. 휴대폰 화면에는 두지 않는다. */}
-      <a
-        href="/eval.html"
-        className="hidden lg:flex fixed top-5 right-5 items-center gap-2 h-11 px-4 rounded-lg bg-white border border-slate-300 shadow-sm text-[15px] font-bold text-slate-800 hover:border-blue-600 hover:text-blue-700"
-      >
-        판독 채점 화면 →
-      </a>
+      {/* 넓은 화면(PC)에서만 — 팀원용 발표자료·판독 채점 화면으로 가는 단추. 휴대폰 화면에는 두지 않는다. */}
+      <nav aria-label="팀원용" className="hidden lg:flex fixed top-5 right-5 gap-2">
+        {[
+          { href: '/deck/', label: '발표자료 →' },
+          { href: '/eval.html', label: '판독 채점 화면 →' },
+        ].map((l) => (
+          <a
+            key={l.href}
+            href={l.href}
+            className="flex items-center h-11 px-4 rounded-lg bg-white border border-slate-300 shadow-sm text-[15px] font-bold text-slate-800 hover:border-blue-600 hover:text-blue-700"
+          >
+            {l.label}
+          </a>
+        ))}
+      </nav>
       <BuildBadge className="hidden lg:block fixed bottom-4 right-5" />
     </div>
   );

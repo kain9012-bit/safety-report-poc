@@ -29,5 +29,12 @@
     "api/vision.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/deck",
+      "destination": "/deck/",
+      "permanent": false
+    }
+  ]
 }
