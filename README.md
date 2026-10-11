@@ -163,6 +163,8 @@ src/
     overlap.ts           두 사진 겹침(윤곽 대조, AI 없음)
     recommend.ts         좌표 × 주변 시설 거리로 유형 후보(참고용)
     facilities.ts        주변 시설 격자 파일 불러오기 + 정류장 API
+    noParking.ts         주정차금지(지정)구역 — 도로명으로 같은 구간 찾기, 지금 단속 시간인지(참고 안내 전용)
+    noParkingData.ts     public/noparking/ 불러오기
     geo.ts               거리 계산(하버사인), 기준 거리 판정
     authenticity.ts      앨범 사진 진위 점검(EXIF, 규칙)
     album.ts             앨범 사진 읽기 + 촬영시각·위치 새기기
@@ -183,11 +185,13 @@ src/
 public/deck/index.html   최종 발표자료 원본(빌드 없이 /deck/ 으로 배포) → 10-1장
 public/deck/assets/      발표자료 그림·시연 영상(webm, 해설 음성 포함)·기사 캡처(press-*.png)
 public/fac/              주변 시설 격자 파일(0.01°, 약 1km 칸). scripts/collect_facilities.py 가 만든다
+public/noparking/        주정차금지(지정)구역 시군구별 파일(전국 145곳). scripts/collect_noparking.py 가 만든다
 scripts/
   collect_facilities.py  횡단보도·어린이보호구역·버스정류장 수집 → public/fac/
+  collect_noparking.py   주정차금지(지정)구역 수집 → public/noparking/
   deck-check.mjs         발표자료 조판 점검(외톨이 줄·어절 쪼개짐·내어쓰기·넘침)
   opendata-summary.py    지자체 원자료 101개 목록·불수용률 → data/opendata/
-  nonaccept-reasons.py   양주·남해 불수용 사유 묶음(앱이 막는 몫)
+  nonaccept-reasons.py   불수용 사유 묶음(앱이 막는 몫) — 발표에는 양주시만
 data/                    리뷰·통계 원자료와 분석(→ data/README.md)
   samples/               채점 사진·정답표 자리. README와 빈 양식만 깃에 올린다
   opendata/              공공데이터포털 지자체 원자료(→ data/opendata/README.md). raw/ 는 깃에 안 올린다
@@ -302,6 +306,18 @@ python scripts/collect_facilities.py   # .env.local 의 DATA_GO_KR_KEY(Decoding 
 - **소화전은 뺐다** — 전국 통합본이 없고 전북 자료가 2017년 기준이다. 낡은 좌표로 판정하느니 하지 않는다(`docs/test-data.md`).
 - **교차로 모퉁이는 위치자료가 없다** — 도로망 교차점 계산이 따로 필요하다. 사진 판독에만 기댄다.
 
+### 주정차금지(지정)구역(`public/noparking/`) — 촬영 화면의 '참고' 안내
+
+```bash
+python scripts/collect_noparking.py    # 같은 키. 전국 약 1만 7천 구간, 17쪽
+```
+
+- 출처: [전국주정차금지(지정)구역표준데이터 data.go.kr 15034542](https://www.data.go.kr/data/15034542/standard.do) — 2026-10-12 기준 16개 시도·145개 시군구, 16,955구간. 전국을 다 덮지 않는다(예: 전주시 없음).
+- **좌표가 없다.** 도로명·구간 설명·요일별 금지 시간·허용 시간(점심 유예)·기준일뿐이다. 그래서 휴대폰 위치 → 도로명주소(`/api/address`) → **같은 시군구·같은 도로명** 구간을 찾는다.
+- 촬영 화면에 "참고 · 주정차금지 구간 ○○로 — 평일 09:00~18:00(11:00~14:00 허용) · 지금 단속 시간"과 기준일을 보여 준다. 같은 도로라도 구간 밖일 수 있고 표지판이 우선이라, **판정(유형·수용)에는 쓰지 않는다.**
+- 공휴일 목록이 없어 일요일만 '일요일·공휴일' 칸으로 본다. 토요일 00:00~00:00은 자료상 단속 시간 없음으로 본다.
+- `.env.local`을 윈도우에서 만들면 줄 끝에 `\r`이 붙는다. 셸에서 `. ./.env.local`로 읽으면 키에 `\r`이 섞여 '등록되지 않은 서비스키'가 난다(스크립트는 떼고 읽는다).
+
 ### 지자체 규정 추가 절차
 
 1. 그 지자체의 주민신고제 공식 안내 페이지를 찾는다(블로그·뉴스 말고 지자체 누리집).
@@ -328,6 +344,7 @@ npm test     # 19개 파일 · 220개 시험 (2026-10-09 기준)
 | `rules.test.ts` | 간격·기한·번호판 형식·기본 점검 |
 | `crosscheck.test.ts` | 사진 증거 없으면 유형을 채우지 않음, 위치자료는 일치 표시만 |
 | `localRules.test.ts` | 지자체 찾기, 간격·단속 시간, 시험용 간격 |
+| `noParking.test.ts` | 도로명 뽑기·같은 도로만 맞추기(세종로≠세종로45번길), 양주시≠남양주시, 요일·점심 허용·자정 넘김 |
 | `overlap.test.ts` | 같은 장면·다른 장면·어긋난 구도 |
 | `recommend.test.ts` · `geo.test.ts` | 거리 계산, GPS 오차가 기준 거리를 넘나들 때 확정하지 않음 |
 | `authenticity.test.ts` | 앨범 사진 진위 규칙 |
@@ -423,7 +440,7 @@ AI+규칙이 위반 유형과 번호판을 얼마나 맞히는지 **사진 1장 
 | `docs/painpoints.md` | 현행 절차와 국민·공무원 양쪽 불편, 예상 반론 | 발표·제안서 쓸 때 |
 | `docs/officer-impact.md` | **현업 공무원에게 무엇이 달라지나** — 줄어드는 업무, 가정을 밝힌 효과 추정, 인터뷰 질문지 | 공무원 효과를 말할 때 |
 | `docs/statistics.md` | 월별 신고·처리 통계(불수용률 20.7%) | 숫자를 인용할 때 |
-| `data/opendata/README.md` | 지자체 원자료 101개, 지자체별 불수용률, 양주·남해 불수용 사유 | 불수용 사유·지자체 비교를 말할 때 |
+| `data/opendata/README.md` | 지자체 원자료 101개, 지자체별 불수용률, 양주시 불수용 사유 | 불수용 사유·지자체 비교를 말할 때 |
 | `docs/news-clips/README.md` | 발표자료 기사 캡처의 원문 주소 | 기사를 인용할 때 |
 | `docs/test-data.md` | 시설 자료 범위, 사진 표본 방침, 합성 시험 | 자료를 늘릴 때 |
 | `docs/field-test.md` | 현장 확인 점검표와 결과 기록 칸 | 폰으로 나가서 시험할 때 |

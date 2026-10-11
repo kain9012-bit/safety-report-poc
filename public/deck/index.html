@@ -350,10 +350,10 @@ video.full{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;b
 #press .wrap{position:absolute;left:0;right:0;top:948px;text-align:center;font-size:30px;font-weight:700}
 #press .wrap em{font-style:normal;color:var(--t3)}
 
-/* 불수용 사유 — 양주·남해 원자료 */
-#reasons .rs{position:absolute;left:110px;top:318px;width:1060px}
-#reasons .rs h4,#reasons .tiers h4{font-size:21px;font-weight:700;letter-spacing:.06em;color:var(--sub);margin-bottom:14px}
-#reasons .rs .r{display:grid;grid-template-columns:390px 1fr 82px 196px;align-items:center;height:50px}
+/* 불수용 사유 — 양주시 원자료 */
+#reasons .rs{position:absolute;left:110px;top:312px;width:1080px}
+#reasons .rs h4{font-size:21px;font-weight:700;letter-spacing:.06em;color:var(--sub);margin-bottom:12px}
+#reasons .rs .r{display:grid;grid-template-columns:390px 1fr 82px 206px;align-items:center;height:50px}
 #reasons .rs .l{font-size:23px;font-weight:600;text-align:right;padding-right:22px;color:var(--ink)}
 #reasons .rs .t{position:relative;height:26px}
 #reasons .rs .t i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:6px;background:#D9D0BF;transition:width 1s cubic-bezier(.2,.7,.2,1),background .5s}
@@ -369,20 +369,24 @@ video.full{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;b
 #reasons .rs .B .g{background:#E1E9F2;color:var(--t2)}
 #reasons .rs .P .g{background:#F6EAD3;color:#A8701A}
 #reasons .rs .N .g{background:var(--paper2);color:var(--sub)}
-#reasons .tiers{position:absolute;left:1270px;top:318px;width:540px}
-#reasons .big{font-family:var(--serif);font-weight:900;font-size:132px;line-height:1;color:var(--t1);letter-spacing:-.04em}
-#reasons .big small{font-size:46px;margin-left:6px}
-#reasons .bigl{font-size:24px;line-height:1.55;color:var(--sub);margin-top:14px}
-#reasons .bigl b{color:var(--ink)}
+#reasons .grp{position:relative;margin:12px 0 32px}
+#reasons .grp::before{content:"";position:absolute;inset:-8px -12px -8px -12px;border:3px solid var(--t1);border-radius:16px;background:rgba(62,107,79,.07);opacity:0;transition:opacity .5s}
+#reasons .grp .tab{position:absolute;left:0;bottom:-27px;font-size:19px;font-weight:800;color:#fff;background:var(--t1);padding:4px 16px;border-radius:999px;opacity:0;transition:opacity .5s;z-index:1}
+#reasons.st2 .grp::before,#reasons.st3 .grp::before,#reasons.st2 .grp .tab,#reasons.st3 .grp .tab{opacity:1}
+#reasons .tiers{position:absolute;left:1290px;top:312px;width:520px}
+#reasons .big{font-family:var(--serif);font-weight:900;font-size:150px;line-height:1;color:var(--t1);letter-spacing:-.04em}
+#reasons .big small{font-size:50px;margin-left:6px}
+#reasons .bigl{font-size:25px;line-height:1.55;color:var(--ink);margin-top:16px}
+#reasons .bigl b{color:var(--t1)}
+#reasons .addn{font-size:19px;line-height:1.6;color:var(--sub);margin-top:12px}
 #reasons .stk{margin-top:30px}
-#reasons .stk .nm{font-size:21px;font-weight:700;margin-bottom:8px}
-#reasons .stk .nm small{font-weight:500;color:var(--sub);margin-left:8px}
-#reasons .stk .bar{display:flex;height:34px;border-radius:8px;overflow:hidden;margin-bottom:18px}
+#reasons .stk .bar{display:flex;height:36px;border-radius:8px;overflow:hidden;margin-bottom:14px}
 #reasons .stk .bar span{display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:#fff;white-space:nowrap}
 #reasons .stk .a{background:var(--t1)} #reasons .stk .b{background:var(--t2)} #reasons .stk .p{background:var(--amber)} #reasons .stk .n{background:#BDB3A2;color:var(--ink)}
-#reasons .key{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:18px;color:var(--sub)}
-#reasons .key i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-#scale .ebar{grid-template-columns:250px 1fr 150px}
+#reasons .key{display:grid;grid-template-columns:1fr;gap:4px;font-size:19px;color:var(--sub)}
+#reasons .key i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:8px;vertical-align:-1px}
+#scale .ebar{grid-template-columns:270px 1fr 150px}
+#scale .sub2{font-size:19px;color:#7E776C;margin:-4px 0 18px 270px}
 
 /* 진행 UI */
 #progress{position:fixed;left:0;bottom:0;height:4px;background:var(--amber);transition:width .4s ease;z-index:5}
@@ -396,7 +400,7 @@ aside.notes{display:none}
   .slide{position:relative;opacity:1;visibility:visible;width:1920px;height:1080px;page-break-after:always}
   .f,.pop,.ck{opacity:1;transform:none}
   .ebar .t i{transform:none}
-  #reasons .rs .t i{width:var(--w)} #reasons .rs .g{opacity:1}
+  #reasons .rs .t i{width:var(--w)} #reasons .rs .g,#reasons .grp::before,#reasons .grp .tab{opacity:1}
   #progress,#notes{display:none}
 }
 </style>
@@ -737,7 +741,7 @@ aside.notes{display:none}
   </div>
   <div class="pg"></div>
   <aside class="notes">
-    전국 사유별 통계는 공개되지 않아, 현장에서 체감하는 순위를 여쭸습니다. 뒤에서 볼 양주·남해 원자료와 맞춰 봅니다.
+    전국 사유별 통계는 공개되지 않아, 현장에서 체감하는 순위를 여쭸습니다. 뒤에서 볼 양주시 원자료와 맞춰 봅니다.
     (말풍선은 한 개씩 띄우며 실제 답변을 인용)
   </aside>
 </section>
@@ -832,43 +836,50 @@ aside.notes{display:none}
   </aside>
 </section>
 
-<!-- 불수용 사유 — 공공데이터포털 원자료(양주·남해) 집계. 다시 셈: python scripts/nonaccept-reasons.py -->
+<!-- 불수용 사유 — 공공데이터포털 양주시 원자료 집계. 다시 셈: python scripts/nonaccept-reasons.py -->
 <section class="slide" data-title="불수용 사유" data-steps="3" id="reasons">
   <div class="top-title">
-    <div class="eyebrow">근거 · 지자체 원자료의 불수용 사유</div>
-    <div class="title">불수용 사유 셋에 하나는 제출 전에 막을 수 있습니다</div>
+    <div class="eyebrow">근거 · 경기 양주시 원자료의 불수용 사유</div>
+    <div class="title">돌려보낸 신고 10건 중 4건은 제출 전에 막을 수 있었습니다</div>
   </div>
   <div class="rs">
-    <h4>경기 양주시 · 돌려보낸 2,148건의 사유</h4>
-      <div class="r N"><span class="l">금지구역 아님·사유지·미설치 구간</span><span class="t"><i style="--w:100.0%"></i></span><span class="n">26.0%</span><span class="g">못 거름</span></div>
-      <div class="r B"><span class="l">단속 시간 외(점심 유예 등)</span><span class="t"><i style="--w:64.6%"></i></span><span class="n">16.8%</span><span class="g">지역 단속 시간</span></div>
-      <div class="r P"><span class="l">위반 장소가 사진에 안 보임</span><span class="t"><i style="--w:55.8%"></i></span><span class="n">14.5%</span><span class="g">AI 판독 일부</span></div>
-      <div class="r A"><span class="l">사진 각도·위치가 다름</span><span class="t"><i style="--w:54.6%"></i></span><span class="n">14.2%</span><span class="g">첫 사진 잔상</span></div>
+    <h4>경기 양주시 · 돌려보낸 2,148건의 사유(사유가 둘이면 둘 다 셈)</h4>
+      <div class="r N"><span class="l">금지구역 아님·사유지·미설치 구간</span><span class="t"><i style="--w:100.0%"></i></span><span class="n">26.0%</span><span class="g">현장 판단 · 못 거름</span></div>
+      <div class="r B"><span class="l">단속 시간 외(점심 유예 등)</span><span class="t"><i style="--w:64.6%"></i></span><span class="n">16.8%</span><span class="g">지자체 자료 필요</span></div>
+      <div class="r P"><span class="l">위반 장소가 사진에 안 보임</span><span class="t"><i style="--w:55.8%"></i></span><span class="n">14.5%</span><span class="g">AI 판독 · 일부</span></div>
+    <div class="grp">
+      <div class="r A"><span class="l">사진 각도·위치가 다름</span><span class="t"><i style="--w:54.6%"></i></span><span class="n">14.2%</span><span class="g">첫 사진 잔상·겹침</span></div>
       <div class="r A"><span class="l">촬영 간격 1분 미달</span><span class="t"><i style="--w:43.8%"></i></span><span class="n">11.4%</span><span class="g">1분 알림</span></div>
       <div class="r A"><span class="l">번호판 판독 불가</span><span class="t"><i style="--w:43.1%"></i></span><span class="n">11.2%</span><span class="g">두 장 번호 대조</span></div>
-      <div class="r A"><span class="l">앱 카메라로 안 찍은 사진</span><span class="t"><i style="--w:22.3%"></i></span><span class="n">5.8%</span><span class="g">앱 카메라</span></div>
+      <div class="r A"><span class="l">앱 카메라로 안 찍은 사진</span><span class="t"><i style="--w:22.3%"></i></span><span class="n">5.8%</span><span class="g">앱 카메라 촬영</span></div>
       <div class="r A"><span class="l">신고 사진 부족</span><span class="t"><i style="--w:6.2%"></i></span><span class="n">1.6%</span><span class="g">두 장 필수</span></div>
       <div class="r A"><span class="l">신고 기한 경과</span><span class="t"><i style="--w:2.3%"></i></span><span class="n">0.6%</span><span class="g">기한 점검</span></div>
+      <span class="tab">앱이 제출 전에 막는 여섯 사유</span>
+    </div>
       <div class="r N"><span class="l">기타(차량 움직임·취하 등)</span><span class="t"><i style="--w:9.6%"></i></span><span class="n">2.5%</span><span class="g">못 거름</span></div>
   </div>
   <div class="tiers f" data-step="3">
     <div class="big">43<small>%</small></div>
-    <p class="bigl">사진 규칙만으로 제출 전에 막을 수 있는 몫(양주)<br>지역 단속 시간 기준까지 더하면 <b>58%</b></p>
+    <p class="bigl">돌려보낸 2,148건 중 <b>930건</b>이<br>초록 여섯 사유 중 하나 이상에 걸림</p>
+    <p class="addn">여섯 사유를 그냥 더하면 44.8%<br>사유가 둘인 건을 한 번만 세면 43.3%</p>
     <div class="stk">
-      <div class="nm">경기 양주시<small>반환 2,148건</small></div>
       <div class="bar"><span class="a" style="width:43.3%">43%</span><span class="b" style="width:14.6%">15%</span><span class="p" style="width:14.2%">14%</span><span class="n" style="width:27.9%">28%</span></div>
-      <div class="nm">경남 남해군<small>사유 적힌 불수용 28건</small></div>
-      <div class="bar"><span class="a" style="width:35.7%">36%</span><span class="p" style="width:42.9%">43%</span><span class="n" style="width:21.4%">21%</span></div>
-      <div class="key"><span><i style="background:var(--t1)"></i>사진 규칙으로 막음</span><span><i style="background:var(--t2)"></i>지역 기준이 있으면</span><span><i style="background:var(--amber)"></i>AI 판독 일부</span><span><i style="background:#BDB3A2"></i>못 거름</span></div>
+      <div class="key">
+        <span><i style="background:var(--t1)"></i>앱이 제출 전에 막음 — 효과 계산에 쓰는 몫</span>
+        <span><i style="background:var(--t2)"></i>단속 시간 — 지자체 자료가 있어야 막음</span>
+        <span><i style="background:var(--amber)"></i>AI 판독으로 일부</span>
+        <span><i style="background:#BDB3A2"></i>현장 판단이라 못 거름</span>
+      </div>
     </div>
   </div>
-  <div class="footnote">공공데이터포털 원자료 — 경기 양주시 2026. 1.~8. 반환 2,148건 · 경남 남해군 2024. 불수용 32건(사유 적힌 28건) · 사유 묶음은 팀 기준</div>
+  <div class="footnote">공공데이터포털 「경기도 양주시_안전신문고 불법주정차신고 및 과태료 부과현황」 2026. 1.~8.(신고 11,003건 중 반환 2,148건) · 사유 묶음은 팀 기준</div>
   <div class="pg"></div>
   <aside class="notes">
-    전국 통계에는 왜 돌려보냈는지가 없습니다. 그런데 공공데이터포털에 담당자가 적은 사유까지 올린 곳이 두 곳 있었습니다. 경기 양주시와 경남 남해군입니다.
-    (다음) 양주시가 돌려보낸 2,148건의 사유를 묶었습니다. 가장 많은 건 금지구역이 아니거나 사유지인 경우로, 이건 현장 판단이라 앱이 못 거릅니다. 숨기지 않겠습니다.
-    (다음) 초록색이 저희 앱이 제출 전에 막는 사유입니다. 각도가 달라서, 1분이 안 돼서, 번호판이 안 읽혀서, 앱 카메라로 안 찍어서. 첫 사진 잔상, 1분 알림, 두 장 번호 대조가 바로 이걸 겨냥합니다.
-    (다음) 사진 규칙만으로 43%, 지역 단속 시간 기준까지 넣으면 58%입니다. 규모가 작은 남해군도 36%가 같은 사유였습니다. 불수용 사유 셋에 하나는 제출 전에 막을 수 있습니다.
+    전국 통계에는 왜 돌려보냈는지가 없습니다. 그런데 경기 양주시가 담당자가 적은 반환 사유까지 공공데이터로 올려 두었습니다. 올해 1~8월, 돌려보낸 2,148건입니다.
+    (다음) 사유를 묶었습니다. 가장 많은 건 금지구역이 아니거나 사유지인 경우로, 현장 판단이라 앱이 못 거릅니다. 숨기지 않겠습니다.
+    (다음) 초록 상자 안 여섯 가지가 저희 앱이 제출 전에 막는 사유입니다. 각도가 달라서 — 첫 사진 잔상, 1분이 안 돼서 — 1분 알림, 번호판이 안 읽혀서 — 두 장 번호 대조, 그리고 앱 카메라·사진 두 장·기한 점검입니다.
+    (다음) 이 여섯 중 하나라도 걸린 신고가 930건, 43%입니다. 더하면 44.8%지만 사유가 둘인 건을 한 번만 셌습니다. 돌려보낸 신고 10건 중 4건은 제출 전에 막을 수 있었습니다.
+    단속 시간 위반(파랑)은 지자체마다 시간이 달라 자료가 있어야 막을 수 있습니다. 그래서 효과 계산에는 넣지 않았습니다.
   </aside>
 </section>
 
@@ -887,16 +898,16 @@ aside.notes{display:none}
   <div class="est">
     <h4 class="f" data-step="2">줄어드는 담당자 일 — 연 1,800시간을 1명분으로</h4>
     <p class="q f" data-step="2">① 요건 미달을 제출 전에 막으면 — 비중은 양주시 실측</p>
-    <div class="ebar f" data-step="2"><span class="l"><b>43%</b> 사진 규칙</span><span class="t"><i style="--w:75%;transition-delay:.3s"></i><span>약 42만 건 덜 들어옴</span></span><span class="v">약 12<small>명분</small></span></div>
-    <div class="ebar f" data-step="2"><span class="l"><b>58%</b> +지역 기준</span><span class="t"><i style="--w:100%;transition-delay:.5s"></i><span>약 57만 건 덜 들어옴</span></span><span class="v">약 16<small>명분</small></span></div>
+    <div class="ebar f" data-step="2"><span class="l"><b>43%</b> 앱이 막는 사유</span><span class="t"><i style="--w:35%;transition-delay:.3s"></i><span>약 42만 건 덜 들어옴</span></span><span class="v">약 12<small>명분</small></span></div>
+    <p class="sub2 f" data-step="2">막대 길이 = 한 해 불수용 122만 건 가운데 덜 들어오는 몫</p>
     <div class="two f" data-step="3"><b class="n2">②</b><span><b>들어온 신고</b>도 요약 덕분에<br>건당 1분 줄면 · 연 조치 약 468만 건</span><strong>약 43<small>명분</small></strong></div>
   </div>
-  <p class="fx f" data-step="4"><b>식</b> 연 불수용 122만 × 요건 미달 비중(양주 43~58%) × 앱이 거르는 비율 80% × 건당 처리 3분 ÷ 1,800시간 · 80%·3분·1분은 <b>가정</b><br>요건 미달 비중은 양주시 원자료로 셈했고, 건당 처리 시간은 <b>현업 담당자 인터뷰</b>로 확인했습니다</p>
+  <p class="fx f" data-step="4"><b>식</b> 연 불수용 122만 × 요건 미달 비중(양주 43%) × 앱이 거르는 비율 80% × 건당 처리 3분 ÷ 1,800시간 · 80%·3분·1분은 <b>가정</b><br>요건 미달 비중은 양주시 원자료로 셈했고, 건당 처리 시간은 <b>현업 담당자 인터뷰</b>로 확인했습니다</p>
   <div class="footnote" style="color:#5E584F">안전신문고 월별 운영 현황 2025. 1.~2026. 4.(15개월) · 양주시 원자료 2026. 1.~8. · 건당 3분에는 항의 전화 응대를 넣지 않음</div>
   <div class="pg"></div>
   <aside class="notes">
     담당자 일이 얼마나 줄어드는지 셈해 봤습니다. 출발점은 한 해 불수용 약 122만 건, 수용 약 468만 건입니다.
-    (다음) 요건 미달 비중은 앞에서 본 양주시 원자료 값을 썼습니다. 사진 규칙으로 막을 수 있는 43%, 지역 기준까지 58%입니다. 앱이 그 80%를 거르고 건당 3분이 든다고 하면, 담당자 12~16명분의 일이 줄어듭니다.
+    (다음) 요건 미달 비중은 앞에서 본 양주시 원자료의 43%를 썼습니다. 앱이 그 80%를 거르고 건당 3분이 든다고 하면, 한 해 약 42만 건이 덜 들어오고 담당자 약 12명분의 일이 줄어듭니다. 단속 시간 위반은 지자체 자료가 없어 넣지 않았습니다.
     (다음) 들어온 신고도 요약 덕분에 건당 1분만 줄면 43명분입니다.
     (다음) 이 숫자는 가정을 둔 추정입니다. 건당 처리 시간은 인터뷰에서 들은 값으로 확인했습니다(인터뷰 후 숫자 고침).
   </aside>

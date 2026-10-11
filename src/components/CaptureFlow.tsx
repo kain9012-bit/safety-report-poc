@@ -10,6 +10,9 @@ import type { Candidate } from '../lib/recommend';
 import { SHOW_IN_PHOTO } from '../lib/crosscheck';
 import type { Verdict } from '../lib/crosscheck';
 import { reverseGeocode } from '../lib/reverseGeocode';
+import { noParkingFor } from '../lib/noParkingData';
+import type { NoParkingHere } from '../lib/noParkingData';
+import { zoneNow } from '../lib/noParking';
 import { describeRules, effectiveInterval, maxInterval, rulesFor } from '../lib/localRules';
 import type { AppliedRules } from '../lib/localRules';
 import type { TypeOption } from '../lib/choose';
@@ -124,6 +127,8 @@ export default function CaptureFlow(p: Props) {
   // 찍기 전: 휴대폰 위치 → 주변 시설(무엇을 사진에 담을지) + 관할 지자체 규정
   const [hint, setHint] = useState<Candidate[]>([]);
   const [hereRules, setHereRules] = useState<AppliedRules>(() => rulesFor(draft.address));
+  // 같은 도로의 주정차금지(지정)구역 — 참고 안내만. 판정에는 쓰지 않는다(좌표 없는 자료라 도로명으로 맞춘다)
+  const [noPark, setNoPark] = useState<NoParkingHere | null>(null);
   const hintAt = useRef<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
     if (!pos || pos.accuracy > 50) return;
@@ -132,8 +137,11 @@ export default function CaptureFlow(p: Props) {
     void loadNearby(pos).then((n) => setHint(recommend(pos, n).slice(0, 2)));
     void reverseGeocode(pos.lat, pos.lng).then((r) => {
       if (r.state === 'ok') setHereRules(rulesFor(r.road ?? r.parcel));
+      void noParkingFor(r.state === 'ok' ? r.road : undefined).then(setNoPark);
     });
   }, [pos]);
+  const noParkZone = noPark?.zones[0];
+  const noParkNow = noParkZone ? zoneNow(noParkZone, now) : null;
 
   // 사진 주소가 들어오면 그 주소의 규정이 우선
   const rules = draft.address ? rulesFor(draft.address) : hereRules;
@@ -268,6 +276,19 @@ export default function CaptureFlow(p: Props) {
                   {SHOW_IN_PHOTO[c.type] && <> — {SHOW_IN_PHOTO[c.type]} 사진에 나오게</>}
                 </p>
               ))}
+              {noPark && noParkZone && noParkNow && (
+                <div>
+                  <p>
+                    <b className="text-sky-300">참고 · 주정차금지 구간</b>
+                    {` ${noPark.road}${noPark.zones.length > 1 ? ` 등 ${noPark.zones.length}곳` : ''} — ${noParkNow.schedule}`}
+                    {noParkNow.enforced === true && <b> · 지금 단속 시간</b>}
+                    {noParkNow.enforced === false && ' · 지금은 단속 시간 아님'}
+                  </p>
+                  <p className="text-[11px] text-white/60">
+                    {noParkZone.desc && `${noParkZone.desc} · `}공공데이터 {noParkZone.ref || '기준일 없음'} 기준 · 구간 밖이거나 표지판과 다를 수 있어 참고만
+                  </p>
+                </div>
+              )}
               <p className="text-white/70">차·번호판·위반 장소가 한 화면에 나오게 찍어 주세요</p>
             </div>
           )}
