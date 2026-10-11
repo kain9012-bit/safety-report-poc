@@ -181,13 +181,16 @@ src/
   types/report.ts        신고서 칸 타입, 6대 유형 이름
   build-info.d.ts        빌드 표식(__BUILD_SHA__·__BUILD_TIME__) 타입
 public/deck/index.html   최종 발표자료 원본(빌드 없이 /deck/ 으로 배포) → 10-1장
-public/deck/assets/      발표자료 그림·시연 영상(webm, 해설 음성 포함)
+public/deck/assets/      발표자료 그림·시연 영상(webm, 해설 음성 포함)·기사 캡처(press-*.png)
 public/fac/              주변 시설 격자 파일(0.01°, 약 1km 칸). scripts/collect_facilities.py 가 만든다
 scripts/
   collect_facilities.py  횡단보도·어린이보호구역·버스정류장 수집 → public/fac/
   deck-check.mjs         발표자료 조판 점검(외톨이 줄·어절 쪼개짐·내어쓰기·넘침)
+  opendata-summary.py    지자체 원자료 101개 목록·불수용률 → data/opendata/
+  nonaccept-reasons.py   양주·남해 불수용 사유 묶음(앱이 막는 몫)
 data/                    리뷰·통계 원자료와 분석(→ data/README.md)
   samples/               채점 사진·정답표 자리. README와 빈 양식만 깃에 올린다
+  opendata/              공공데이터포털 지자체 원자료(→ data/opendata/README.md). raw/ 는 깃에 안 올린다
 docs/                    요구사항·설계 결정·근거 자료(→ 13장)
 index.html · eval.html   두 화면 진입 HTML (vite 다중 페이지 빌드)
 vite.config.ts           dev에서 api/ 함수를 그대로 돌리는 미들웨어 + 다중 페이지 입력 + 빌드 표식(커밋 해시)
@@ -377,6 +380,8 @@ AI+규칙이 위반 유형과 번호판을 얼마나 맞히는지 **사진 1장 
   npm i --no-save playwright && npx playwright install chromium   # 처음 한 번
   node scripts/deck-check.mjs
   ```
+- **기사 캡처**(`assets/press-*.png`) — 기사 제목과 해당 문장만 잘라 출처·날짜를 붙였다(형광은 우리 표시). 원문 주소는 `docs/news-clips/README.md`.
+- **불수용 사유 장** — 숫자는 `python scripts/nonaccept-reasons.py`로 다시 셀 수 있다(원자료는 `data/opendata/raw/`).
 - **표기 원칙** — '첫 번째 사진·두 번째 사진', 흐름은 하나, 불수용률(20.7%)은 6장 '핵심 문제'에서 한 번만. 숫자를 바꾸면 각주의 출처도 같이 고친다. 채점·인터뷰 결과 칸(테두리 숫자·○ 표시)은 결과가 나오면 채운다.
 - **시연 영상**(`assets/demo-current.webm`, `assets/demo-improved.webm`)
   - 지금 앱: 실제 앱 화면 캡처(위치·전화번호 가림)로 신고 순서를 따라간다. 캡처가 없는 동작은 팀원 조작 기록을 설명 상자로 보여 준다.
@@ -403,7 +408,7 @@ AI+규칙이 위반 유형과 번호판을 얼마나 맞히는지 **사진 1장 
 1. **`main`에 바로 올리지 않는다.** 브랜치(`이름/할일`, 예: `chiguk/review-chart`)에서 작업하고 PR을 연다.
 2. PR에는 무엇을·왜 바꿨는지, 화면이 바뀌면 캡처를 붙인다. CI가 초록이어야 합친다.
 3. 커밋 메시지는 한국어로, 첫 줄에 "무엇 — 왜"를 적는다(지금 기록과 같은 형식).
-4. **올리면 안 되는 것**: `.env.local`, 채점 사진·`answers.csv`, 실제 앱 캡처 **원본**(전화번호·위치 등 개인정보가 찍힘), 엑셀 잠금 파일. 개인정보를 가린 발표 영상(`public/deck/assets/`)은 예외.
+4. **올리면 안 되는 것**: `.env.local`, 채점 사진·`answers.csv`, 실제 앱 캡처 **원본**(전화번호·위치 등 개인정보가 찍힘), 엑셀 잠금 파일, 공공데이터 원자료(`data/opendata/raw/`, 120MB). 개인정보를 가린 발표 영상(`public/deck/assets/`)은 예외.
 5. 규칙(1장)을 바꾸는 결정, 기준값(5장)을 바꾸는 결정은 `docs/design.md`에 날짜와 함께 적는다.
 6. 새 파일을 만들면 4장의 파일 지도에 한 줄을 더한다. **README가 코드보다 늦으면 그게 기술부채다.**
 
@@ -417,7 +422,9 @@ AI+규칙이 위반 유형과 번호판을 얼마나 맞히는지 **사진 1장 
 | `docs/requirements.md` | 리뷰 불만 → 요구사항 R1~R7 → 화면, 10/2 회의 결정 → 화면 | 기능을 더하거나 뺄 때 |
 | `docs/painpoints.md` | 현행 절차와 국민·공무원 양쪽 불편, 예상 반론 | 발표·제안서 쓸 때 |
 | `docs/officer-impact.md` | **현업 공무원에게 무엇이 달라지나** — 줄어드는 업무, 가정을 밝힌 효과 추정, 인터뷰 질문지 | 공무원 효과를 말할 때 |
-| `docs/statistics.md` | 월별 신고·처리 통계(불수용률 20.7%), 정보공개청구 할 것 | 숫자를 인용할 때 |
+| `docs/statistics.md` | 월별 신고·처리 통계(불수용률 20.7%) | 숫자를 인용할 때 |
+| `data/opendata/README.md` | 지자체 원자료 101개, 지자체별 불수용률, 양주·남해 불수용 사유 | 불수용 사유·지자체 비교를 말할 때 |
+| `docs/news-clips/README.md` | 발표자료 기사 캡처의 원문 주소 | 기사를 인용할 때 |
 | `docs/test-data.md` | 시설 자료 범위, 사진 표본 방침, 합성 시험 | 자료를 늘릴 때 |
 | `docs/field-test.md` | 현장 확인 점검표와 결과 기록 칸 | 폰으로 나가서 시험할 때 |
 | `docs/meeting-2026-10-02.html` | 10/2 팀 회의 정리(메모 + 녹음 전사) | 결정 배경이 궁금할 때 |

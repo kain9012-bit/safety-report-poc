@@ -15,3 +15,9 @@ data/samples/*
 
 # 수집 스크립트가 받아 둔 원본 페이지
 .cache/
+
+# 공공데이터포털 지자체 원자료 — 120MB, 지번 주소 포함. 목록은 data/opendata/sources.csv
+data/opendata/raw/
+
+# 기사 캡처 — 저작권이 언론사에 있어 공개 저장소에 올리지 않는다. 목록은 docs/news-clips/README.md
+docs/news-clips/*.png
