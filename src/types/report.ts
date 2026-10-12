@@ -7,7 +7,23 @@ export type ViolationType =
   | 'corner'       // 교차로 모퉁이 5m 이내
   | 'busstop'      // 버스정류소 10m 이내
   | 'schoolzone'   // 어린이보호구역
-  | 'sidewalk';    // 인도
+  | 'sidewalk'     // 인도
+  // 6대 밖 — 2026-10-09 회의 결정으로 불법주정차 안에서 함께 다룬다(규정은 그대로: 사진 2장·1분 간격)
+  | 'disabled'     // 장애인전용구역
+  | 'firelane'     // 소방차전용구역
+  | 'evcharge'     // 친환경차충전구역
+  // 기타 — 중앙선·황색 실선·안전지대·이중주차 등. 사진 자동 판독 없이 신고인이 직접 고르고 내용에 적는다
+  | 'etc';
+
+/** 6대 불법주정차(주민신고제) 유형 — 위치자료·지역 규정은 이 여섯 가지만 다룬다 */
+export const SIX_TYPES = ['hydrant', 'crossing', 'corner', 'busstop', 'schoolzone', 'sidewalk'] as const;
+/** 6대 밖에서 함께 다루는 유형(안전신문고 불법주정차 '일반' 유형) */
+export const EXTRA_TYPES = ['disabled', 'firelane', 'evcharge'] as const;
+/** 사진 자동 판독 없이 직접 고르는 유형 */
+export const MANUAL_TYPES = ['etc'] as const;
+export function isSixType(t: ViolationType): boolean {
+  return (SIX_TYPES as readonly string[]).includes(t);
+}
 
 export const VIOLATION_LABEL: Record<ViolationType, string> = {
   hydrant: '소화전 5m 이내',
@@ -16,6 +32,10 @@ export const VIOLATION_LABEL: Record<ViolationType, string> = {
   busstop: '버스정류소 10m 이내',
   schoolzone: '어린이보호구역',
   sidewalk: '인도',
+  disabled: '장애인전용구역',
+  firelane: '소방차전용구역',
+  evcharge: '친환경차충전구역',
+  etc: '기타',
 };
 
 export interface Shot {

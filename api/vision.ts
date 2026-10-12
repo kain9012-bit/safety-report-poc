@@ -15,7 +15,17 @@
  */
 
 export type Tri = 'yes' | 'no' | 'unclear';
-export type PhotoType = 'busstop' | 'crossing' | 'corner' | 'schoolzone' | 'sidewalk' | 'hydrant' | 'none';
+export type PhotoType =
+  | 'busstop'
+  | 'crossing'
+  | 'corner'
+  | 'schoolzone'
+  | 'sidewalk'
+  | 'hydrant'
+  | 'disabled'
+  | 'firelane'
+  | 'evcharge'
+  | 'none';
 export type BoxLabel =
   | 'plate'
   | 'vehicle'
@@ -24,7 +34,11 @@ export type BoxLabel =
   | 'busstop_sign'
   | 'schoolzone_mark'
   | 'corner'
-  | 'hydrant';
+  | 'hydrant'
+  | 'disabled_mark'
+  | 'permit'
+  | 'firelane_mark'
+  | 'ev_charger';
 
 export interface Scene {
   onCrosswalk: Tri;
@@ -33,6 +47,16 @@ export interface Scene {
   schoolZoneMarking: Tri;
   intersectionCorner: Tri;
   fireHydrantNear: Tri;
+  /** 차가 장애인전용주차구역(휠체어 표시·구획) 안에 있다 */
+  disabledSpace: Tri;
+  /** 그 차 앞유리에 장애인자동차표지(주차가능)가 보인다 — yes 면 위반이 아닐 수 있다 */
+  disabledPermit: Tri;
+  /** 차가 소방차 전용구역(빨간·노란 빗금, '소방차 전용' 글씨) 안에 있다 */
+  fireLane: Tri;
+  /** 차가 친환경차 충전구역(충전기 앞 구획, '충전구역'·'전기차 전용' 표시) 안에 있다 */
+  evChargingSpace: Tri;
+  /** 그 차가 친환경차로 보인다(하늘색 번호판, 전기·수소차 표시) — yes 면 '일반차 주차' 위반이 아니다 */
+  evVehicle: Tri;
 }
 
 /** 근거 상자 — [위, 왼쪽, 아래, 오른쪽], 사진 크기를 0~1000으로 본 값 */
@@ -79,7 +103,20 @@ export const FALLBACK_MODELS = ['gemini-3-flash-preview', 'gemini-flash-latest']
 export const DISAGREE_CONFIDENCE = 0.4;
 
 const TRI = { type: 'STRING', enum: ['yes', 'no', 'unclear'] };
-const LABELS: BoxLabel[] = ['plate', 'vehicle', 'crosswalk', 'sidewalk', 'busstop_sign', 'schoolzone_mark', 'corner', 'hydrant'];
+const LABELS: BoxLabel[] = [
+  'plate',
+  'vehicle',
+  'crosswalk',
+  'sidewalk',
+  'busstop_sign',
+  'schoolzone_mark',
+  'corner',
+  'hydrant',
+  'disabled_mark',
+  'permit',
+  'firelane_mark',
+  'ev_charger',
+];
 
 /** Gemini 구조화 출력 형식(사진 한 장) */
 export const RESPONSE_SCHEMA = {
@@ -103,10 +140,30 @@ export const RESPONSE_SCHEMA = {
         schoolZoneMarking: TRI,
         intersectionCorner: TRI,
         fireHydrantNear: TRI,
+        disabledSpace: TRI,
+        disabledPermit: TRI,
+        fireLane: TRI,
+        evChargingSpace: TRI,
+        evVehicle: TRI,
       },
-      required: ['onCrosswalk', 'onSidewalk', 'busStopVisible', 'schoolZoneMarking', 'intersectionCorner', 'fireHydrantNear'],
+      required: [
+        'onCrosswalk',
+        'onSidewalk',
+        'busStopVisible',
+        'schoolZoneMarking',
+        'intersectionCorner',
+        'fireHydrantNear',
+        'disabledSpace',
+        'disabledPermit',
+        'fireLane',
+        'evChargingSpace',
+        'evVehicle',
+      ],
     },
-    typeGuess: { type: 'STRING', enum: ['busstop', 'crossing', 'corner', 'schoolzone', 'sidewalk', 'hydrant', 'none'] },
+    typeGuess: {
+      type: 'STRING',
+      enum: ['busstop', 'crossing', 'corner', 'schoolzone', 'sidewalk', 'hydrant', 'disabled', 'firelane', 'evcharge', 'none'],
+    },
     typeConfidence: { type: 'NUMBER', description: '0~1' },
     evidence: { type: 'STRING', description: '판단 근거 한 문장(한국어). 사진에 보이는 것만' },
     boxes: {
@@ -137,11 +194,17 @@ export const PROMPT = `너는 한국의 불법 주정차 신고 사진 한 장�
    - schoolZoneMarking: 어린이보호구역 표시(빨간 노면, '어린이보호구역' 표지·글씨)가 보인다
    - intersectionCorner: 차가 교차로 모퉁이(도로가 꺾이거나 만나는 곳)에 붙어 있다
    - fireHydrantNear: 소화전·소방용수시설 표시가 차 바로 옆에 보인다
+   - disabledSpace: 차가 장애인전용주차구역 안에 있다(바닥·표지판의 휠체어 표시, 장애인 전용 구획)
+   - disabledPermit: 그 차 앞유리에 장애인자동차표지(노란·파란 '주차가능' 표지)가 보인다. 앞유리가 안 보이면 unclear
+   - fireLane: 차가 소방차 전용구역 안에 있다(빨간·노란 빗금 구획, '소방차 전용' 글씨)
+   - evChargingSpace: 차가 친환경차 충전구역 안에 있다(충전기 바로 앞 구획, '충전구역'·'전기차 전용' 표시)
+   - evVehicle: 그 차가 친환경차로 보인다(하늘색 번호판, 전기·수소차 표시). 번호판 색이 안 보이면 unclear
 3. typeGuess: 가장 알맞은 위반 유형 하나. 해당 없으면 none.
-   busstop=버스정류소, crossing=횡단보도, corner=교차로 모퉁이, schoolzone=어린이보호구역, sidewalk=인도, hydrant=소화전
+   busstop=버스정류소, crossing=횡단보도, corner=교차로 모퉁이, schoolzone=어린이보호구역, sidewalk=인도, hydrant=소화전,
+   disabled=장애인전용구역(표지 없는 차), firelane=소방차전용구역, evcharge=친환경차충전구역(친환경차가 아닌 차)
 4. typeConfidence: 0~1. evidence: 그렇게 본 근거 한 문장(한국어).
 5. boxes: 근거가 된 것의 위치. 번호판(plate), 단속 차량(vehicle), 그리고 scene 에서 yes 로 답한 것마다
-   (crosswalk, sidewalk, busstop_sign, schoolzone_mark, corner, hydrant) 상자 하나.
+   (crosswalk, sidewalk, busstop_sign, schoolzone_mark, corner, hydrant, disabled_mark, permit, firelane_mark, ev_charger) 상자 하나.
    box_2d 는 [ymin, xmin, ymax, xmax] 로, 사진 크기를 0~1000으로 본 정수.`;
 
 /** data URL 에서 base64 와 형식을 꺼낸다. 이미지가 아니면 null. */
@@ -153,7 +216,18 @@ export function parseDataUrl(s: unknown): { mime: string; data: string } | null 
 
 const clamp01 = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
 const tri = (v: unknown): Tri => (v === 'yes' || v === 'no' ? v : 'unclear');
-const TYPES: PhotoType[] = ['busstop', 'crossing', 'corner', 'schoolzone', 'sidewalk', 'hydrant', 'none'];
+const TYPES: PhotoType[] = [
+  'busstop',
+  'crossing',
+  'corner',
+  'schoolzone',
+  'sidewalk',
+  'hydrant',
+  'disabled',
+  'firelane',
+  'evcharge',
+  'none',
+];
 const SCENE_KEYS: (keyof Scene)[] = [
   'onCrosswalk',
   'onSidewalk',
@@ -161,6 +235,11 @@ const SCENE_KEYS: (keyof Scene)[] = [
   'schoolZoneMarking',
   'intersectionCorner',
   'fireHydrantNear',
+  'disabledSpace',
+  'disabledPermit',
+  'fireLane',
+  'evChargingSpace',
+  'evVehicle',
 ];
 
 function normalizeBox(b: unknown): Box | null {
@@ -210,11 +289,26 @@ export const SCENE_TO_TYPE: [keyof Scene, PhotoType][] = [
   ['fireHydrantNear', 'hydrant'],
   ['busStopVisible', 'busstop'],
   ['intersectionCorner', 'corner'],
+  ['fireLane', 'firelane'],
+  ['disabledSpace', 'disabled'],
+  ['evChargingSpace', 'evcharge'],
   ['schoolZoneMarking', 'schoolzone'],
 ];
 
+/**
+ * 구역만으로는 위반이 아닌 유형 — 그 차가 '허용된 차'로 보이면 뺀다.
+ * 장애인전용구역에 표지를 붙인 차, 충전구역에 친환경차는 '일반차 주차' 위반이 아니다.
+ * (unclear 는 빼지 않는다 — 앱이 제출 전 점검에서 '확인 필요'로 묻는다)
+ */
+const EXEMPT_IF: Partial<Record<PhotoType, keyof Scene>> = {
+  disabled: 'disabledPermit',
+  evcharge: 'evVehicle',
+};
+
 export function typesFromScene(s: Scene): PhotoType[] {
-  return SCENE_TO_TYPE.filter(([k]) => s[k] === 'yes').map(([, t]) => t);
+  return SCENE_TO_TYPE.filter(([k, t]) => s[k] === 'yes' && !(EXEMPT_IF[t] && s[EXEMPT_IF[t]!] === 'yes')).map(
+    ([, t]) => t,
+  );
 }
 
 /** 사진 두 장(또는 한 장)의 판독을 하나로 — 번호판 대조, 장면 합치기, 규칙 유형 */

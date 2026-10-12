@@ -16,6 +16,10 @@ export const THRESHOLD_METERS: Record<ViolationType, number | undefined> = {
   crossing: undefined, // 정지선 침범 여부라 거리로 못 가른다
   schoolzone: undefined, // 구역 안인지 밖인지로 가른다
   sidewalk: undefined, // 좌표 데이터가 없다. 사진 판독에만 기댄다
+  disabled: undefined, // 구획 안인지로 가른다(사진)
+  firelane: undefined,
+  evcharge: undefined,
+  etc: undefined,
 };
 
 /** 두 사진 사이 최소 간격(초) */

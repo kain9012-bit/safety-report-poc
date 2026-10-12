@@ -17,7 +17,8 @@ import type { BoxLabel, Scene, VisionResult } from '../../api/vision';
 import { PLATE_CONFIDENCE_FLOOR } from '../lib/rules';
 import type { AddressState } from '../lib/reverseGeocode';
 import type { LatLng } from './PickMap';
-import { VIOLATION_LABEL, locatedShot } from '../types/report';
+import { EXTRA_TYPES, MANUAL_TYPES, SIX_TYPES, VIOLATION_LABEL, locatedShot } from '../types/report';
+import { OTHER_TYPES_NOTE } from '../lib/extraTypes';
 import type { DraftReport, Shot, ViolationType } from '../types/report';
 import { recommendLine } from '../lib/choose';
 import type { TypeOption } from '../lib/choose';
@@ -395,6 +396,10 @@ export const BOX_STYLE: Record<BoxLabel, { color: string; text: string }> = {
   schoolzone_mark: { color: '#16a34a', text: '보호구역 표시' },
   corner: { color: '#16a34a', text: '교차로 모퉁이' },
   hydrant: { color: '#16a34a', text: '소화전' },
+  disabled_mark: { color: '#16a34a', text: '장애인구역 표시' },
+  permit: { color: '#f59e0b', text: '장애인 표지' },
+  firelane_mark: { color: '#16a34a', text: '소방차 전용구역' },
+  ev_charger: { color: '#16a34a', text: '충전기·충전구역' },
 };
 
 export const SCENE_TEXT: Record<keyof Scene, string> = {
@@ -404,6 +409,11 @@ export const SCENE_TEXT: Record<keyof Scene, string> = {
   schoolZoneMarking: '보호구역 표시',
   intersectionCorner: '교차로 모퉁이',
   fireHydrantNear: '소화전',
+  disabledSpace: '장애인전용구역',
+  disabledPermit: '장애인 표지(차 앞유리)',
+  fireLane: '소방차 전용구역',
+  evChargingSpace: '충전구역',
+  evVehicle: '친환경차(하늘색 번호판)',
 };
 export const TRI_TEXT = { yes: '보임', no: '아님', unclear: '모름' } as const;
 
@@ -637,17 +647,26 @@ export function TypeDialog({
       <div className="w-full bg-white shadow-xl max-h-full flex flex-col">
         <BlueBar title="불법 주정차 유형 선택" onClose={onClose} />
         <div className="p-4 space-y-2 overflow-y-auto">
-          {(Object.keys(VIOLATION_LABEL) as ViolationType[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => onPick(t)}
-              className={`w-full h-14 border-2 text-[19px] ${
-                t === current ? 'border-[#3a8fdb] text-blue-600 font-bold' : 'border-slate-200 text-slate-800'
-              }`}
-            >
-              {VIOLATION_LABEL[t]}
-            </button>
+          {[
+            { head: '6대 불법주정차', types: SIX_TYPES },
+            { head: '그 밖의 불법주정차', types: [...EXTRA_TYPES, ...MANUAL_TYPES] },
+          ].map((g) => (
+            <div key={g.head} className="space-y-2">
+              <p className="pt-1 text-[13px] font-bold text-slate-500">{g.head}</p>
+              {g.types.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => onPick(t)}
+                  className={`w-full h-14 border-2 text-[19px] ${
+                    t === current ? 'border-[#3a8fdb] text-blue-600 font-bold' : 'border-slate-200 text-slate-800'
+                  }`}
+                >
+                  {VIOLATION_LABEL[t]}
+                </button>
+              ))}
+            </div>
           ))}
+          <p className="text-[13px] leading-snug text-slate-500">{OTHER_TYPES_NOTE}</p>
           <button onClick={onClose} className="w-full h-14 bg-slate-400 text-white text-[19px]">
             취소
           </button>

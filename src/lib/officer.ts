@@ -11,7 +11,7 @@
 import { BODY_MAX } from './compose';
 import { OVERLAP_MIN } from './overlap';
 import { intervalSeconds } from './rules';
-import { VIOLATION_LABEL, locatedShot } from '../types/report';
+import { VIOLATION_LABEL, isSixType, locatedShot } from '../types/report';
 import type { AppliedRules } from './localRules';
 import type { Precheck } from './precheck';
 import type { DraftReport } from '../types/report';
@@ -45,12 +45,16 @@ export function officerLines({ draft, precheck: pc, rules, minInterval }: Office
     const e = st(pc, 'evidence');
     lines.push(`- 위반 근거: ${e === 'pass' ? `사진에 ${VIOLATION_LABEL[draft.type]} 근거 보임` : `${VIOLATION_LABEL[draft.type]} — 신고인이 직접 고름, 사진 확인 필요`}`);
   }
+  const extra = pc.checks.find((c) => ['permit', 'ev'].includes(c.id));
+  if (extra) lines.push(`- ${extra.label}: ${extra.status === 'pass' ? extra.detail.replace(/\.$/, '') : mark(extra.status)}`);
   const album = draft.shots.some((s) => s.source === 'album');
   lines.push(`- 촬영시각: ${st(pc, 'timestamp') === 'pass' ? '사진에 표시' : '표시 없음'}${album ? '(앨범 사진 — 파일 기록·편집 흔적 점검함)' : '(앱 카메라 촬영)'}`);
   const at = locatedShot(draft.shots);
   if (at) lines.push(`- 위치: ${at.accuracy !== undefined ? `오차 약 ${Math.round(at.accuracy)}m` : '오차 기록 없음'}${draft.address ? '' : ' · 주소 미확인(좌표만)'}`);
   const hours = st(pc, 'hours');
-  const base = rules.region ? `${rules.region} 규정(확인 ${rules.local!.checkedAt})` : '전국 기준(6대 유형)';
+  const base = draft.type && !isSixType(draft.type)
+    ? `${VIOLATION_LABEL[draft.type]} 기준(사진 2장·1분 간격)`
+    : rules.region ? `${rules.region} 규정(확인 ${rules.local!.checkedAt})` : '전국 기준(6대 유형)';
   lines.push(`- 적용 기준: ${base}${hours ? ` · 단속 시간 ${hours === 'pass' ? '안' : '밖'}` : ''} · 접수 기한 ${mark(st(pc, 'deadline'))}`);
   const need = pc.checks.filter((c) => c.status !== 'pass' && !['body'].includes(c.id)).map((c) => c.label);
   lines.push(`- 확인 필요: ${need.length ? need.join(', ') : '없음'}`);

@@ -27,6 +27,7 @@ const RULE_FILES = [
   'exifTime.ts',
   'authenticity.ts',
   'noParking.ts',
+  'extraTypes.ts',
   '../eval/score.ts',
 ];
 

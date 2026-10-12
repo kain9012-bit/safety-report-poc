@@ -12,6 +12,7 @@ import { BODY_MIN } from './compose';
 import { runChecks } from './rules';
 import { effectiveInterval, inEnforcement, maxInterval, rulesFor } from './localRules';
 import { OVERLAP_MIN } from './overlap';
+import { extraTypeCheck } from './extraTypes';
 import type { CheckResult } from './rules';
 import type { Verdict } from './crosscheck';
 import { locatedShot } from '../types/report';
@@ -81,6 +82,10 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
         ? '직접 고른 유형입니다. 그 근거(표지판·노면 표시 등)가 사진에 보이는지 확인해 주세요.'
         : '사진에서 위반 장소의 근거를 찾았습니다.',
   });
+
+  // 6대 밖 유형 — 표지 붙은 차·친환경차는 위반이 아니고, 소방차전용구역은 대상 건물이 정해져 있다
+  const extra = extraTypeCheck(draft.type, vision?.scene);
+  if (extra) out.push(extra);
 
   // 같은 차 — 두 장 모두에서 번호판이 읽히고, 따로 읽은 번호가 같아야 한다(회의 결정)
   const same = vision?.sameVehicle;

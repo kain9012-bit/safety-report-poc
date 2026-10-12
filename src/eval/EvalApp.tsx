@@ -13,6 +13,9 @@ const NAME: Record<Truth, string> = {
   busstop: '버스정류소',
   corner: '교차로 모퉁이',
   schoolzone: '어린이보호구역',
+  disabled: '장애인전용구역',
+  firelane: '소방차전용구역',
+  evcharge: '친환경차충전구역',
   none: '위반 아님·비움',
 };
 const SCENE_NAME: Record<keyof Scene, string> = {
@@ -22,6 +25,11 @@ const SCENE_NAME: Record<keyof Scene, string> = {
   schoolZoneMarking: '보호구역 표시',
   intersectionCorner: '교차로 모퉁이',
   fireHydrantNear: '소화전',
+  disabledSpace: '장애인전용구역',
+  disabledPermit: '장애인 표지',
+  fireLane: '소방차 전용구역',
+  evChargingSpace: '충전구역',
+  evVehicle: '친환경차',
 };
 const CAUSES = ['사진 문제', 'AI 판독', '규칙', '정답 애매'];
 const TARGET = 0.95;

@@ -8,13 +8,14 @@ import { describeRules, effectiveInterval, maxInterval } from '../lib/localRules
 import { officerLines, withOfficerSummary } from '../lib/officer';
 import type { AppliedRules } from '../lib/localRules';
 import type { TypeOption } from '../lib/choose';
+import { josa } from '../lib/choose';
 import type { CheckStatus } from '../lib/rules';
 import { intervalSeconds, isValidPlate } from '../lib/rules';
 import type { Verdict } from '../lib/crosscheck';
 import type { VisionState } from '../lib/vision';
 import type { VisionResult } from '../../api/vision';
 import type { AddressState } from '../lib/reverseGeocode';
-import { VIOLATION_LABEL } from '../types/report';
+import { VIOLATION_LABEL, isSixType } from '../types/report';
 import type { DraftReport, EditableField } from '../types/report';
 import {
   CheckLine,
@@ -190,7 +191,11 @@ export default function ReportSteps(p: Props) {
               {p.rules.local?.extra && <p>이 지역 추가 유형: {p.rules.local.extra.join(', ')}</p>}
               {p.rules.local?.notes && <p>{p.rules.local.notes.join(' · ')}</p>}
               <p className="text-slate-400">
-                {p.rules.local ? `출처 ${p.rules.local.region} 누리집 · 확인 ${p.rules.local.checkedAt}${p.rules.aging ? ' · 확인한 지 반년이 넘었습니다' : ''}` : '출처 정책브리핑(2023-08) 6대 유형 전국 기준'}
+                {draft.type && !isSixType(draft.type)
+                  ? `${josa(VIOLATION_LABEL[draft.type], '은', '는')} 6대 밖 유형 — 불법주정차와 같은 규정(사진 2장·1분 간격)을 따릅니다`
+                  : p.rules.local
+                    ? `출처 ${p.rules.local.region} 누리집 · 확인 ${p.rules.local.checkedAt}${p.rules.aging ? ' · 확인한 지 반년이 넘었습니다' : ''}`
+                    : '출처 정책브리핑(2023-08) 6대 유형 전국 기준'}
               </p>
             </div>
           </Step>

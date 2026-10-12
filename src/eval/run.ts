@@ -48,7 +48,8 @@ async function callVision(image: string, onWait: (sec: number) => void): Promise
 
 export function decide(row: Row, r: VisionResult): Outcome {
   const verdict = crosscheck([], {}, r);
-  const auto: Truth = verdict.type ?? 'none';
+  // 사진에서 나온 유형만 채점한다('기타'는 사람이 고르는 유형이라 사진 판정에 나오지 않는다)
+  const auto = (verdict.type ?? 'none') as Truth;
   const opts = verdict.type
     ? rankTypes([verdict.type, ...verdict.alternatives], { takenAt: NEUTRAL_TIME, rules: rulesFor() })
     : [];
@@ -58,7 +59,7 @@ export function decide(row: Row, r: VisionResult): Outcome {
     row,
     ok: true,
     auto,
-    recommended: opts.find((o) => o.recommended)?.type ?? auto,
+    recommended: (opts.find((o) => o.recommended)?.type ?? auto) as Truth,
     candidates: r.ruleTypes.filter((t): t is Truth => t !== 'none'),
     plateFilled: fill ? read.text : '',
     plateRead: read.text,
