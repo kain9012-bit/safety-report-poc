@@ -89,7 +89,7 @@ describe('차량번호 형식', () => {
     expect(isValidPlate('')).toBe(false);
   });
 
-  it('형식이 어긋나면 막지는 않고 경고한다 — 사람이 고칠 몫이다', () => {
+  it('형식이 어긋나면 수정할 때까지 막는다', () => {
     const base = AT('2026-09-18T14:30:00+09:00');
     const checks = runChecks({
       shotTimes: [base, base + 61_000],
@@ -100,8 +100,8 @@ describe('차량번호 형식', () => {
       accuracy: 8,
       now: base + 62_000,
     });
-    expect(checks.find((c) => c.id === 'plate')?.status).toBe('warn');
-    expect(blocksSubmit(checks)).toBe(false);
+    expect(checks.find((c) => c.id === 'plate')?.status).toBe('fail');
+    expect(blocksSubmit(checks)).toBe(true);
   });
 });
 
@@ -130,5 +130,27 @@ describe('위치', () => {
     });
     expect(checks.find((c) => c.id === 'location')?.status).toBe('warn');
     expect(blocksSubmit(checks)).toBe(false);
+  });
+});
+
+
+describe('기한 경계와 지역 기한 설명', () => {
+  const taken = AT('2026-10-07T10:00:00+09:00');
+  const check = (now: number, deadlineDays = 1) => runChecks({
+    shotTimes: [taken, taken + 61_000], hasTimestampOverlay: true,
+    plate: '12가3456', lat: 35.8, lng: 127.1, accuracy: 8, now, deadlineDays,
+  }).find((c) => c.id === 'deadline')!;
+  it('마지막 밀리초까지는 유효하고 다음 밀리초부터 만료된다', () => {
+    const deadline = submitDeadline(taken);
+    expect(isExpired(taken, deadline)).toBe(false);
+    expect(check(deadline).status).toBe('warn');
+    expect(isExpired(taken, deadline + 1)).toBe(true);
+    expect(check(deadline + 1).status).toBe('fail');
+  });
+  it('이틀 기한이 지났다는 설명에 실제 적용 마감일을 쓴다', () => {
+    const c = check(AT('2026-10-10T00:00:00+09:00'), 2);
+    expect(c.status).toBe('fail');
+    expect(c.detail).toContain('10/9 23:59');
+    expect(c.detail).not.toContain('익일');
   });
 });

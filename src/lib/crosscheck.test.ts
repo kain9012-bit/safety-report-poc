@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { crosscheck } from './crosscheck';
 import { scaledSize } from './vision';
+import { PLATE_CONFIDENCE_FLOOR } from './rules';
 import { DISAGREE_CONFIDENCE, mergeReads, mergeTri, normalizeRead, parseDataUrl, typesFromScene } from '../../api/vision';
 import type { Candidate } from './recommend';
 import type { PhotoRead, PhotoType, Scene, VisionResult } from '../../api/vision';
@@ -162,5 +163,33 @@ describe('판독 응답 다듬기', () => {
     expect(scaledSize(1920, 1080)).toEqual([1280, 720]);
     expect(scaledSize(1080, 1920)).toEqual([720, 1280]);
     expect(scaledSize(800, 600)).toEqual([800, 600]);
+  });
+});
+
+
+describe('같은 차 확정은 번호판 품질 기준을 따른다', () => {
+  it('두 글자가 같아도 한 장이 낮은 확신도이면 판단을 보류한다', () => {
+    const a = read('none');
+    const b = read('none');
+    b.plate.confidence = PLATE_CONFIDENCE_FLOOR - 0.01;
+    const result = mergeReads([a, b], 'test')!;
+    expect(result.sameVehicle).toBe('unclear');
+    expect(result.plate.agree).toBeNull();
+    expect(result.plate.reads).toEqual(['12가3456', '12가3456']);
+  });
+  it('확신도 경계는 웹 입력 기준과 같다', () => {
+    const a = read('none');
+    a.plate.confidence = PLATE_CONFIDENCE_FLOOR;
+    expect(mergeReads([a, a], 'test')!.sameVehicle).toBe('yes');
+  });
+  it.each(['ABC1234', '12가345', ''])('같은 오독 %s도 확정하지 않는다', (plate) => {
+    const a = read('none', { plate });
+    expect(mergeReads([a, a], 'test')!.sameVehicle).toBe('unclear');
+  });
+  it('정상 번호에 공백만 있으면 같은 번호로 본다', () => {
+    const a = read('none');
+    const b = read('none');
+    b.plate.text = '12 가 3456';
+    expect(mergeReads([a, b], 'test')!.plate.agree).toBe(true);
   });
 });

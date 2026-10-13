@@ -14,7 +14,7 @@ import type { CheckResult, CheckStatus } from '../lib/rules';
 import type { Coverage, Verdict } from '../lib/crosscheck';
 import type { VisionState } from '../lib/vision';
 import type { BoxLabel, Scene, VisionResult } from '../../api/vision';
-import { PLATE_CONFIDENCE_FLOOR } from '../lib/rules';
+import { isValidPlate, PLATE_CONFIDENCE_FLOOR } from '../lib/rules';
 import type { AddressState } from '../lib/reverseGeocode';
 import type { LatLng } from './PickMap';
 import { VIOLATION_LABEL, locatedShot } from '../types/report';
@@ -344,10 +344,19 @@ export function PlateNote({
   onUse: (text: string) => void;
 }) {
   const r = vision.result;
+  const reads = [...new Set(r?.plate.reads ?? [])];
+  const normalized = (text: string) => text.replace(/\s/g, '');
+  const trusted = r && r.sameVehicle === 'yes' && r.plate.agree === true && r.plate.readable
+    && Number.isFinite(r.plate.confidence) && r.plate.confidence >= PLATE_CONFIDENCE_FLOOR
+    && r.plate.reads.length === 2 && r.plate.reads.every((text) => isValidPlate(text) && normalized(text) === normalized(r.plate.text));
+  const enteredMatches = trusted && draft.plate && normalized(draft.plate) === normalized(r.plate.text);
   if (draft.plate && !plateOk) {
     return <p className="mt-1 text-sm text-red-600">형식이 맞지 않습니다. 예: 12가3456, 123가4567</p>;
   }
-  if (draft.plate && !draft.manual?.plate && r) {
+  if (draft.plate && trusted && !enteredMatches) {
+    return <p className="mt-1 text-sm text-red-600">입력한 차량번호({draft.plate})가 두 사진에서 읽은 번호({r.plate.text})와 다릅니다. 사진과 입력을 확인해 주세요.</p>;
+  }
+  if (enteredMatches && !draft.manual?.plate) {
     return (
       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
         <span className={`px-2 py-0.5 rounded border text-xs font-bold ${SOURCE.photo.cls}`}>두 장 판독 일치</span>
@@ -355,21 +364,23 @@ export function PlateNote({
       </div>
     );
   }
-  if (!draft.plate && r) {
-    const reads = [...new Set(r.plate.reads)];
-    const why =
-      r.plate.agree === false
-        ? `두 장에서 읽은 번호가 다릅니다(${r.plate.reads.join(' / ')})`
-        : reads.length === 1 && r.plate.agree === null
-          ? `한 장에서만 읽혔습니다(${reads[0]})`
-          : !r.plate.readable
-            ? '사진에서 번호판을 확실히 읽지 못했습니다'
-            : r.plate.confidence < PLATE_CONFIDENCE_FLOOR
-              ? `읽은 값(${r.plate.text})의 신뢰도가 낮습니다`
-              : `읽은 값(${r.plate.text})이 번호판 형식과 다릅니다`;
+  if (r && (!draft.plate || !trusted)) {
+    const why = !r.plate.readable || r.plate.reads.length === 0
+      ? '사진에서 번호판을 확실히 읽지 못했습니다'
+      : r.plate.reads.length === 1
+        ? `한 장에서만 읽혔습니다(${reads[0]})`
+        : reads.some((text) => !isValidPlate(text))
+          ? `읽은 값(${reads.join(' / ')})이 번호판 형식과 다릅니다`
+          : !Number.isFinite(r.plate.confidence) || r.plate.confidence < PLATE_CONFIDENCE_FLOOR
+            ? `읽은 번호(${reads.join(' / ')})의 신뢰도가 기준(${Math.round(PLATE_CONFIDENCE_FLOOR * 100)}%)에 못 미치거나 확인되지 않습니다`
+            : r.plate.agree === false
+              ? `두 장에서 읽은 번호가 다릅니다(${r.plate.reads.join(' / ')})`
+              : trusted
+                ? `두 사진에서 같은 번호(${r.plate.text})를 읽었습니다`
+                : '두 장 번호판 일치를 확정할 수 없습니다';
     return (
       <div className="mt-1.5 text-[13px] text-slate-500">
-        <p>{why} — 틀린 번호는 다른 사람에게 과태료가 가므로 비워 두었습니다</p>
+        <p>{draft.plate && '입력한 번호는 유지했습니다. '}{why} — 사진과 번호를 확인해 주세요</p>
         {reads.length > 0 && (
           <div className="mt-1 flex items-center gap-1.5 flex-wrap">
             사진을 보고 맞으면

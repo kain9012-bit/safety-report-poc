@@ -6,10 +6,10 @@
  * 여기서 사진 증거·같은 차(두 장 번호판)·같은 자리(겹침)·지자체 단속 시간·앨범 진위·주소·내용을 더한다.
  * 간격과 단속 시간은 발생지역 주소로 찾은 지자체 규정(localRules.ts)을 따른다.
  */
-import { kstParts } from './kst';
+import { kstShort } from './kst';
 import { checkAlbum, worst } from './authenticity';
 import { BODY_MIN } from './compose';
-import { runChecks } from './rules';
+import { isValidPlate, PLATE_CONFIDENCE_FLOOR, runChecks } from './rules';
 import { effectiveInterval, inEnforcement, maxInterval, rulesFor } from './localRules';
 import { OVERLAP_MIN } from './overlap';
 import type { CheckResult } from './rules';
@@ -41,7 +41,7 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
   minInterval ??= effectiveInterval(draft.type ? rules.types[draft.type].intervalSec : maxInterval(rules));
   const at = locatedShot(shots);
   const albumShots = shots.filter((s) => s.source === 'album' && s.meta);
-  const album = albumShots.length ? checkAlbum(albumShots.map((s) => s.meta!), now, minInterval) : [];
+  const album = albumShots.length ? checkAlbum(albumShots.map((s) => s.meta!), now, minInterval, rules.deadlineDays) : [];
 
   // 촬영시각 기록이 없는 앨범 사진은 시각을 모르는 것으로 본다(파일 수정시각으로 대신하지 않는다)
   const noTime = albumShots.some((s) => s.meta!.takenAt === undefined);
@@ -82,23 +82,39 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
         : '사진에서 위반 장소의 근거를 찾았습니다.',
   });
 
-  // 같은 차 — 두 장 모두에서 번호판이 읽히고, 따로 읽은 번호가 같아야 한다(회의 결정)
+  // 같은 차 — 판독 요약의 yes만 믿지 않고, 번호판 근거와 신고인이 입력한 최종 번호까지 대조한다.
   const same = vision?.sameVehicle;
-  const reads = vision?.plate.reads ?? [];
+  const plate = vision?.plate;
+  const reads = (plate?.reads ?? []).map((text) => text.replace(/\s/g, ''));
+  const validReads = reads.length === 2 && reads.every(isValidPlate);
+  const confident = typeof plate?.confidence === 'number' && Number.isFinite(plate.confidence)
+    && plate.confidence >= PLATE_CONFIDENCE_FLOOR;
+  const evidenceMatches = validReads && reads[0] === reads[1];
+  const enteredMatches = evidenceMatches && draft.plate?.replace(/\s/g, '') === reads[0];
+  const trustedMatch = same === 'yes' && plate?.agree === true && plate.readable
+    && confident && evidenceMatches && plate.text.replace(/\s/g, '') === reads[0];
+  const vehiclePass = trustedMatch && enteredMatches;
   out.push({
     id: 'vehicle',
     label: '두 장 번호판 일치',
-    status: same === 'yes' ? 'pass' : 'fail',
-    detail:
-      same === 'yes'
-        ? '두 장에서 따로 읽은 번호가 같습니다.'
-        : same === 'no'
-          ? `두 장에서 읽은 번호가 다릅니다(${reads.join(' / ')}).`
-          : !vision
-            ? '사진 판독 결과가 없습니다. 다시 판독해 주세요.'
-            : reads.length === 1
-              ? `한 장에서만 번호판이 읽혔습니다(${reads[0]}). 두 장 모두 번호판이 보이게 찍어야 합니다.`
-              : '번호판이 읽히지 않았습니다. 두 장 모두 번호판이 보이게 찍어야 합니다.',
+    status: vehiclePass ? 'pass' : 'fail',
+    detail: vehiclePass
+      ? '두 장에서 따로 읽은 번호와 입력한 차량번호가 같습니다.'
+      : !vision
+        ? '사진 판독 결과가 없습니다. 다시 판독해 주세요.'
+        : reads.length === 1
+          ? `한 장에서만 번호판이 읽혔습니다(${reads[0]}). 두 장 모두 번호판이 보이게 찍어야 합니다.`
+          : reads.length !== 2
+            ? '두 장 번호판 판독 결과가 필요합니다. 다시 판독하거나 번호판이 보이게 찍어 주세요.'
+            : !validReads
+              ? `판독한 번호가 번호판 형식과 다릅니다(${reads.join(' / ')}). 다시 판독하거나 촬영해 주세요.`
+              : !confident
+                ? '번호판 판독 확신도가 기준(80%)에 못 미치거나 확인되지 않습니다. 다시 판독하거나 촬영해 주세요.'
+                : !evidenceMatches
+                  ? `두 장에서 읽은 번호가 다릅니다(${reads.join(' / ')}).`
+                  : !trustedMatch
+                    ? '두 장 번호판 일치를 확정할 수 없습니다. 다시 판독해 주세요.'
+                    : `입력한 차량번호(${draft.plate || '빈칸'})가 두 장에서 읽은 번호(${reads[0]})와 다릅니다. 사진과 입력을 확인해 주세요.`,
   });
 
   // 같은 자리 — 두 사진 겹침(규칙 기반 영상 대조)
@@ -119,19 +135,21 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
     });
   }
 
-  // 단속 시간 — 지자체·유형 규정(어린이보호구역 평일 08~20시 등)
-  if (draft.type && shots[0]) {
-    const e = inEnforcement(rules.types[draft.type], shots[0].takenAt);
-    if (e.text !== '24시간 단속') {
-      const h = kstParts(shots[0].takenAt).hour;
+  // 단속 시간 — 두 촬영 시각을 각각 검사한다(마감 시각·주말 경계를 넘은 두 번째 사진 포함).
+  if (draft.type && shots.length) {
+    const times = shots.map((shot, i) => ({
+      ...inEnforcement(rules.types[draft.type!], shot.takenAt),
+      label: `${i + 1}장 ${kstShort(shot.takenAt)}`,
+    }));
+    if (times.some((e) => e.text !== '24시간 단속')) {
+      const ok = times.every((e) => e.ok);
       const where = rules.region ?? '전국';
       out.push({
         id: 'hours',
         label: '단속 시간',
-        status: e.ok ? 'pass' : 'fail',
-        detail: e.ok
-          ? `${h}시에 찍었습니다(${where} 기준 ${e.text}).`
-          : `${h}시에 찍었습니다. ${where} 기준 단속 시간 밖입니다(${e.text}).`,
+        status: ok ? 'pass' : 'fail',
+        detail: `${where} 기준 ${ok ? '두 사진 모두 단속 시간 안입니다' : '단속 시간 밖에 찍은 사진이 있습니다'}. `
+          + times.map((e) => `${e.label}: ${e.ok ? '시간 안' : '시간 밖'}(${e.text})`).join(' / '),
       });
     }
   }

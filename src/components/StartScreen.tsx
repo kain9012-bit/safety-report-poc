@@ -1,13 +1,16 @@
 import { useRef, useState } from 'react';
 import { Camera, ChevronRight, Image as ImageIcon, Info, Menu, Trash2, ZoomIn } from 'lucide-react';
+import { submitDeadline } from '../lib/rules';
+import { rulesFor } from '../lib/localRules';
 import { formatStamp } from '../lib/camera';
-import { RESUME_MAX_MS, measure } from '../lib/reports';
+import { measure } from '../lib/reports';
 import type { ReportRecord } from '../lib/reports';
 import { VIOLATION_LABEL } from '../types/report';
 import { WhyPanel } from './FormParts';
 
 interface Props {
   reports: ReportRecord[];
+  storageUnavailable?: boolean;
   onCamera: () => void;
   onAlbum: (files: File[]) => void;
   albumState: 'idle' | 'busy' | 'error';
@@ -21,7 +24,7 @@ const PHASE_TEXT = { capture: '촬영 중', form: '신고서 확인 중', submit
  * 처음 화면 — 지금 앱의 불법주정차 탭 모양(파란 띠·탭)을 따르되, 할 일은 하나만 크게: **사진부터 찍기.**
  * 아래에 이어할 신고(앱을 바꾸거나 껐다 켜도 남는다)와 제출한 신고를 둔다.
  */
-export default function StartScreen({ reports, onCamera, onAlbum, albumState, onResume, onDelete }: Props) {
+export default function StartScreen({ reports, storageUnavailable, onCamera, onAlbum, albumState, onResume, onDelete }: Props) {
   const album = useRef<HTMLInputElement>(null);
   const [why, setWhy] = useState(false);
   const now = Date.now();
@@ -98,12 +101,12 @@ export default function StartScreen({ reports, onCamera, onAlbum, albumState, on
 
         <section>
           <h2 className="text-[17px] font-bold">이어할 신고 <span className="text-blue-700 tabular-nums">{open.length}</span></h2>
-          {open.length === 0 ? (
+          {storageUnavailable ? (<p className="mt-1.5 text-sm text-red-700">보관함을 읽지 못했습니다. 위에서 다시 시도해 주세요.</p>) : open.length === 0 ? (
             <p className="mt-1.5 text-[14px] text-slate-500">하던 신고가 없습니다. 앱을 바꾸거나 꺼도 하던 신고는 여기 남습니다.</p>
           ) : (
             <ul className="mt-2 space-y-2">
               {open.map((r) => (
-                <ReportItem key={r.id} r={r} expired={now - r.createdAt > RESUME_MAX_MS} onOpen={() => onResume(r)} onDelete={() => onDelete(r.id)} />
+                <ReportItem key={r.id} r={r} expired={r.draft.shots.length > 0 && now > submitDeadline(Math.min(...r.draft.shots.map((s) => s.takenAt)), rulesFor(r.draft.address, now).deadlineDays)} onOpen={() => onResume(r)} onDelete={() => onDelete(r.id)} />
               ))}
             </ul>
           )}

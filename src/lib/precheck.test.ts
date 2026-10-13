@@ -149,3 +149,70 @@ describe('지역별 접수 기한', () => {
     expect(status(precheck(input({}, { now: later })), 'deadline')).toBe('fail');
   });
 });
+
+
+describe('판독 근거와 최종 입력 번호의 일치', () => {
+  it('정상 형식이어도 사진과 다른 번호를 직접 입력하면 막는다', () => {
+    const r = precheck(input({ plate: '99나9999', manual: { plate: true } }));
+    expect(status(r, 'plate')).toBe('pass');
+    expect(status(r, 'vehicle')).toBe('fail');
+    expect(r.blocked).toBe(true);
+    expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('99나9999');
+  });
+  it('공백만 다르고 실제 번호가 같으면 통과한다', () => {
+    expect(precheck(input({ plate: ' 12 가 3456 ', manual: { plate: true } })).blocked).toBe(false);
+  });
+  it('형식이 틀린 최종 번호는 통과하지 않는다', () => {
+    const r = precheck(input({ plate: 'hello', manual: { plate: true } }));
+    expect(status(r, 'plate')).toBe('fail');
+    expect(r.blocked).toBe(true);
+  });
+  it.each([0.79, NaN, undefined])('과거 요약이 yes여도 확신도 %s이면 다시 확인한다', (confidence) => {
+    const v = vision();
+    const r = precheck(input({}, { vision: vision({ plate: { ...v.plate, confidence: confidence as number } }) }));
+    expect(status(r, 'vehicle')).toBe('fail');
+  });
+  it('판독된 두 번호의 형식이 틀리면 yes 요약으로 우회하지 못한다', () => {
+    const v = vision({ plate: { text: 'ABC', reads: ['ABC', 'ABC'], readable: true, confidence: 0.99, agree: true } });
+    expect(status(precheck(input({}, { vision: v })), 'vehicle')).toBe('fail');
+  });
+  it('요약 번호와 개별 판독 번호가 다르면 확정하지 않는다', () => {
+    const v = vision();
+    expect(status(precheck(input({}, { vision: vision({ plate: { ...v.plate, text: '99나9999' } }) })), 'vehicle')).toBe('fail');
+  });
+});
+
+describe('두 번째 촬영의 단속 시간', () => {
+  it('첫 사진은 19:59여도 두 번째가 20:00이면 막는다', () => {
+    const first = kstTime(2026, 10, 7, 19, 59, 30);
+    const r = precheck(input({ type: 'schoolzone', shots: [shot(first), shot(first + 61_000)] }, { now: first + 120_000 }));
+    expect(status(r, 'hours')).toBe('fail');
+    expect(r.checks.find((c) => c.id === 'hours')?.detail).toContain('2장 10/7 20:00: 시간 밖');
+  });
+  it('입력 순서가 뒤집혀도 시간 밖 사진을 놓치지 않는다', () => {
+    const first = kstTime(2026, 10, 7, 7, 59, 30);
+    const r = precheck(input({ type: 'schoolzone', shots: [shot(first + 61_000), shot(first)] }, { now: first + 120_000 }));
+    expect(status(r, 'hours')).toBe('fail');
+  });
+});
+
+describe('지역 기한과 앨범 점검의 일관성', () => {
+  const albumShot = (t: number, name: string): Shot => ({
+    ...shot(t), source: 'album', meta: {
+      takenAt: t, modifiedAt: t, make: 'Apple', model: 'iPhone', lat: 35.8242, lng: 127.148,
+      width: 4032, height: 3024, fileName: name, fileSize: 2_000_000,
+    },
+  });
+  const shots = [albumShot(T0, 'a.jpg'), albumShot(T0 + 61_000, 'b.jpg')];
+  it('대전 동구 이틀 기한이면 기본 점검과 앨범 점검이 모두 통과한다', () => {
+    const r = precheck(input({ shots, address: '대전광역시 동구 동구청로 147' }, { now: kstTime(2026, 10, 9, 10) }));
+    expect(status(r, 'deadline')).toBe('pass');
+    expect(status(r, 'album')).toBe('pass');
+    expect(r.blocked).toBe(false);
+  });
+  it('같은 사진도 익일 기준 지역에서는 양쪽 모두 만료된다', () => {
+    const r = precheck(input({ shots }, { now: kstTime(2026, 10, 9, 10) }));
+    expect(status(r, 'deadline')).toBe('fail');
+    expect(status(r, 'album')).toBe('fail');
+  });
+});

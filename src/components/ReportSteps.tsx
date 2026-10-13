@@ -1,10 +1,10 @@
 import { ArrowLeft, Check, CopyPlus, MapPin, Pointer, RotateCcw } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { formatStamp } from '../lib/camera';
 import { BODY_MAX, composeBody } from '../lib/compose';
 import { precheck } from '../lib/precheck';
-import { describeRules, effectiveInterval, maxInterval } from '../lib/localRules';
+import { describeRules, effectiveInterval, maxInterval, rulesFor } from '../lib/localRules';
 import { officerLines, withOfficerSummary } from '../lib/officer';
 import type { AppliedRules } from '../lib/localRules';
 import type { TypeOption } from '../lib/choose';
@@ -64,15 +64,28 @@ export default function ReportSteps(p: Props) {
   const [agree, setAgree] = useState(true);
   const [copied, setCopied] = useState(false);
 
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const update = () => setNow(Date.now());
+    const timer = setInterval(update, 1000);
+    window.addEventListener('focus', update);
+    document.addEventListener('visibilitychange', update);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', update);
+      document.removeEventListener('visibilitychange', update);
+    };
+  }, []);
+  const currentRules = useMemo(() => rulesFor(draft.address, now), [draft.address, now]);
   const manual = draft.manual ?? {};
   const body = manual.body ? (draft.body ?? '') : composeBody(draft);
-  const pc = useMemo(() => precheck({ draft, body, verdict, vision: vision.result }), [draft, body, verdict, vision.result]);
+  const pc = useMemo(() => precheck({ draft, body, verdict, vision: vision.result, now }), [draft, body, verdict, vision.result, now]);
   const fails = pc.checks.filter((c) => c.status === 'fail').length;
   // 담당 공무원에게 함께 가는 사전 점검 요약 — 규칙으로 잰 값(수용 여부는 담당자 판단)
-  const minInterval = effectiveInterval(draft.type ? p.rules.types[draft.type].intervalSec : maxInterval(p.rules));
+  const minInterval = effectiveInterval(draft.type ? currentRules.types[draft.type].intervalSec : maxInterval(currentRules));
   const sent = useMemo(
-    () => withOfficerSummary(body, officerLines({ draft, precheck: pc, rules: p.rules, minInterval })),
-    [body, draft, pc, p.rules, minInterval],
+    () => withOfficerSummary(body, officerLines({ draft, precheck: pc, rules: currentRules, minInterval })),
+    [body, draft, pc, currentRules, minInterval],
   );
   const count = (st: CheckStatus) => pc.checks.filter((c) => c.status === st).length;
   const last = STEPS.length - 1;
@@ -174,23 +187,23 @@ export default function ReportSteps(p: Props) {
             </div>
             <div className="mt-5 rounded-lg border border-slate-200 px-3 py-2.5 text-[13px] text-slate-600 space-y-1">
               <p>
-                <b className="text-slate-800">적용 규정</b> {describeRules(p.rules)}
+                <b className="text-slate-800">적용 규정</b> {describeRules(currentRules)}
               </p>
               {draft.type && (
                 <p>
                   {VIOLATION_LABEL[draft.type]} 단속 시간:{' '}
-                  {p.rules.types[draft.type].weekday
-                    ? `평일 ${p.rules.types[draft.type].weekday!.from}~${p.rules.types[draft.type].weekday!.to}시${
-                        p.rules.types[draft.type].weekend === null ? ', 주말 없음' : ''
+                  {currentRules.types[draft.type].weekday
+                    ? `평일 ${currentRules.types[draft.type].weekday!.from}~${currentRules.types[draft.type].weekday!.to}시${
+                        currentRules.types[draft.type].weekend === null ? ', 주말 없음' : ''
                       }`
                     : '24시간'}
                 </p>
               )}
-              <p>접수 기한: 촬영일 {p.rules.deadlineDays === 1 ? '다음 날' : `${p.rules.deadlineDays}일 뒤`} 자정까지</p>
-              {p.rules.local?.extra && <p>이 지역 추가 유형: {p.rules.local.extra.join(', ')}</p>}
-              {p.rules.local?.notes && <p>{p.rules.local.notes.join(' · ')}</p>}
+              <p>접수 기한: 촬영일 {currentRules.deadlineDays === 1 ? '다음 날' : `${currentRules.deadlineDays}일 뒤`} 자정까지</p>
+              {currentRules.local?.extra && <p>이 지역 추가 유형: {currentRules.local.extra.join(', ')}</p>}
+              {currentRules.local?.notes && <p>{currentRules.local.notes.join(' · ')}</p>}
               <p className="text-slate-400">
-                {p.rules.local ? `출처 ${p.rules.local.region} 누리집 · 확인 ${p.rules.local.checkedAt}${p.rules.aging ? ' · 확인한 지 반년이 넘었습니다' : ''}` : '출처 정책브리핑(2023-08) 6대 유형 전국 기준'}
+                {currentRules.local ? `출처 ${currentRules.local.region} 누리집 · 확인 ${currentRules.local.checkedAt}${currentRules.aging ? ' · 확인한 지 반년이 넘었습니다' : ''}` : '출처 정책브리핑(2023-08) 6대 유형 전국 기준'}
               </p>
             </div>
           </Step>
