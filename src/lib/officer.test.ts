@@ -44,7 +44,7 @@ describe('담당 공무원용 사전 점검 요약', () => {
   it('없는 값은 지어내지 않는다 — 겹침을 못 쟀으면 그 줄을 뺀다', () => {
     expect(lines({ ...draft, overlap: undefined }).some((x) => x.startsWith('- 같은 자리'))).toBe(false);
   });
-  it('내용 칸 900자를 넘지 않게 요약을 뒤에서부터 줄이고, 신고인 내용은 그대로 둔다', () => {
+  it('내용 칸 900자를 넘지 않게 요약을 줄이고, 신고인 내용은 그대로 둔다', () => {
     const body = '가'.repeat(800);
     const out = withOfficerSummary(body, lines(draft));
     expect(out.length).toBeLessThanOrEqual(900);
@@ -54,5 +54,23 @@ describe('담당 공무원용 사전 점검 요약', () => {
     const out = withOfficerSummary('- 일시: 2026-10-07 10:00', lines(draft));
     expect(out).toContain(OFFICER_HEADER);
     expect(out.split('\n').length).toBeGreaterThan(8);
+  });
+});
+
+
+describe('요약 축약에도 확인 필요 항목을 보존한다', () => {
+  it('공간이 부족하면 통과 항목부터 빼고 경고를 남긴다', () => {
+    const body = '가'.repeat(800);
+    const caution = '- 확인 필요: 위치 특정, 같은 자리 두 장';
+    const result = withOfficerSummary(body, [
+      '- 간격: 61초(기준 60초) 충족', '- 같은 차: 두 장에서 따로 읽은 번호 일치', caution,
+    ]);
+    expect(result.length).toBeLessThanOrEqual(900);
+    expect(result.startsWith(body)).toBe(true);
+    expect(result).toContain(caution);
+  });
+  it('경고까지 담을 공간이 없으면 통과 요약만 남기지 않는다', () => {
+    const body = '가'.repeat(880);
+    expect(withOfficerSummary(body, ['- 간격: 충족', '- 확인 필요: 위치 특정'])).toBe(body);
   });
 });

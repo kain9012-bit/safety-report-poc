@@ -92,7 +92,7 @@ describe('제출 전 점검 — 회의 결정 반영', () => {
     overlap: { ratio: 0.8, score: 0.9, same: true },
     ...o,
   });
-  const v = (sameVehicle: string, reads: string[]) => ({ sameVehicle, plate: { reads }, ruleTypes: ['busstop'] }) as never;
+  const v = (sameVehicle: string, reads: string[]) => ({ sameVehicle, plate: { text: reads[0] ?? '', readable: reads.length > 0, confidence: 0.95, agree: sameVehicle === 'yes' ? true : sameVehicle === 'no' ? false : null, reads }, ruleTypes: ['busstop'] }) as never;
   const st = (d: DraftReport, vision: never, id: string) =>
     precheck({ draft: d, body: '내용입니다', verdict: ok, vision, now: FRI_10 + 600_000 }).checks.find((c) => c.id === id);
 

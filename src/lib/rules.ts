@@ -5,7 +5,7 @@
  * 지자체마다 대상 유형이 다를 수 있어(인도 운영 여부 등) 유형 목록은 지역 설정으로 덮을 수 있게 둔다.
  */
 
-import { kstParts, kstTime } from './kst';
+import { kstParts, kstShort, kstTime } from './kst';
 import type { ViolationType } from '../types/report';
 
 /** 유형별 기준 거리(m). 거리 기준이 없는 유형은 undefined. */
@@ -132,10 +132,10 @@ export function runChecks(input: CheckInput, minInterval: number = INTERVAL_SEC)
     out.push({
       id: 'deadline',
       label: '접수 기한',
-      status: left <= 0 ? 'fail' : hours < 6 ? 'warn' : 'pass',
+      status: left < 0 ? 'fail' : hours < 6 ? 'warn' : 'pass',
       detail:
-        left <= 0
-          ? '촬영 익일이 지났습니다. 이 사진으로는 접수되지 않습니다.'
+        left < 0
+          ? `접수 기한(${kstShort(submitDeadline(first, input.deadlineDays ?? 1))})을 넘겼습니다.`
           : `제출 기한까지 약 ${hours}시간 남았습니다.`,
     });
   }
@@ -155,7 +155,7 @@ export function runChecks(input: CheckInput, minInterval: number = INTERVAL_SEC)
   out.push({
     id: 'plate',
     label: '차량번호',
-    status: !plate ? 'fail' : isValidPlate(plate) ? 'pass' : 'warn',
+    status: plate && isValidPlate(plate) ? 'pass' : 'fail',
     detail: !plate
       ? '차량번호가 비어 있습니다.'
       : isValidPlate(plate)

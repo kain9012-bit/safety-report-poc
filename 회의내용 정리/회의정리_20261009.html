@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>불법주정차 신고 개선 회의 정리 · 2026-10-09</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+  :root {
+    --navy: #023064; --blue: #256ef4; --blue-50: #ecf2fe; --blue-100: #d8e5fd;
+    --ink: #1e2124; --sub: #464c53; --quiet: #6d7882; --line: #e5eaef; --head: #eef3f9;
+    --bg: #ffffff; --soft: #f4f5f6; --amber: #c28100; --amber-bg: #fff6e0;
+    --green: #228738; --green-bg: #eaf6ec; --red: #d63d4a; --red-bg: #fdeff0;
+    --edge: #b1b8be; --tint: #f4f5f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8ebee; --sub: #c6ccd2; --quiet: #9aa4ad; --line: #2e353c; --head: #1d2630;
+      --bg: #121619; --soft: #1a1f24; --blue-50: #13233d; --blue-100: #1f3a66; --blue: #6f9cf7;
+      --amber: #f0b64a; --amber-bg: #2d2412; --green: #6cc480; --green-bg: #15281a;
+      --red: #f17c86; --red-bg: #2e1719; --edge: #59636c; --tint: #1a1f24; --navy: #9cc0ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Pretendard Variable", Pretendard, -apple-system, "Malgun Gothic", sans-serif;
+    font-size: 17px; line-height: 1.7; letter-spacing: -0.02em; word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--blue); }
+  .skip { position: absolute; left: -999px; top: 8px; background: var(--ink); color: var(--bg); padding: 8px 12px; border-radius: 6px; z-index: 50; }
+  .skip:focus { left: 16px; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+
+  .notice { background: var(--soft); border-bottom: 1px solid var(--line); font-size: 13px; color: var(--quiet); }
+  .notice .in { max-width: 960px; margin: 0 auto; padding: 6px 16px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .hero { background: var(--blue-50); border-bottom: 1px solid var(--blue-100); }
+  .hero .in { max-width: 960px; margin: 0 auto; padding: 32px 16px 28px; }
+  .hero .kicker { font-size: 14px; font-weight: 700; color: var(--blue); margin: 0 0 6px; }
+  .hero h1 { margin: 0; font-size: clamp(26px, 5vw, 38px); line-height: 1.3; color: var(--navy); letter-spacing: -0.03em; }
+  .hero p { margin: 10px 0 0; color: var(--sub); }
+
+  nav.toc { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
+  nav.toc ul { max-width: 960px; margin: 0 auto; padding: 0 16px; list-style: none; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+  nav.toc a { display: block; padding: 12px 10px; font-size: 15px; font-weight: 700; color: var(--sub); text-decoration: none; white-space: nowrap; border-bottom: 3px solid transparent; }
+  nav.toc a:hover { color: var(--blue); border-bottom-color: var(--blue); }
+
+  main { max-width: 960px; margin: 0 auto; padding: 8px 16px 64px; }
+  section { padding-top: 40px; scroll-margin-top: 52px; }
+  h2 { font-size: 22px; margin: 0 0 6px; color: var(--ink); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  h2 .num { color: var(--blue); font-size: 16px; }
+  .lead { margin: 0 0 16px; color: var(--sub); }
+  h3 { font-size: 17px; margin: 24px 0 8px; }
+
+  .card { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 16px 20px; }
+  .summary { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .summary li { display: grid; grid-template-columns: 7.5em 1fr; gap: 12px; }
+  .summary b { color: var(--navy); }
+
+  ol.topics { margin: 0; padding: 0; list-style: none; counter-reset: t; display: grid; gap: 12px; }
+  ol.topics > li { counter-increment: t; border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px; }
+  ol.topics > li > b::before { content: counter(t) ". "; color: var(--blue); }
+  ol.topics ul, ul.plain { margin: 6px 0 0; padding-left: 1.1em; }
+  ol.topics ul li, ul.plain li { margin: 2px 0; }
+  ul.plain { padding-left: 1.1em; }
+
+  .flow-wrap { border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; }
+  .flow { display: block; width: 100%; min-width: 560px; height: auto; font-family: inherit; }
+  .flow .edges path { fill: none; stroke: var(--edge); stroke-width: 1.25; }
+  .flow .ties path { fill: none; stroke: var(--edge); stroke-width: 1; stroke-dasharray: 3 3; }
+  .flow .arh { fill: var(--edge); }
+  .flow .b { fill: none; stroke: var(--edge); stroke-width: 1.25; }
+  .flow .b-main { fill: var(--blue-50); stroke: var(--blue); stroke-width: 2; }
+  .flow .b-warn { fill: none; stroke: var(--amber); stroke-width: 2; }
+  .flow .b-note { fill: var(--tint); stroke: var(--edge); stroke-width: 1.25; stroke-dasharray: 4 4; }
+  .flow text { fill: var(--ink); text-anchor: middle; font-size: 13px; letter-spacing: -0.01em; }
+  .flow text.n { font-weight: 700; }
+  .flow text.s { fill: var(--quiet); font-size: 11.5px; }
+  .flow text.l { fill: var(--quiet); font-size: 11.5px; text-anchor: start; }
+  .flow text.l.m { text-anchor: middle; }
+  .caption { margin: 8px 0 0; font-size: 15px; color: var(--sub); }
+
+  .dec { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .dec li { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .dec b { display: block; font-size: 14px; color: var(--blue); }
+
+  .tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--head); font-weight: 700; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 4px; border: 1px solid; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .ok { color: var(--green); background: var(--green-bg); border-color: currentColor; }
+  .part { color: var(--amber); background: var(--amber-bg); border-color: currentColor; }
+  .no { color: var(--red); background: var(--red-bg); border-color: currentColor; }
+
+  ul.tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  ul.tasks li { display: flex; gap: 10px; align-items: flex-start; }
+  ul.tasks li::before { content: ""; flex: none; width: 16px; height: 16px; margin-top: 6px; border: 1.5px solid var(--edge); border-radius: 4px; }
+
+  details { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 10px; }
+  summary { cursor: pointer; padding: 12px 16px; font-weight: 700; }
+  summary .cnt { color: var(--quiet); font-weight: 400; font-size: 14px; margin-left: 6px; }
+  ol.tr { list-style: none; margin: 0; padding: 0 16px 12px; font-size: 15px; }
+  ol.tr li { display: grid; grid-template-columns: 3.4em 1fr; gap: 10px; padding: 3px 0; border-top: 1px dashed var(--line); }
+  .ts { color: var(--quiet); font-variant-numeric: tabular-nums; font-size: 13px; padding-top: 2px; }
+  .unk { color: var(--quiet); }
+  .q { color: var(--amber); font-size: 13px; }
+  .legend { font-size: 14px; color: var(--quiet); margin: 0 0 12px; }
+
+  .who { display: inline-block; min-width: 3.6em; margin-right: 8px; font-size: 12.5px; font-weight: 700; padding: 0 6px; border-radius: 4px; text-align: center; }
+  .w0 { color: var(--blue); background: var(--blue-50); }
+  .w1 { color: var(--green); background: var(--green-bg); }
+  .w2 { color: var(--amber); background: var(--amber-bg); }
+  footer { background: #1e2124; color: #c6ccd2; font-size: 14px; }
+  footer .in { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .top { position: fixed; right: 16px; bottom: 16px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 18px; text-decoration: none; display: grid; place-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+
+  @media (max-width: 640px) {
+    .summary li { grid-template-columns: 1fr; gap: 0; }
+    th, td { padding: 8px 10px; }
+  }
+  @media print {
+    nav.toc, .top, .skip { display: none; }
+    details { break-inside: avoid; }
+    details:not([open]) > *:not(summary) { display: block; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">본문 바로가기</a>
+
+<div class="notice"><div class="in">
+  <span>국민제안 준비용 내부 회의록 · 공식 문서 아님</span>
+  <span>작성 2026-10-09</span>
+</div></div>
+
+<header class="hero"><div class="in">
+  <p class="kicker">안전신문고 불법주정차 신고 개선 · 원격 화상회의</p>
+  <h1>3개 유형 추가, 공무원 인터뷰로 효과 근거 보강</h1>
+  <p>2026-10-09(목) 20:34 시작 · 약 50분 · 녹음 자동 전사본 정리</p>
+</div></header>
+
+<nav class="toc" aria-label="목차"><ul>
+  <li><a href="#overview">개요</a></li>
+  <li><a href="#decisions">결정사항</a></li>
+  <li><a href="#todo">할 일</a></li>
+  <li><a href="#discussion">논의 내용</a></li>
+  <li><a href="#status">현재 작업과 대조</a></li>
+  <li><a href="#open">남은 쟁점</a></li>
+  <li><a href="#transcript">녹음 전사</a></li>
+</ul></nav>
+
+<main id="main">
+
+<section id="overview">
+  <h2>회의 개요</h2>
+  <div class="card"><ul class="summary">
+    <li><b>주제</b><span>최종 발표 준비 — 현업 인터뷰 결과 공유, 기능 보강 범위, 발표 방향</span></li>
+    <li><b>결론</b><span>불법주정차 탭의 장애인·소방차·친환경차 충전구역 3개 유형 추가. 기존 규정(1분 간격 등)은 유지. 발표자료에 공무원 인터뷰·업무 절차·정량 근거 보강</span></li>
+    <li><b>참석</b><span>3명 — 박호용 프로, 이치국 프로, 팀장님(음성에서 목소리로 구분, 이름은 발언 내용으로 추정)</span></li>
+    <li><b>자료</b><span>회의 녹음 약 50분(<a href="#transcript">화자 표시 전사본</a>), 카톡 공유 자료(인터뷰 정리·전기차 충전구역 사진·운영 현황 엑셀)</span></li>
+    <li><b>다음 회의</b><span>필요하면 요청 — 아니면 다음 주 금요일</span></li>
+  </ul></div>
+</section>
+
+<section id="decisions">
+  <h2>결정사항 <span class="num">6</span></h2>
+  <ul class="dec">
+    <li><b>기능 보강</b>불법주정차 탭 안의 6대 외 3개 유형(장애인 전용구역·소방차 전용구역·친환경차 충전구역) 추가</li>
+    <li><b>기타 유형</b>정의가 어려워 보류 — 대표 사례 정리 후 안내 수준으로 검토</li>
+    <li><b>범위</b>자동차·교통위반 등 다른 탭은 이번에 다루지 않음</li>
+    <li><b>규정</b>1분 간격 등 기존 규정·규칙은 유지. AI 자동화만 제안. 라이브 포토·연속 촬영은 '향후 발전 방향'에 한 줄</li>
+    <li><b>발표자료</b>큰 틀 유지. 공무원 인터뷰 내용과 업무 절차·정량 근거가 확인되면 추가</li>
+    <li><b>사진 채점</b>시간은 빼고, 사진 속 장소(버스정류장·소화전 등 유형) 판정 정확도만 채점</li>
+  </ul>
+</section>
+
+<section id="todo">
+  <h2>할 일</h2>
+  <p class="lead">담당은 목소리 구분과 발언 내용으로 추정. 다르면 카톡에서 바로잡아 주세요.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>할 일</th><th>담당</th><th>기한</th></tr></thead>
+    <tbody>
+      <tr><td>공무원 업무 절차가 발표자료 내용과 맞는지, 앱으로 줄어드는 단계가 어디인지 확인</td><td>이치국 프로</td><td>수요일까지</td></tr>
+      <tr><td>잘못 들어오는 신고 비중(실무자 체감치, 예: 30% 이상)으로 효과 정량화</td><td>이치국 프로</td><td>수요일까지</td></tr>
+      <tr><td>인터뷰 정리 내용 카톡 공유, 전기차 충전구역 사진 단톡방 공유</td><td>이치국 프로</td><td>바로</td></tr>
+      <tr><td>공무원께 절차·단계별 업무량 다시 문의 — 이치국 프로 결과와 비교</td><td>박호용 프로</td><td>다음 회의 전</td></tr>
+      <tr><td>민원팀 쪽 권동근 프로님께 주정차 처리 업무 문의</td><td>박호용 프로 제안(누가 물을지 불분명)</td><td>미정</td></tr>
+      <tr><td>로컬에만 있는 앱 구현 작업을 저장소로 공유 → 반영</td><td>이치국 프로 → 박호용 프로</td><td>바로</td></tr>
+      <tr><td>기타 유형 대표 사례 정리(중앙선, 황색선, 안전지대, 이중주차, 자전거 도로, 철길 건널목 등)</td><td>이치국 프로</td><td>추후</td></tr>
+      <tr><td>디자인 다듬기 → 앱 구현 → 실제 화면 녹화 시연 영상</td><td>이치국 프로</td><td>개발 완료 후</td></tr>
+      <tr><td>3개 유형(장애인·소방차·친환경차 충전) 추가 개발·시험</td><td>미정</td><td>약 1주</td></tr>
+      <tr><td>AI로 만든 사진을 '그래도 계속'으로 넘겨 채점 시험해 보고 공유</td><td>팀장님</td><td>이번 주</td></tr>
+      <tr><td>채점용 사진 더 찍기, 정답표 만들기</td><td>모두</td><td>계속</td></tr>
+      <tr><td>다음 주 중간발표 여부 문의(오팀장님(?))</td><td>박호용 프로</td><td>이번 주</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="discussion">
+  <h2>논의 내용 <span class="num">8</span></h2>
+  <ol class="topics">
+    <li><b>현업 인터뷰 결과(이치국 프로, 실무자 1~2명)</b><ul>
+      <li>자동차·교통위반 탭의 '기타 자동차 안전기준 위반'은 앨범 사진(블랙박스 등)으로 신고 가능 → 이 경로 신고가 많다고 함. 통계는 받기 어려움</li>
+      <li>실무자는 신고가 어느 탭(채널)으로 들어왔는지 봄. 불법주정차가 아닌 탭으로 들어오면 내용이 맞아도 처리 안 됨</li>
+      <li><b>가장 많은 사례: 전기차 충전구역</b> — 일반차 겸용 구역인데 확인 없이 신고. 현장에 나가 봐야 판단</li>
+      <li>벽면 쪽 주차로 바닥 표시가 가려져 사진만으로는 충전구역인지 알 수 없음 → 현장 출동 부담</li>
+      <li>요청: 신고 단계에서 겸용 여부·올바른 탭을 인지하게 하는 안내</li>
+    </ul></li>
+    <li><b>1분 간격과 라이브 포토</b><ul>
+      <li>1분의 근거가 약하다는 의견(이치국 프로). 원래 3~5분이었고 국민권익위원회 권고로 1분으로 줄었다는 설명(박호용 프로)</li>
+      <li>아이디어(이치국 프로): 라이브 포토(약 1.5초 영상)나 3~5초 연속 촬영으로 '같은 자리에 있었음'을 증빙 — 중간발표 때 정병호 프로님의 순간 캡처 우려 질문에서 출발</li>
+      <li>규정 자체를 바꾸자는 제안은 받아들여지기 어렵다 → AI 자동화만 넣고 기존 규정은 그대로(박호용 프로). 팀장님 동의 — 마지막 '발전 방향'에 언급 정도</li>
+    </ul></li>
+    <li><b>범위 — 다른 탭까지 갈 것인가</b><ul>
+      <li>다른 탭까지 다루면 범위가 커짐(탭: 안전·불법주정차·자동차·교통위반·생활불편)</li>
+      <li>이상적으로는 탭 구분 자체를 없애야 잘못된 신고가 줄어든다는 의견(박호용 프로)</li>
+      <li>틀을 유지한다면: 불법주정차 탭에서 찍은 사진이 다른 유형이면 '자동차·교통위반 탭에서 다시 찍어 주세요'라고 안내</li>
+      <li>다른 유형까지 판정하기엔 경우가 너무 많음(팀장님) → 불법주정차 탭 안의 3개 유형 보강이 할 수 있는 범위(박호용 프로 제안, 팀장님 정리)</li>
+    </ul></li>
+    <li><b>친환경차 충전구역 판단의 어려움</b><ul>
+      <li>전기차·수소차·하이브리드 구분 혼동(전기차 전용 구역에 하이브리드도 안 됨)</li>
+      <li>충전구역 위치 정보는 공공기관 API로 제공된다는 언급(기관명 확인 필요)</li>
+      <li>아이디어: 불법주정차 탭에서 촬영 전 사전 안내를 한 번 더 보여 주기</li>
+    </ul></li>
+    <li><b>최종 발표 형식 예상</b><ul>
+      <li>최종 발표일은 오후 내내, 팀당 약 30분(발표 10분 안팎 + 질의응답)</li>
+      <li>심사위원·멘토가 구현 방법을 질문할 것. 발표 뒤 깃허브 코드 공개를 요청해 완성도를 볼 수도 있음</li>
+    </ul></li>
+    <li><b>평가 관점과 보강 방향</b><ul>
+      <li>심사 핵심: 아이디어 적합성, 구현 가능성, 문제 정의의 깊이. 결과물 품질은 팀 간 비슷해 문제 제기가 갈린다는 경험</li>
+      <li>조 수석님 조언: 이해관계자의 실제 편익에 집중 → 두 축은 신고자 편의성과 접수·처리 공무원의 편익(이치국 프로)</li>
+      <li>현재 PoC 이상은 진행 — 기능을 너무 많이 담는 것은 경계</li>
+      <li>신고자 편익 근거는 충분. 공무원 편익은 정량 근거가 부족</li>
+    </ul></li>
+    <li><b>공무원 편익 정량화</b><ul>
+      <li>발표자료에 업무 절차와 앱으로 줄어드는 단계를 표시했으나 수치는 추정 → 실제 절차와 일치 여부, 경감 단계, 단순 착오 불수용 비중 확인 필요(박호용 프로)</li>
+      <li>불수용 사유별 데이터는 시스템 DB 쿼리가 필요해 받기 어려움. 정보공개청구도 기간 안에 어려움</li>
+      <li>대안: 실무자의 체감 비중(예: '잘못 들어오는 게 30% 이상')으로 추정</li>
+      <li>통계: 안전신문고 홈페이지 월별 운영 현황 PDF(2025년부터) — 정리 엑셀은 카톡에 공유됨</li>
+    </ul></li>
+    <li><b>일정·발표자·사진</b><ul>
+      <li>개발·시험 약 1주, 이후 발표자료 보완. 다음 주 중간발표 여부는 미정</li>
+      <li>발표자: 박호용 프로가 이치국 프로 추천(이해도가 높고 인터뷰 진행) — 확정 여부 불분명</li>
+      <li>채점 사진 부족. 팀장님이 AI로 만든 사진은 촬영시각 점검에 걸려 통과 안 됨 → '그래도 계속'으로 넘겨 시험 가능(박호용 프로)</li>
+      <li>채점은 시간 제외, 장소 판정만. 정답표가 있어야 채점 가능</li>
+    </ul></li>
+  </ol>
+</section>
+
+<section id="status">
+  <h2>현재 작업과 대조</h2>
+  <p class="lead">회의 내용과 저장소·발표자료의 지금 상태(10/9 기준).</p>
+  <div class="tbl"><table>
+    <thead><tr><th>회의 내용</th><th>상태</th><th>지금</th></tr></thead>
+    <tbody>
+      <tr><td>공무원 업무 절차와 줄어드는 단계</td><td><span class="badge part">일부</span></td><td>발표자료 '담당자 업무 절차' 장에 10단계·경감 표시(공개 자료로 재구성) — 인터뷰 확인 필요</td></tr>
+      <tr><td>공무원 인터뷰 내용</td><td><span class="badge part">일부</span></td><td>발표자료 인터뷰 4장은 빈칸 — 이번 인터뷰 결과로 채울 수 있음</td></tr>
+      <tr><td>3개 유형 추가</td><td><span class="badge no">미반영</span></td><td>앱은 6대 유형만 판정</td></tr>
+      <tr><td>다른 탭 접수 안내</td><td><span class="badge no">미반영</span></td><td>범위 밖으로 결정 — 안내 문구만 검토 가능</td></tr>
+      <tr><td>사진 채점(장소 판정만)</td><td><span class="badge ok">반영</span></td><td>판독 채점 화면(/eval.html)이 사진 1장 기준으로 유형 판정을 채점. 정답표 필요</td></tr>
+      <tr><td>AI 생성 사진 통과 안 됨</td><td><span class="badge ok">반영</span></td><td>앨범 사진 진위 점검(촬영 기록) 때문. '그래도 계속'으로 진행 가능</td></tr>
+      <tr><td>저장소 공유</td><td><span class="badge part">일부</span></td><td>GitHub 저장소·발표자료(/deck/) 공개됨 — 주소를 팀에 공유 필요</td></tr>
+      <tr><td>규정 유지, 발전 방향 언급</td><td><span class="badge part">일부</span></td><td>발표자료에 '향후 발전 방향' 장 없음</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="open">
+  <h2>남은 쟁점</h2>
+  <ul class="plain">
+    <li><b>기타 유형</b>: 안내만 할지, 대표 사례를 유형으로 판정할지</li>
+    <li><b>정량 근거</b>: 실무자 체감 비중을 추정 근거로 쓸지 — 출처 표기 방식</li>
+    <li><b>발표자</b>: 확정 필요</li>
+    <li><b>중간발표</b>: 다음 주 진행 여부(오팀장님 확인)</li>
+    <li><b>앱 구현</b>: 웹 시연으로 갈지, 앱으로 구현해 녹화할지 — 발표자료에는 웹 화면 녹화 시연 영상(해설 포함)이 이미 있음. 중복 작업 조율 필요</li>
+  </ul>
+</section>
+
+<section id="transcript">
+  <h2>녹음 전사 <span class="num">약 50분</span></h2>
+  <p class="legend">녹음 앱 자동 전사(AI)에 <b>목소리로 화자를 나눠</b> 붙임 — 음성 파일에서 목소리 특징을 뽑아 3명으로 묶고, 이름은 발언 내용으로 추정. 한 줄에 여러 사람 말이 섞인 곳은 그 줄에서 가장 오래 말한 사람으로 표시(짧은 맞장구·질문은 틀릴 수 있음). 애매한 곳은 음성을 다시 받아써(Whisper) 대조. 오탈자 많음. 이름·용어 일부 바로잡음(예: 이치국 프로 — '치옥·최구·취국·이충호' 등으로 전사됨, 박호용 프로, 안전신문고). <span class="q">(?)</span> 추정해서 고친 말.</p>
+<details><summary>00:00 — 현업 인터뷰 결과 — 다른 탭 접수, 전기차 충전구역 <span class="cnt">21줄</span></summary><ol class="tr"><li><span class="ts">00:00</span><span><b class="who w0">박호용</b>네. 안전신문고 앱에 보시면 좀 시끄러우시죠? 아니 괜찮아요.</span></li><li><span class="ts">00:10</span><span><b class="who w2">팀장님</b>네 잠시만요.</span></li><li><span class="ts">00:14</span><span><b class="who w2">팀장님</b>화면이 없어졌다.</span></li><li><span class="ts">00:21</span><span><b class="who w1">이치국</b>이게 불법 주정차가 있고 자동차 교통 위반이 있는데 음 자동차 교통 위반에서는 보시면 그 이제 기타 자동차 안전 기준 위반이라는 게 있어요. 네 그걸 누르면 일반적으로 촬영을 원래 보통 안전신문고 앱에 있는 걸로만 해야 되잖아요. 아니고 그 본인 앨범에 그냥 저장된 거를 신고할 수가 있어요.</span></li><li><span class="ts">00:47</span><span><b class="who w1">이치국</b>음</span></li><li><span class="ts">00:48</span><span><b class="who w2">팀장님</b>블랙박스 같은 거 사가지고</span></li><li><span class="ts">00:50</span><span><b class="who w1">이치국</b>네 근데 그걸로 신고하는 경우가 굉장히 많다고 합니다. 근데 이게 통계를 좀 받아보려고 했는데 그곳은 좀 어렵고 공개 데이터도 크게 없어서 그거는 뭐라고 하기는 좀 뭐 한데 어 실무자도 이렇게 뭐 많지는 않아요. 제가 실제 인터뷰할 수 있었던 게 한 두 분 정도고.</span></li><li><span class="ts">01:09</span><span><b class="who w1">이치국</b>화면까지 실제 보면 좋았겠지만 그 실무자들은 어떤 채널을 통해서 접수했는지를 다 보인대요. 이 불법 주정차가 아닌 탭을 통해서 접수를 하게 되면 이게 정당한 것처럼 보여도 실제적으로 접수 자체가 안 된답니다. 그래서 처리가 안 되고 그런 문제가 있다라고 했고요.</span></li><li><span class="ts">01:34</span><span><b class="who w1">이치국</b>전기자동차 신고가 제일 많은데 불법 주정차 중에 그 제가 이제 저희 그 아파트들 밑에 내려가 보시면 내려가 보면 그 전기자동차 신정 구역인데 그게 이제 일반 자동차 경용으로 주차 가능한 게 있거든요. 확인 안 하고 신고를 하는 경우가 되게 많대요. 음 그리고 전기자동차 예 제가 그거 사진을 찍어 놨는데 단톡방에 한번 올려드려 볼게요.</span></li><li><span class="ts">02:09</span><span><b class="who w1">이치국</b>경기 전용 네.</span></li><li><span class="ts">02:13</span><span><b class="who w1">이치국</b>저도 몰랐어요. 근데 이게 실무적으로 실제로 이런 케이스가 제일 많대요. 그러니까 들어오는 거 중에 되게 많다고 하더라고요.</span></li><li><span class="ts">02:29</span><span><b class="who w1">이치국</b>그러면은 그 겸용인지 아닌지는 그 사람들이 데이터가 있는 거예요? 그 주소 보고 주소에 있는 전기자동차 구역이 겸용인지 아닌지 찾는 건가? 아니면</span></li><li><span class="ts">02:40</span><span><b class="who w1">이치국</b>그것도 있는데 사실 좀 올려드릴게요. 용량이 좀 커 가지고. 근데 이제 실제로 현장에 나가 봐야 된대요.</span></li><li><span class="ts">02:49</span><span><b class="who w1">이치국</b>음</span></li><li><span class="ts">02:51</span><span><b class="who w1">이치국</b>그리고 전기차 충전 구역도 아마 실제로 가보시면 이 사람들이 이제 벽면 쪽에다가 주차를 이렇게 붙여놓잖아요. 그러면은 원래 하단에 덮여 있거든요. 음 그래서 이게 진짜로 전기차 충전 구역인지 아닌지를 일단 정년부만 찍으면 알 수가 없다라는 거예요.</span></li><li><span class="ts">03:10</span><span><b class="who w1">이치국</b>그래서 다 현장에 좀 나가야 되는 불편 사항이 있다고 하더라고요. 근데 그중에서도 가장 힘든 거는 겸용 주차가 되는 곳인데도 불구하고 착각해서 이렇게 불법 주정차다라고 신고를 하는 경우에 현장에 나가서 확인을 해야 되고 안 되면 처리가 안 되는 경우도 있고 되게 이게 굉장히 애매하다. 그러더라고요.</span></li><li><span class="ts">03:28</span><span><b class="who w1">이치국</b>그래서 신고하는 단계에서 이거를 좀 사람들이 아이 이걸 인지를 잘 못 한대요. 인지 자체를 좀 할 수 있게 해 주면 좋을 것 같다 라는 얘기가 있어서 저는 요 부분을 조금 개선을 해 보려고 했고요. 네 일단은 그게 가장 큰 두 가지 문제였고 그다음에 이제 공공 데이터 통해서 보기는 했는데 신고 유형으로는 어쨌든 결국에는 뭐 회사라든지 뭔가 좀 안내가 부족해서 지금 올려 드렸거든요.</span></li><li><span class="ts">04:03</span><span><b class="who w1">이치국</b>예 한 거 같은데</span></li><li><span class="ts">04:04</span><span><b class="who w0">박호용</b>얘도 근데 불법 주정차 신고 신고인 거예요 나</span></li><li><span class="ts">04:08</span><span><b class="who w1">이치국</b>어 예 그렇죠. 불법 주정차 신고가 맞는데? 그리고 이게 그 아까 말씀드린 그 다른 탭에 자동차 교통 위반 탭으로 접수가 네.</span></li><li><span class="ts">04:19</span><span><b class="who w1">이치국</b>또 이제 그거에 대한 안내가 좀 있었으면 좋겠다. 본 단계에서. 그래서 저희가 지금까지 해 왔던 거에서 플러스 지금 해당 지금 말씀드린 그 부분에 대한 기능을 좀 추가하면 어떨까라는 생각이 들어서 요 방식으로 저는 좀 개선을 해 보려고 앱 구현을 해 봤고요.</span></li></ol></details>
+<details><summary>04:38 — 1분 간격·라이브 포토, 규정 변경 제안 여부 <span class="cnt">17줄</span></summary><ol class="tr"><li><span class="ts">04:38</span><span><b class="who w1">이치국</b>그거랑 두 번째는 이제 그 사진 그 사진이 대부분 보면 그때 뭐 지방 같은 데는 막 한 시간까지도 불법 주정차 소위 이게 가능한 경우가 있잖아요. 네. 그거는 제외하고 그것까지 다 맞추기는 좀 어렵고 수도권 중심으로 봤을 때는 대부분 뭐 1분 내외로 되어 있더라고요.</span></li><li><span class="ts">05:02</span><span><b class="who w1">이치국</b>근데 그게 뭐 제가 잘못 알고 있을 수 있는데 프로님끼리도 알려주시면 좋을 것 같아요. 그 제가 찾아본 바에 따르면 규정은 이제 60초라고 되어 있는데 실제로 60초에 대한 규정 근거 이런 것들은 되게 좀 부족하더라고요. 그래서 근데 저희 회의 그 발표 때 처음 발표 때도 말씀 주셨던 게 그 저기 햇빛</span></li><li><span class="ts">05:24</span><span><b class="who w0">박호용</b>정병호 프로님이요. 경남</span></li><li><span class="ts">05:30</span><span><b class="who w1">이치국</b>일시 그 순간을 캡처해서 올릴까 봐 그런 거 아니냐 해서 생각해 본 게 그 아이폰에 보면 라이브 포토 기능이 있어요. 얘를 라이브 포토로 찍으면 사진으로 남는데 그걸 꼭 눌러 전구 한 1.5초 정도가 이제 동영상 GIF 같은 것처럼</span></li><li><span class="ts">05:50</span><span><b class="who w0">박호용</b>Galaxy Galaxy에도 다 있는 기대긴 해요.</span></li><li><span class="ts">05:53</span><span><b class="who w0">박호용</b>예 그래서 아 죄송합니다. 죄송합니다. 해 봤</span></li><li><span class="ts">05:56</span><span><b class="who w0">박호용</b>아니 아니에요. 다 있는 이능이네요. 예 그래서</span></li><li><span class="ts">05:59</span><span><b class="who w1">이치국</b>요런 거를 좀 차감해서 어 이거는 그러니까 제한의 느낌인 건데 어느 정도 일정 수준의 동일한 위치 있었다는 걸 증빙하는 거잖아요. 그래서 뭐 동영상을 길게 찍는 것도 어려울 것 같고 3에서 5초 정도 지속적으로 영상 촬영식으로 촬영을 들어가는 카운트가 나오면서. 근데 저희 그 시간 정해 놓고 사진 찍는 거 있잖아요.</span></li><li><span class="ts">06:28</span><span><b class="who w2">팀장님</b>544 타이머 5 공연에</span></li><li><span class="ts">06:32</span><span><b class="who w1">이치국</b>5주 동안 사진을 찍으면 유지를 하면 그거에 대해서 첫 사진 그리고 마지막 사진까지 해가지고 그걸 통해서 증리하는 거 서울 차안에 뭐라고? 방안에 대해서 한번 좀</span></li><li><span class="ts">06:45</span><span><b class="who w0">박호용</b>근데 저번에 저가 너는 그때가 같이 생각해 봤던 게 그게 기술적으로는 가능은 한데 네. 어 제가 찾아본 바로는 원래 원래 그 1분이 1분의 근거가 1분이 아니라 한 3분이나 5분이었거든요. 원래는 그랬는데 이제 어 국민권익위원회에서 그건 너무 길다.</span></li><li><span class="ts">07:07</span><span><b class="who w0">박호용</b>라는 그런 제약 그렇 그런 신고가와 가지고 1분으로 바꾼 거래요. 그래서 1분이 특별한 이유가 있는 건 아닌데 이렇게 줄인 거거든요. 네.</span></li><li><span class="ts">07:18</span><span><b class="who w0">박호용</b>근데 사실 이런 규정이나 이런 것들을 우리가 어 큰 큰 틀을 우리가 바꾸자고 제안한 제안하는 게 맞을까라는 생각도 들거든요. 물론 여기다가 지금 AI 넣어서 자동을 하는 거는 더 큰 틀이긴 하지만은 좀 그런 생각이 좀 들더라고요. 그래서 가능하면은 AI 넣어서 자동으로 하는 그거 하나만 넣고 나머지는 기존에 있는 안전 신문고의 기능이나 어 규칙 규정들은 그대로 가져가 가져가는 게 어 만약에 제안하더라도 그들이 받아들이는 거에 있어서 어 좀 더 적합하지 않을까라는 생각이 들긴 하거든요.</span></li><li><span class="ts">08:06</span><span><b class="who w0">박호용</b>저는.</span></li><li><span class="ts">08:09</span><span><b class="who w2">팀장님</b>하여튼 저도 같은 의견인 것 같아요. 우리가 뭐 뭐 다른 암묵적인 룰에 대해서 재검토하자는 것도 아니고 동영상 통해 가지고 즉각적으로 하자라는 것도 아니니까. 마지막 쯤에 이런 기능도 있으니까 괜찮다면 이런 것도 추가해도 괜찮을 것 같아요라고.</span></li><li><span class="ts">08:37</span><span><b class="who w2">팀장님</b>제안을 한번 해서 개선할 수 있도록 하겠습니다. 그런 식의 멘트 정도 넣는 대상인가 싶기는 해요. 그 마지막 뭐 향후 뭐 발전 방향 뭐 개선 방향 뭐 해 가지고 그런 될 거 같은데.</span></li><li><span class="ts">08:53</span><span><b class="who w2">팀장님</b>구미신고 자체가 바뀌어야지. 우리도 바꿀 수 있으니까 이런 식으로 써도 될 거 같아요. 근데 아까 얘기했던 그거는 해결할 수 있다면은 되게 좋을 것 같긴 하네요.</span></li></ol></details>
+<details><summary>09:09 — 범위 — 다른 탭, 3개 유형, 기타 <span class="cnt">35줄</span></summary><ol class="tr"><li><span class="ts">09:09</span><span><b class="who w2">팀장님</b>또 실무자가 많이 힘들다. 그러니까</span></li><li><span class="ts">09:13</span><span><b class="who w0">박호용</b>근데 그죠? 저는 그 거기에도 약간 이견이 있다라고 생각을 하는 게 지금 저희가 하는 컨셉 자체가 어떻게 보면 불법 주정차 하나였잖아요. 이제 그렇게 되면은 어 자동차 교통기관 것도 건 탭것도 이제 건드려야 되고 조금 더 건드려야 될 부분들이 더 많아지는 거긴 하고요.</span></li><li><span class="ts">09:38</span><span><b class="who w0">박호용</b>만약 그런다면은 굳이 안전 신고 쪽은 안 건들 이유도 없어요 또 그래서 할 거면은 색 지금 색 탭이 세 개거든요. 안전신문고의 탭이 하나는 안전 신고 하나는 불법 주정차 하나는 그 자동차 교통 위반 네. 그리고 또 생활 불편 신고도 있긴 해요.</span></li><li><span class="ts">10:00</span><span><b class="who w0">박호용</b>그것들을 그 그런데 네.</span></li><li><span class="ts">10:04</span><span><b class="who w0">박호용</b>차량 관련된 것만 묶어서 그냥 한다고 생각하면 될까요?</span></li><li><span class="ts">10:08</span><span><b class="who w0">박호용</b>그러니까 두 번째 택 아니 두 번째 탭에서만 하는데. 예 그 전기차 충전이 두 번째 탭에 있는 항목 아니에요?</span></li><li><span class="ts">10:16</span><span><b class="who w1">이치국</b>아까 음</span></li><li><span class="ts">10:19</span><span><b class="who w1">이치국</b>음 친환경차 충전 구역에 해당하는 내용이고요.</span></li><li><span class="ts">10:25</span><span><b class="who w0">박호용</b>네. 근데 그게 이제 세 번째 탭으로 많이 친구가 온다 이거잖아요.</span></li><li><span class="ts">10:30</span><span><b class="who w2">팀장님</b>네. 그러니까 뭐 뭐 박호용 프로님 얘기한 것처럼 완전히 다른 거는 아니긴 해요. 이건 자체가.</span></li><li><span class="ts">10:38</span><span><b class="who w2">팀장님</b>근데 굳이 우리가 그냥 많이 6대 위반 사항이 아니어가지고 신경을 안 썼던 건데 실제적으로 그게 크리티컬하게 실무자가 불편하다 싶으면은 계산할 수 있으면 좋겠죠. 근데 최선을 어떻게 하지? 그 어느 아파트에 어디 있는 전기차 구역이</span></li><li><span class="ts">11:01</span><span><b class="who w1">이치국</b>어 그거는 여기 있더라고요. 뭐 한국 도로교통공사인가요? 거기서 API로 제공을 하더라고요.</span></li><li><span class="ts">11:05</span><span><b class="who w1">이치국</b>앞으로</span></li><li><span class="ts">11:06</span><span><b class="who w1">이치국</b>예 음</span></li><li><span class="ts">11:09</span><span><b class="who w1">이치국</b>거기서 API로 제 그런 건 없는데 근데 결론은 이제 제 생각에는 원하는 거는 그거죠. 제가 신고를 한다고 쳤을 때 그다음 친환경 자동차라고 했을 때 그게 전기차라고 즉시 인식을 못 하는 경우도 상당히 음 이게 이렇게 충전 구역 눌러 보시면은 거기에 막 안내 이제 신고 대상이 쭉 나와요. 신고 방법이랑 여기는 읽어 봐야지 조금 더 이해가 되고.</span></li><li><span class="ts">11:30</span><span><b class="who w1">이치국</b>왜냐하면 수소차도 있기 때문에 원래는 그리고 이제 헷갈리는 게 뭐 하이브리드차 같은 경우도 뭐 돼도 되나? 뭐 이런 식으로 생각하는 경우도 있고요. 물론 안 되죠.</span></li><li><span class="ts">11:38</span><span><b class="who w1">이치국</b>원래는 전기차에만 대야 되는 곳에는 하이브리드도 안 되는데. 그런 안내들이 안 되다 보니까 이게 지금 제가 보기 이거는 원래 저희가 처음에 생각했던 건 어쨌든 사진을 찍었고 사진을 찍은 다음에 유형을 갈라주는 건데 이게 지금 그냥 제 생각엔 그건 있어요. 전기차라고 하면은 어.</span></li><li><span class="ts">12:00</span><span><b class="who w1">이치국</b>아니죠. 이 9분 친환경차 자동차법 위반인지 아닌지를 판단하기가 되게 어려운 부분이 있거든요. 그러니까 네.</span></li><li><span class="ts">12:08</span><span><b class="who w1">이치국</b>그래서 그거를 아예 별도 탭처럼 분류를 해서 그 사전 안내 아니면 그거를 한 번 더 보여주게 한다던지 이 지금 불법 주정 차 자동차 교통 위반 같은 그런 탭이 나눠져 있잖아요. 그 탭에서 일단 불법 주정차로 갔을 때 거기서 사전에 한번 안내를 주고 그다음에 사전에 찍게 한다던지 뭐 그런 식으로 가는 방향을 생각을 해 봤고요.</span></li><li><span class="ts">12:36</span><span><b class="who w0">박호용</b>어렵네요. 제가 잘 이래 갔네.</span></li><li><span class="ts">12:38</span><span><b class="who w0">박호용</b>지금 지금 앱으로 구현한 거는 거의 약간 저 6대 불법 주정차만 거의 약간 돼 있거든요. 네. 근데 지금 더 이 저 추월이 있는 게 장애인이랑 소방차랑 친환경 충전 구역 있건 있고 예 기타가 사실 거의 잘 안 되어 있어요.</span></li><li><span class="ts">12:56</span><span><b class="who w0">박호용</b>네. 그래서 그걸 조금 약간 구체적 구체화하면 좋을 것 같고 제 생각에는 네. 제 생각했을 때 가장 좋은 방법은 어</span></li><li><span class="ts">13:09</span><span><b class="who w0">박호용</b>여기서 스톡</span></li><li><span class="ts">13:11</span><span><b class="who w0">박호용</b>아니 그냥 가장 안전신문고 앱이 개선된다고 한다면은 저는 맨 위에 있는 네 가지 탭도 없어야 된다고 생각하거든요.</span></li><li><span class="ts">13:23</span><span><b class="who w2">팀장님</b>뭐 저도 아까</span></li><li><span class="ts">13:24</span><span><b class="who w2">팀장님</b>예 예</span></li><li><span class="ts">13:27</span><span><b class="who w0">박호용</b>그래야 뭐 잘못 네 잘못 신고하는 그런 것들이 없어지니까는 사실 불법 주정차량 자동차 교통 위반이 무슨 무슨 차이인지 잘 모를 수가 있으니깐요. 예 그래서 만약에 근데 한다면은 근데 여 이 이틀을 깨지 않는다고 하면은 불법 주정차 안에서 뭐지? 사진을 찍었어요.</span></li><li><span class="ts">13:54</span><span><b class="who w0">박호용</b>근데 얘가 사실은 자동차 교통 위반권이에요. 그러면은 이거는 자동차 유통 이거는 불법 주정차 유형이 아닙니다. 자동차 교통 위반한 탭으로 가서 다시 사진을 찍어 주세요라고 안내하는 게 이 형태에서는 맞거든요.</span></li><li><span class="ts">14:14</span><span><b class="who w0">박호용</b>제가 생각했을 때는 음 그러면은 잘못된 탭에서 신고를 안 할 거 아니에요?</span></li><li><span class="ts">14:23</span><span><b class="who w2">팀장님</b>그렇죠. 신고가 없어지긴 하겠지. 음 그렇다고 그런 다른 유형까지 응?</span></li><li><span class="ts">14:36</span><span><b class="who w2">팀장님</b>우리가 다 지금 그러려면은 케이스가 너무 많을 것 같은데요. 어떤 경우에 안전한지 어떤 게 뭐 자동차하고 교통 위반</span></li><li><span class="ts">14:46</span><span><b class="who w0">박호용</b>그래서 네 그럴 것 같긴 해요.</span></li><li><span class="ts">14:48</span><span><b class="who w2">팀장님</b>들을 다 분석을 해 가지고 그래서 제 생각에는 아 그 혹시 이치국 프로님 정리한 거 카카오톡 보내주실 수 있나요? 아까 뭐 인터뷰해 가지고 개선 이런 거 했으면 좋겠다고 한 거</span></li><li><span class="ts">15:07</span><span><b class="who w0">박호용</b>아니면 정리해서 차후 객 어 개선 계획으로도 너도 괜찮을 것 같고요.</span></li><li><span class="ts">15:13</span><span><b class="who w2">팀장님</b>성장한 것도 아니면은 지금 지금 단계에서 뭐 꼭 필요하다 싶으면은 뭐 포함시켜도 될 거 같긴 한데 그래서 어떤 건지 한번 말로 말로 들은 것보다 카카오톡에 또 보내 주면은 아까 한번 보면서 얘기를 한번 해 보고 싶으면 좋을 것 같아서요. 그리고 우리 정도만 해도 처음 계획한 범위만큼 잘 된 거 같기는 해요.</span></li></ol></details>
+<details><summary>15:39 — 최종 발표 형식과 평가 예상 <span class="cnt">25줄</span></summary><ol class="tr"><li><span class="ts">15:39</span><span><b class="who w1">이치국</b>근데 이게 저도 걱정되는 거는 약간 이제 그 그 완성도에 대해서도 좀 어느 정도 평가하실 때 예 작용을 하는 걸로 알고 작년 같은 경우에는 그랬다고 들어 가지고.</span></li><li><span class="ts">15:57</span><span><b class="who w2">팀장님</b>그거를 어떻게 그 사람들이 발표하는 동안에는 힘들겠죠? 근데 이제 이 이틀 동안인가? 뭐 인터뷰한다?</span></li><li><span class="ts">16:06</span><span><b class="who w0">박호용</b>아마 발표를 하고 나서 깃허브나 이제 같은 프로그램 코드들을 아마 공개해 달라고 해서 보시겠죠? 그다음에 그러고 나서 그거를 한번 분석하신 다음에 이거를 우리가 스스로 잘 알고 있는지 이게 코드가 제대로 조금 기능적으로 잘 구현되고 있는지 완성되어 있는지를 보시지 않을까 싶어요.</span></li><li><span class="ts">16:31</span><span><b class="who w1">이치국</b>그리고 이제 그 제가 잘못되는 걸 수도 있는데 지난번에 지난주 수업 때 말씀하셨던 게 이제 마지막 발표할 때는 그날 이제 발표만 하잖아요. 하루 종일 수업 자체가. 시간이 엄청 길다고 들었고요.</span></li><li><span class="ts">16:47</span><span><b class="who w2">팀장님</b>오후부터 한다. 그런 거 같더라고요. 네.</span></li><li><span class="ts">16:49</span><span><b class="who w2">팀장님</b>5배에서 한 팀당 한 30분씩</span></li><li><span class="ts">16:52</span><span><b class="who w1">이치국</b>30분이면은 그때 나왔던 저희가 했던 그 질문에 거의 뭐 한 다섯 배는 더 나올 수 있을 것 같아서 더 딥한 거를 물어보거나 아니면 뭐 시간이 실제로 가능한 제품인지 뭐 그런 것들에 대해서도</span></li><li><span class="ts">17:06</span><span><b class="who w2">팀장님</b>물어보시겠죠. 아 그런데 제가 그 지난주에 제가 발표 첫 번째로 했잖아요. 네.</span></li><li><span class="ts">17:11</span><span><b class="who w2">팀장님</b>그러니까 그 여섯 개 중에서 첫 번째로 발표를 하니까 질문이 제일 많았었어요. 그때 내가 발표 끝나고 나서 내려오니까 한 25분 정도 서 있었던 거 같아. 발표 포함해 가지고 질문 아직 안 그러니까 그 정도 수준이고 그 정도보다 뭐 좀 길면 5분 10분 더 밀어질 것 같고.</span></li><li><span class="ts">17:28</span><span><b class="who w0">박호용</b>뭐 저도 생각했을 때 그렇게 발표를 길게 받고 싶진 않으실 것 같아요. 지금 우리 개인 개인 프로젝트 발표할 때도 5분이었잖아요. 5분 3분 막 네.</span></li><li><span class="ts">17:39</span><span><b class="who w0">박호용</b>그렇죠. 5분이었잖아요. 5분 2분 네.</span></li><li><span class="ts">17:42</span><span><b class="who w0">박호용</b>팀플 트럭에서 너무 길진 않을 것 같아요. 아무리 아무리 길어도 저는 10분이라고 보거든요. 10분 정도면 아니요 아니요.</span></li><li><span class="ts">17:51</span><span><b class="who w0">박호용</b>그러니까 발표 시간은 10분이고 이제 질문 답변까지 다 하면은 30분 다 채우겠죠. 이제 그러니까 발표 시간이 그렇게 길지는 않을 것 같고. 뭐 질문이 질의 응답이야.</span></li><li><span class="ts">18:03</span><span><b class="who w0">박호용</b>있으면 많이 하는 거고 없으면 없는 건데 이제 아마 우리 참여자분들을 프로님들은 대부분 그렇게 질문 많이 안 하실 것 같은데 어 이제 심사하시는 분들이 그 멘토 하시는 분들이 의무적으로 하나씩은 하지 않을까 싶어요. 한 사람당 하나씩 정도든. 해서.</span></li><li><span class="ts">18:21</span><span><b class="who w0">박호용</b>어떻게 구현했는지 무조건 좀 질문하실 것 같긴 하고. 그렇게 해서 30분을 채울 것 같긴 하거든요. 근데 말씀하신 대로 저는 제가 생각했을 때는 그 세 가지 불법 주정차에서 6대 아닌 장애인 소방 친환경이랑 기타 부분을 좀 더 보강하면 어떨까 싶어요.</span></li><li><span class="ts">18:50</span><span><b class="who w0">박호용</b>저는 음 음 그 정도까지는 우리가 할 수 있는 범위인 거 같고. 넘어가지 않는 범위인 거 같긴 하거든요.</span></li><li><span class="ts">19:00</span><span><b class="who w2">팀장님</b>음 그래. 아 그렇죠. 저 여기까지 가면은 더 좋은데</span></li><li><span class="ts">19:06</span><span><b class="who w0">박호용</b>여기는 어차피 불법 주정차 탭 안에 있는 내용이니까. 네. 근데 이제 이 아이디어가</span></li><li><span class="ts">19:16</span><span><b class="who w2">팀장님</b>네. 알아야지. 우리가 이제 개조원 같은 거를 알아야지.</span></li><li><span class="ts">19:23</span><span><b class="who w2">팀장님</b>그러면 그럴까요? 아이고. 그러니까 개발하고 테스트하고 하는데 한 일주일은 잡 잡겠죠?</span></li><li><span class="ts">19:38</span><span><b class="who w2">팀장님</b>일주일은 걸리겠지? 그러고 나서 이제 일주일 만에 이제 PPT를 만들고</span></li><li><span class="ts">19:46</span><span><b class="who w0">박호용</b>근데 제가 생각했을 때는 이 유형만 세계 더 늘어나는 거지. 우리 PPT의 내용이 엄청 더 늘어난 건 아니거든요. 그렇게 해서 저는 사실</span></li><li><span class="ts">19:59</span><span><b class="who w2">팀장님</b>GPT 쪽에서도 PPT 때도 좀 많지도</span></li><li><span class="ts">20:02</span><span><b class="who w0">박호용</b>PPT는 바꿀 필요도 없다고 생각하거든. 사실. 이런 것도 할 수 있다라고 말씀을 말씀을 할 수 있는데 굳이 저는 안 안 넣어도 잘 모를 거라 생각하고요.</span></li><li><span class="ts">20:18</span><span><b class="who w0">박호용</b>저는 사실 사실은 안 넣어도 잘 모를 것 같다는 생각도 드는데. 넣으면은 더 완성도가 높게 높게 만들었다라고. 우리가 더 추가적으로 얘기할 수는 있죠.</span></li></ol></details>
+<details><summary>20:30 — 보강 방향 — 이해관계자 편익, 문제 정의, 앱 구현 <span class="cnt">32줄</span></summary><ol class="tr"><li><span class="ts">20:30</span><span><b class="who w0">박호용</b>현업 공무원분들이 전체 여기 접수하는 건 중 중에서 전체 건수 중에서 이치국 프로님이 인터뷰하신 내용처럼 이런 내용이 많아 가지고 저희가 이런 내용들을 더 더 추가적으로 개선했다라는 내용들을 넣어야 되니까는 그 내용들을 발표 내용에 넣으면은 그 그 부분들만 발표 내용도 더 추가하는 거지 개발 이후에 발표 자료가 크게 바뀌거나 그러진 않을 것 같아요.</span></li><li><span class="ts">21:03</span><span><b class="who w2">팀장님</b>그러면은 추가했으면 좋겠다라는 게 얘기시고. 그 세 가지 U플러스 3플러스 1</span></li><li><span class="ts">21:11</span><span><b class="who w0">박호용</b>어. 예 근데 뭐 지금 사실 시간이 그렇게 많 별로 없는 것도 아니고 그래 가지고 네. 어렵진 않을 것 같은데요.</span></li><li><span class="ts">21:27</span><span><b class="who w2">팀장님</b>경우에는 그리고 아예 저는 그 다른 사람들 다른 팀들도 보면은 뭐 이렇게 과제도 이제 막 늦게 정하고 막 아직도 못 일정한 팀도 있고 막 그러잖아요. 그래서 실질적인 퀄리티 그쪽 팀들은 퀄리티보다도</span></li><li><span class="ts">21:46</span><span><b class="who w2">팀장님</b>맞아요. 예</span></li><li><span class="ts">21:48</span><span><b class="who w2">팀장님</b>보여지는 거에 더 초점을 많이 둘 거 같아요. 그런 팀들도 있을 것 같아. 네.</span></li><li><span class="ts">21:54</span><span><b class="who w2">팀장님</b>그래서 우리도 그런 것쯤을 좀 보강을 해야 되지 않을까 싶어서 그 그래서 이제 개발은 어느 정도 이제 연상도가 있으니까. 그러니까 물론 더 하면 좋겠지. 좋겠는데.</span></li><li><span class="ts">22:10</span><span><b class="who w2">팀장님</b>왼쪽에 힘을 실는 것도 괜찮지 않을까 싶어서 말씀을</span></li><li><span class="ts">22:14</span><span><b class="who w0">박호용</b>저도 처음에는 원래 그 생각이었어요. 사실 심사위원분들이 보는 거는 이게 어디까지 완성했냐보다도? 아 이 2 아이디어가 적합한가?</span></li><li><span class="ts">22:28</span><span><b class="who w0">박호용</b>그리고 실제로 구현 가능한가? 어 어느까지 그래도 대충까지는 거의 사용할 수 있을 만큼은 구현해 놨나라는 것까지만 본다 생각하거든요. 그 점에 있어서 다른 팀보다도 저희는 그래도 많이 했다.</span></li><li><span class="ts">22:43</span><span><b class="who w0">박호용</b>생각을 하긴 해요. 저는 물론 다른 팀들이 어 저번 주부터 시작해 가지고 얼마나 많이 했을지는 모르겠지만은. 그래서 일단 가장 중요한 건 아이디어고 이게 현업 공무원들한테 어떻게까지 영향이 가는지 그거를 말씀드린 게 더 가장 중요할 것 같다고 저는 저도 생각을 하거든요.</span></li><li><span class="ts">23:05</span><span><b class="who w0">박호용</b>사실 이게 POC 단계 물론 MVP 단계까지 가야 되는데 이 정도면 그래도 MVP 정도까지는 아니어도 PoC까지는 간 거 같고. 음 너무 많은 기능을 담아서 하는 것도 좀 그런가? 싶은 생각도 들기도 하고.</span></li><li><span class="ts">23:32</span><span><b class="who w1">이치국</b>근데 결론은 제 생각 제 생각은 이게 그때 이제 첨언해 주신 거 보면 확실히 그 단계의 발표나 아니면은 이게 가져오는 효과 음 자체에 대해 집중하는 거는 좀 심사. 위원분들이 그런 걸 좀 보시는 거 같고 아이디어 자체라든지 근데 이제 그 수석님께서는 조 수석님께서는 그때도 말씀 주셨던 게 제 외모에 놨던 게 이제 그 한마디로 정의하면 이해 관계자의 실제 편익에 대한 효과를 관점에 둬라. 그때 말씀하셨던 게 저희가 뭐 사진 테스트 뭐 적합도 이런 거에 대해서 고민을 한다고 했더니 그걸 하지 말고 그거보다는 그렇죠.</span></li><li><span class="ts">24:13</span><span><b class="who w1">이치국</b>자체가 이해관계자의 실제 편익이 어떻게 주냐인 건데 저는 그 관점에서 생각했을 때는 크게 두 가지 두 가지라고 보는 거죠. 결국엔 이 사용하는 사용자의 편의성 그럼 이게 뭐 제가 원래는 뭐 병원 앱 UI나 이런 것들에 대해 좀 관심이 있다라고 말씀을 예전에 뭐 할 때도 드리긴 했었고 그래서 뭐 그거에 대한 편의성 기능들에 대한 편의성은 이미 일단 어느 정도 많이 아이디어를 주시고 좋은 것들이 있어서 그대로 가면 될 거 같은데 이제 디자인이 그대로 뭐 어떤 일관되게 유지는 되지만 뭐 버튼의 위치나 안내 방법이라든지 이런 것들에 대한 고민 그런 것들이 조금 더 들어가면 좋을 것 같고 그다음에는 결국에는 이해 관계자라고 하면은 이거를 접수받고 처리하는 사람들인 공무원이라고 생각을 하거든요. 그러면은 이제 그분들에 대한 편익을 생각했을 때는 음 그래서 인터뷰를 한 거고.</span></li><li><span class="ts">25:05</span><span><b class="who w1">이치국</b>그 인터뷰에서 나온 그 내용들이 가장 많았던 게 지금 카톡에 올려 드렸던 내용이고 그래서 이 부분까지도 보안 반영을 해서 완성을 하는 게 좋지 않을까라는 생각이거든요. 그래서 문제점이 아마 그 AI 어떤 믿어 책 보셨으면은 아시겠지만 거기서 엄청 강조하시는 게 저희 인터뷰할 때도 처음 여기 인터뷰할 때도 그렇고 계속 조 수석님은 그 문제 정의를 엄청 중요하게 보시거든요. 에서 저도 그때 그때도 말씀드렸지만 해커톤 나갔을 때도 수상하신 분들 이렇게 다음 단계에 통과하신 분들은 결과물은 다 진짜 비슷비슷했어요.</span></li><li><span class="ts">25:40</span><span><b class="who w1">이치국</b>거의 다 똑같은데 퀄리티도 비슷비슷한데 문제 제기를 얼마나 딥하게 하고 그거에 대한 고민이 있어. 이걸 통해서 아이디어가 나왔냐 아니면은 단순히 그냥 이렇게 하면 좋겠습니다라는 편의성에 대한 측면을 그냥 화두를 던진 것이냐라는 거를 좀 중요하게 보시더라고요. 채점하실 때도 그렇고.</span></li><li><span class="ts">26:01</span><span><b class="who w1">이치국</b>그래서 한번 그 부분에 있어서 신경을 써서 완성을 하면 좋지 않을까라는 생각이 있습니다. 말씀하신 것처럼 엄청나게 크게 바꿀 건 아닌데 그래도 세금을 수정을 하긴 해야 되지 않을까. 그러니까 저도 지금 보는 게 그때도 말씀드렸던 게 기타라고 하면 기타가 도대체 뭐가 있는지조차도</span></li><li><span class="ts">26:23</span><span><b class="who w1">이치국</b>불 꺼졌네.</span></li><li><span class="ts">26:24</span><span><b class="who w2">팀장님</b>아니 우리 회사가 9시 되면 자동으로 불이 꺼져 가지고 아직도 키로 가야 돼요. 네. 사무실에서 사람이 있어서.</span></li><li><span class="ts">26:38</span><span><b class="who w1">이치국</b>음 어 표준이에요. 그래서 기타 같은 경우도 찾아보니까 뭐 제가 이거는 나중에 차후에 정리해서 좀 드릴게요. 그래서 보니까 기타도 유형들이 대표 유형들이 어느 정도 나오기는 하는 거 같아요.</span></li><li><span class="ts">26:50</span><span><b class="who w1">이치국</b>데이터들 봤을 때는 공개된 데이터 민족뿐만이 아니라 그 부분에 대한 안내도 조금 더 친절하게 해 주는 방향으로 좀 수정을 하고 근데 지금 큰 틀은 벗어나지 않고요. 처음에도 만들어졌던 그 틀에서 엄청 크게 변경하진 않되 지금 이 사용자들 그리고 현업에서 느꼈던 부분들을 보완해서 조금 더 어느 정도 있는 걸로 만들면 어떨까? 그리고 그때 말씀드린 것처럼 지금 일단 웹페이지잖아요.</span></li><li><span class="ts">27:19</span><span><b class="who w1">이치국</b>그래서 할 때도 한번 음 시험 영상을 미리 하나 찍어 보면 어떨까 싶어서 저는 그 앞으로 님이 만드셨던 거 기반으로 해서 좀 조금 바꿨던 거 있잖아요. 거기서 디자인 같은 거를 조금 더 손보고 싶은 생각 있거든요. 조금 그걸 손보고 완성이 되면 앱으로 구현하는 거는 한 하루도 안 걸릴 것 같아요.</span></li><li><span class="ts">27:47</span><span><b class="who w1">이치국</b>실제로 해 보니까. 완성만 되면 저는 그 앱까지 구현해서 실제로 제가 찍어서 영상으로 화면 녹화로 해서 남겨서 뭐든지 간에 한번 좀 보여주면 어떨까?</span></li><li><span class="ts">28:05</span><span><b class="who w0">박호용</b>그러면은 그 지금 많이 그 커밋 아직 안 안 어울려 안 올라왔던데. 예 네.</span></li><li><span class="ts">28:19</span><span><b class="who w1">이치국</b>이런 로컬에서만 일단 지금 그렇죠. 그래 가지고</span></li><li><span class="ts">28:23</span><span><b class="who w0">박호용</b>아니면 깃털을 거를 레포를 주세요. 걱정하고 계세요? 네.</span></li><li><span class="ts">28:27</span><span><b class="who w0">박호용</b>레포를 주시면은 제가 반영해 놓을게요.</span></li><li><span class="ts">28:31</span><span><b class="who w0">박호용</b>아 네. 네.</span></li><li><span class="ts">28:32</span><span><b class="who w0">박호용</b>그리고 뭐 개발은 그러면 그렇게 그렇게 그렇게 하시죠? 왜냐면은 불법 주정차 그 추가 추가한 것까지 해서 예 세 개에 더 추가한 것까지 하고 기타 좀 더 자세하게</span></li><li><span class="ts">28:46</span><span><b class="who w0">박호용</b>그다음에 기타는 기타는 어떤 게 있고</span></li><li><span class="ts">28:48</span><span><b class="who w0">박호용</b>그러니까 자전거 전용 도로에서 하는 거나 아니면은 네 불법 주정차가 어 이거 이외에도 주정차 금지 구역들이 있더라고요. 거기에서 주정차 하는 불법 주정차 하는 경우에도 이제 기타로 나가더라고요. 네.</span></li><li><span class="ts">29:05</span><span><b class="who w1">이치국</b>이게 뭐 기타에 보면은 뭐 중앙선 뭐 넘은 거라든지 황색선 도로변 뭐 안전지대 이중 주차 자전고도로 뭐 철길 건널목 뭐 이런 거 이런 것들도 있다고 하더라고요. 위험</span></li></ol></details>
+<details><summary>29:19 — 공무원 편익 정량화와 일정 <span class="cnt">30줄</span></summary><ol class="tr"><li><span class="ts">29:19</span><span><b class="who w0">박호용</b>것들도 좀 더 자세하게 안내하면 더 좋긴 하겠죠. 네. 그리고 근데 제 제 어 저는 거기에 플러스 이제 발표 발표를 발표 할 때 이제 저희가 대상으로 하는 게 문제 제기해서 이제 두 불과 영향을 가잖아요.</span></li><li><span class="ts">29:44</span><span><b class="who w0">박호용</b>한 부류는 이제 신고자분들이 영향을 가실 거고. 편의성을 위해서 그리고 네 사용자. 네.</span></li><li><span class="ts">29:51</span><span><b class="who w0">박호용</b>이 앱을 사용하신 사용자분들의 편의성을 높여 주는 게 가장 목표니까는 두 번째로는 이게 접수하고 나서의 접수하시는 이후에 처리하시는 공무원분들도 이걸 통해서 이제 어떤 편익이 올라가는지를 봐야 되는 거니깐요. 두 가지가 봐야 되는데 사실 하나 뭐 신고자분들의 편익은 많이 데이터가 모인 거 같아요. 네.</span></li><li><span class="ts">30:14</span><span><b class="who w0">박호용</b>이쪽 프로님이 하신 것도 있고 이미 많이 올라온 것들도 있고 해서 거기에서 이제 계속 어떤 불편 사항들이 이제 이렇게 올라갈 거라는 개선책이 다 보이는데 어 현업 공무원분들한테서 봤을 때 어떻게 얼마 이게 이 서비스가 개시될 때 어떻게 편의성이 올라갈지에 대해서는 많이 정량적인 거나 어 그런 게 나오진 않은 거 같아요. 물론 인터뷰를 통해서 이제 그런 근거 문구들을 따올 수 있긴 하겠지만은 정확하게 정량적인 게 좀 필요하긴 하거든요. 봤을 때 혹시 제 발표 그걸 PPT를 보셨으면은 더 이해가 편하실 텐데.</span></li><li><span class="ts">30:56</span><span><b class="who w0">박호용</b>거기 안에 일부러 접수 이후에 그 공무원 분들이 어떤 절차로 그거를 이제 안내하는지 절차로 업무를 진행하는지를 좀 워크 업무 절차를 네 순서대로 만들어 놓고 그중에서 이제 이 앱을 통해서 개선할 수 있는 부분들이 어느 부분들인가를 네 표시해 표시해 봤어요. 근데 그리고 그 다음에는 실제 공무원분들이 하지 않았 이제 이 앱을 통해서 신고가 들어오면은 어떤 행동을 하지 않아도 되는지 그것들을 넣어 놨고. 어떻게 그래서 어떤 것들이 줄어드는지를 수치적으로 났는데 사실 다 가상 어 추정 데이터긴 해요.</span></li><li><span class="ts">31:45</span><span><b class="who w0">박호용</b>그래서 이것들을 좀 정확한 데이터로 좀 바꿀 필요가 있다. 생각을 하거든요. 예를 들어서 공무원분들이 처리하는 업무 절차가 여기 발표 자료에 있는 내용과 일치하는지 그것 정도는 당연히 파악해야 될 것 같고 이게 아니라면은 수정해 수정해야 될 거 같고.</span></li><li><span class="ts">32:10</span><span><b class="who w0">박호용</b>그리고 이 안에서 이 앱이 나왔을 때 실제로 어 업무 경감이 될 부분들이 어느 절차 부분들이 어느 부분들인지도 그분들께 다시 한번 물어야 될 것 같아요. 그리고 마지막으로는 좀 약간 정량적으로 가능하면은 어 현재 지금 어. 신고건수 중에서 어떤 것들이 불수용 처리가 되는데 이런 것들이 그 그냥 단순한 신고 단순한 신고의 잘못으로 불수용 처리가 되는 것 그런 건들인지 이 앱을 통해서 그런 건들이 얼마나 줄어들 것인지를 좀 수치적으로 안내를 해 드린 게 어 나중에 심사할 때나 그럴 때에도 좀 더 도움이 되지 않을까.</span></li><li><span class="ts">32:59</span><span><b class="who w0">박호용</b>문제 의식 차원에서라도 도움이 될 것 같거든요. 그래서 앱 개발은 앱 개발이지만은 이제 문제 의식의 부분을 좀 더 구체화해야 되니까는 그 부분들을 데이터를 모아내는 게 좀 필요하다는 생각이 듭니다. 지금은 되게 네.</span></li><li><span class="ts">33:20</span><span><b class="who w2">팀장님</b>각서에 대한 분야</span></li><li><span class="ts">33:22</span><span><b class="who w0">박호용</b>그렇죠. 어떻게 어떻게 어떻게 보면은 완성도 가장 처음에 해야 되는 부분인데 이제 PPT를 하다 보니까는 저번에 중간 발표 때도 그렇고 계속 의견 듣다 보니까는 아 이런 부분들이 더 필요하겠다는 생각이 들잖아요. 이제 그 부분들 이제 반영해 가지고 PPT에 넣어야 되니까는 넣어 봤는데 지금은 사실 그냥 추정치로 넣어 놓은 거라서 이게 맞는지도 확인해야 될 거 같고.</span></li><li><span class="ts">33:47</span><span><b class="who w0">박호용</b>그럴 것 같습니다.</span></li><li><span class="ts">33:50</span><span><b class="who w1">이치국</b>일단은 이제 뭐 어느 단계에서 그 업무적으로 병력 현상이라고 해야 되나요? 그런 것들이 해소가 되는지는 확인이 가능할 것 같고 그다음에 워크플로우도 제가 그거는 한번 더 확인해 볼게요. 확인해 보고.</span></li><li><span class="ts">34:06</span><span><b class="who w1">이치국</b>다만 근데 정량적인 부분은 좀 어려울 것 같다는 생각은 들어요. 그래서 그거는 데이터를 뽑아내거나 하면 좋은데 그거는 뭐 담당자분이 모르시는 건지는 모르겠지만 확인해 봤는데 그거는 좀 뭐 추출하기가 좀 어렵다고 하더라고요. 이럴 필요가 없는 상황이고 하다 보니까.</span></li><li><span class="ts">34:24</span><span><b class="who w1">이치국</b>그래서 안 되면은 뭐 어떻게 생각하시는지 모르겠는데 그냥 실제로 자기가 업무를 그 뭐 1년 2년 담당을 계속 해 왔을 거 아니에요. 하면서 그냥 통상적으로 느꼈던 뭐 대략 한 뭐 이렇게 잘못 들어오는 비중이 뭐 한</span></li><li><span class="ts">34:42</span><span><b class="who w1">이치국</b>30% 이상 되는 거 같다. 예 그 정도라도 괜찮죠.</span></li><li><span class="ts">34:45</span><span><b class="who w1">이치국</b>그래서 그거를 통해서 그냥 그걸로 추정치로 정량화해서 해 보는 것도 방법이지 않을까라는 생각은 듭니다. 그래서 그것까지는 일단 제가 주중에 한번 더 확인을 해서 고 중간에 빨리 말씀드릴 수 있으면 빨리 말씀을 드리고요. 네.</span></li><li><span class="ts">35:00</span><span><b class="who w1">이치국</b>조금 시간이 걸리거나 하면 걸릴 것 같진 않거든요. 제가 직접 직접적으로 막 통화해서 계속 여쭤보기는 조금 어려워서 뭐 다른 뭐 또 이제 공무원분들 통해서 제가 지금 계속 전달은 받고 있거든요. 그래서 받는 대로 그거는 공유를 드리고 이곳 좀 더 종이가 완성되면 그거는 또 그 저희 금요일 날 만날 때 한 번 더 그 부분에 대해서는 정리가 되면 또 말씀을 드릴 수 있도록 하겠습니다.</span></li><li><span class="ts">35:26</span><span><b class="who w1">이치국</b>근데 가급적이면은 뭐 수요일 안쪽으로 네 말씀해 드리도록 하겠습니다.</span></li><li><span class="ts">35:33</span><span><b class="who w0">박호용</b>다음 주에 또 중간 발표를 할런가요?</span></li><li><span class="ts">35:36</span><span><b class="who w1">이치국</b>할 것 같네요. 저번 주에도 막 안 했다가 또 근데 주제가 안 정해진 적도 있고 해 가지고 아마 그쪽 쪽으로 위주로 듣지 않을까라는 생각.</span></li><li><span class="ts">35:44</span><span><b class="who w2">팀장님</b>없다고 그랬어요.</span></li><li><span class="ts">35:47</span><span><b class="who w2">팀장님</b>쓰면 다행인데.</span></li><li><span class="ts">35:48</span><span><b class="who w2">팀장님</b>달려나와. 거기다 안 한다고 지난번에 물어봤을 때 안 한다. 그러긴 했는데</span></li><li><span class="ts">35:51</span><span><b class="who w0">박호용</b>아 그래요? 주말부터 망한다고요? 아 그래요?</span></li><li><span class="ts">35:55</span><span><b class="who w0">박호용</b>왜냐면은 이게 한다 그랬어요. 계속 내용이 발표한 내용이 계속 중복되잖아요. 그래서 사실 다음 주도 발표하면은 다음 주쯤에는 대부분 다 대부분 팀들이 대부분 거의 최종으로 만들었을 것 같거든요.</span></li><li><span class="ts">36:10</span><span><b class="who w0">박호용</b>네. 조금 조금씩 이제 보완할 거는 있겠지만은 근데 또 최종 발표를 또 하면은 했던 내용 또 하고 또 하고 그럴 거 같아. 가지고 하나 싶어 가지고요.</span></li><li><span class="ts">36:22</span><span><b class="who w0">박호용</b>그리고 이게 만약에 종합 발표가 있으면은 최종 발표 TPT가 아니라 또 중화 발표 PP가 되니까는 또 만들어야 되니까.</span></li><li><span class="ts">36:34</span><span><b class="who w1">이치국</b>한번 그러면은 4주권 같은 경우 1.5점 뭐 그냥 중간에 그 오팀장님이나 한번 여쭤보고 실제 이번 주에는 어떻게 진행되?</span></li><li><span class="ts">36:44</span><span><b class="who w0">박호용</b>그냥 아 제가 한번 물어볼게요. 네</span></li><li><span class="ts">36:46</span><span><b class="who w0">박호용</b>네 네 네.</span></li></ol></details>
+<details><summary>36:54 — 발표자, 통계 자료 <span class="cnt">41줄</span></summary><ol class="tr"><li><span class="ts">36:54</span><span><b class="who w0">박호용</b>저는 이치국 프로님이 해 주실 거예요? 해 주시겠죠?</span></li><li><span class="ts">36:59</span><span><b class="who w0">박호용</b>하나요?</span></li><li><span class="ts">37:03</span><span><b class="who w0">박호용</b>잘하실 수 있을 것 같습니다.</span></li><li><span class="ts">37:04</span><span><b class="who w0">박호용</b>가장 이해도가 높으셔 가지고. 예 발표 인터뷰 내용도 많이 해 주셨고.</span></li><li><span class="ts">37:12</span><span><b class="who w2">팀장님</b>저의 발표 실력을 보고 하셔야겠다는 생각이 굳게 되지 않으셨나요?</span></li><li><span class="ts">37:16</span><span><b class="who w1">이치국</b>아이 뭐 팀장님 너무 잘</span></li><li><span class="ts">37:17</span><span><b class="who w0">박호용</b>맡겨도 되겠다는 생각도 저는 아니에요?</span></li><li><span class="ts">37:21</span><span><b class="who w1">이치국</b>저도 그냥 마법이 놓이네.</span></li><li><span class="ts">37:24</span><span><b class="who w2">팀장님</b>아 내가 이것보다 훨씬 잘하지. 막 나 시켜</span></li><li><span class="ts">37:29</span><span><b class="who w2">팀장님</b>어 아닙니다.</span></li><li><span class="ts">37:31</span><span><b class="who w2">팀장님</b>이거는 너무 너무 너무 힘들어. 맞습니다. 아 제가 제가 언젠가 한번 행안부 통계 연보를 한번 봤는데 네.</span></li><li><span class="ts">37:41</span><span><b class="who w2">팀장님</b>거기에서 안전신문고 그 수용 불수용율이 있었어요. %가 있었는데 그런데 그게 원하지가 않더라고. 워낙에 워낙에 되는 게 아니어 가지고.</span></li><li><span class="ts">37:55</span><span><b class="who w0">박호용</b>뭐가 워낙에 아닌 거가 아니요. 뭐가 원한 게 아니세요?</span></li><li><span class="ts">37:59</span><span><b class="who w2">팀장님</b>뭐 원하는 정보가 아니었어요.</span></li><li><span class="ts">38:02</span><span><b class="who w2">팀장님</b>그러니까 아 원하는</span></li><li><span class="ts">38:04</span><span><b class="who w2">팀장님</b>예 예 그러니까 안전 신고 전체에 대한 통계지. 그 차량을 하고 있는 거 그거에 대한 게 아니어? 가지고</span></li><li><span class="ts">38:12</span><span><b class="who w0">박호용</b>아니 여기 있긴 해요. 있어요 있기는 있기는 있는데 믿고 예전에 저번에 드리긴 했잖아요. 드리긴 했었거든요.</span></li><li><span class="ts">38:21</span><span><b class="who w0">박호용</b>네 약간 불법 주정차 신고 그러니까 각 내 탭마다 내 내 탭에 대한 어 조치 실적이 다 나오긴 하거든요. 네 이거를 다 그냥 다운받아서 정리한 게 예전에 한번 드린 거였고. 네.</span></li><li><span class="ts">38:40</span><span><b class="who w0">박호용</b>음 근데 이것보다도 사실 더 자세한 게 갖고 싶은 거죠. 사실 이 불수용 중에서도 왜 불수용되는지 예 단순 단순 뭐 착오로 인해서 뭐 불수용되는 건지 아니면 잘못 신고해서 이렇게 불수용한 거랑 하는 건지. 실제로 위반 어느 단계까지 가서 불소행인지를 잘 모르니깐요.</span></li><li><span class="ts">39:08</span><span><b class="who w0">박호용</b>이게.</span></li><li><span class="ts">39:10</span><span><b class="who w1">이치국</b>근데 그게 보니까 그 데이터 자체가 어떤 프로세스가 어떤 단계에서 이게 뭐 불수용 수용을 판단했는지 실무자가 그런 거에 대한 데이터를 안 낸 것 같더라고요 보니까. 애초에 그냥 교육이 데이터가 눈대기로 그냥 엑셀로 온대요. 음 엑셀로 보면 안 들어오</span></li><li><span class="ts">39:30</span><span><b class="who w2">팀장님</b>그러니까 이거는 그걸 보려면은 아마 DB를 뒤져 가지고 그 시스템 관리자가 그렇죠. DB를 뒤져서</span></li><li><span class="ts">39:37</span><span><b class="who w0">박호용</b>찾아야 될 거에요. 네. 쿼리를 찾아서 어느 순간에서 이제 불수용 처리했는지 봐야죠.</span></li><li><span class="ts">39:43</span><span><b class="who w2">팀장님</b>사용자한테는 그냥 그 명단 뽑아서 엑셀만 주는 거고 쿼리 추출 해야 돼요. 연속으로 어느 단계에서 에러가 났는지는 이제 DB를 다 뒤져 봐야 되는데 그 정보는 외부 직원한테도 잘 안</span></li><li><span class="ts">39:53</span><span><b class="who w2">팀장님</b>안 주겠죠. 네.</span></li><li><span class="ts">39:57</span><span><b class="who w2">팀장님</b>그래도 2 XR 이 PDF 파일 되게 좋은데요?</span></li><li><span class="ts">40:03</span><span><b class="who w0">박호용</b>이거 예전에 정리해서 드린 거예요. 네. 이거를 이거를 정 이거를 한 1년권과 3년 건가를 정리해서 드렸어요.</span></li><li><span class="ts">40:11</span><span><b class="who w0">박호용</b>엑셀로. 카톡 위에 보시면 있어요.</span></li><li><span class="ts">40:16</span><span><b class="who w1">이치국</b>네 네 네. 어. 근데 그 그 그거 데이터 근데 찾으신 게 어디서 찾으신 거예요?</span></li><li><span class="ts">40:21</span><span><b class="who w0">박호용</b>여기서요. 안전신문고 홈페이지요.</span></li><li><span class="ts">40:25</span><span><b class="who w0">박호용</b>홈페이지에서.</span></li><li><span class="ts">40:26</span><span><b class="who w0">박호용</b>잠깐만요.</span></li><li><span class="ts">40:40</span><span><b class="who w0">박호용</b>월마다 운영 현황을 올리더라고요. PDF로 네. 그리고 아마 이게</span></li><li><span class="ts">41:00</span><span><b class="who w2">팀장님</b>1년 1년 한 3개월치 대형 25</span></li><li><span class="ts">41:03</span><span><b class="who w0">박호용</b>그렇죠. 예</span></li><li><span class="ts">41:04</span><span><b class="who w0">박호용</b>그게 아마 그때부터 제공됐던 거 같아요. 월별로 그래서 그렇게 그렇게 했던 거 같아요. 그러니까</span></li><li><span class="ts">41:14</span><span><b class="who w2">팀장님</b>그러니까 이거라도 이거라도 넣어야지 뭐 우리가 원하는 그 정보는 구하기가 쉽지가 않을 것 같아요. 아니면 정보 공개 청구</span></li><li><span class="ts">41:22</span><span><b class="who w0">박호용</b>하는 건 좀 그렇고.</span></li><li><span class="ts">41:24</span><span><b class="who w2">팀장님</b>거기 가서 기간 내에 나올 것 같지도 않고</span></li><li><span class="ts">41:26</span><span><b class="who w0">박호용</b>안 줄 거예요. 없다. 그럴 거예요.</span></li><li><span class="ts">41:29</span><span><b class="who w1">이치국</b>저도 그렇게 생각합니다.</span></li></ol></details>
+<details><summary>41:33 — 결론 — 3개 유형 추가, 사진 채점, 할 일 <span class="cnt">74줄</span></summary><ol class="tr"><li><span class="ts">41:33</span><span><b class="who w2">팀장님</b>그래 그러면은 일단은 뭐 이치국 프로님이랑 뭐 박호용 프로님이 다 원하시는 대로 그 세 가지 추가 저는 이제 확실히 하기로 했고 기타를 얘네들도 정의를 못 하니까</span></li><li><span class="ts">41:53</span><span><b class="who w0">박호용</b>이 기타가 그러긴 해요.</span></li><li><span class="ts">42:00</span><span><b class="who w2">팀장님</b>고민 한번 해 보고 일단은 3개만 추가 기술적으로는 3개만 추가하는 걸로 하고 PPT는 커뮤니티에서는 그 공무원의 실제 인터뷰 내용이랑 수치적인 부분을 확인할 수 있으면 확인해 가지고 추가하는 걸로. 더 더 부활받는 데가 없으려나? 사진은 네.</span></li><li><span class="ts">42:34</span><span><b class="who w2">팀장님</b>사진 사진 안 열어 봤네요. 저 제가 보고 나서 안 열어 봤어요. 사진은</span></li><li><span class="ts">42:37</span><span><b class="who w0">박호용</b>부족하죠. 그래도 예 저도 몇 권 못 찍었어요. 몇 권 못 찍고 못 올렸어요.</span></li><li><span class="ts">42:41</span><span><b class="who w0">박호용</b>네. 몇 권적 몇 건 몇 권 안 올려져 있더라고요. 네.</span></li><li><span class="ts">42:47</span><span><b class="who w2">팀장님</b>몇 개 해 가지고 만들었어. 그 채PT로 해 가지고 이미지 만들어 줘 해 가지고 만들었는데. 잘 안 되겠더라고요.</span></li><li><span class="ts">42:58</span><span><b class="who w2">팀장님</b>그분이 프로그램에 대해서 돌려봤더니 나는 전부 수용 불수용 그렇게 해 가지고 딱 갈라져서 될 줄 알 음 뭐 시간이 없어. 시간이 안 맞습니다. 막 그러면</span></li><li><span class="ts">43:10</span><span><b class="who w0">박호용</b>음 시간 시간 빼고 이게 그 공간 자체에 있어서 네. 그것만 판단하게 하는 게 저번에 그렇게 하자 하자 하지 않으셨던가요?</span></li><li><span class="ts">43:26</span><span><b class="who w2">팀장님</b>일단은 일단 테스트 정도까지는 할게요. 그것도 그것도 그것도 괜찮긴 하죠.</span></li><li><span class="ts">43:35</span><span><b class="who w0">박호용</b>굳 이 시간까지는 어차피 시간은 그냥 정해져 있잖아요. 사진에 찍힌 시간 때문에 정해져 있어서. 해당 해당 사진을 봤을 때 AI로 판별하는 게 어.</span></li><li><span class="ts">43:52</span><span><b class="who w0">박호용</b>버스 정류장인지를 판정하는 건지 소화전인지를 판정하는지. 그것들 판정이 정확한지 여부만 재현율로 해서 하는 게 어떨까? 네.</span></li><li><span class="ts">44:06</span><span><b class="who w0">박호용</b>그 사진도 한 장 찍밖에 안 찍었거든요. 일부러.</span></li><li><span class="ts">44:17</span><span><b class="who w2">팀장님</b>1 1시간 1시간이라고 빨리 끝내라고. 네. 저한테 있는 경우당 뜨네요.</span></li><li><span class="ts">44:21</span><span><b class="who w0">박호용</b>네 저도 왔어요. 왜 그러지? 저번엔 2시간 했었는데.</span></li><li><span class="ts">44:25</span><span><b class="who w0">박호용</b>이상하네.</span></li><li><span class="ts">44:27</span><span><b class="who w0">박호용</b>왜 전화 안 오는데.</span></li><li><span class="ts">44:30</span><span><b class="who w2">팀장님</b>아 들어온 시간부터</span></li><li><span class="ts">44:34</span><span><b class="who w0">박호용</b>그런가? 아닌데?</span></li><li><span class="ts">44:36</span><span><b class="who w2">팀장님</b>이상하네. 제가 또 친구님보다 더 빨리 왔으니까 저한테 먼저 보여주고 좀 이따 시간들 해서 한 몇 분</span></li><li><span class="ts">44:45</span><span><b class="who w0">박호용</b>그럼 그렇게 하시죠. 그냥 그 개발한 거는 근데 직업군은 거의 다 개발할 수 있죠.</span></li><li><span class="ts">44:52</span><span><b class="who w1">이치국</b>네. 예 네 좀 더 보긴 해야 될 것 같아요.</span></li><li><span class="ts">44:55</span><span><b class="who w0">박호용</b>근데 그 내용 아 근데</span></li><li><span class="ts">44:57</span><span><b class="who w1">이치국</b>원래. 네. 아 저기 말씀 중에 그 그 위치 정보는 그냥 패스 하시는 거죠?</span></li><li><span class="ts">45:02</span><span><b class="who w1">이치국</b>어떤 거요?</span></li><li><span class="ts">45:04</span><span><b class="who w0">박호용</b>우리 얘기 나왔던 거</span></li><li><span class="ts">45:05</span><span><b class="who w0">박호용</b>일시정보요? 까지 같이 아니 아니 앱 어차피 패시브 네. 그건 어차피 그냥 규칙으로 규칙으로 하는 거라서.</span></li><li><span class="ts">45:11</span><span><b class="who w0">박호용</b>그건 AI가 할 게 아니고 사진에 있는 정보니까는 그 정보만 읽을 수 있으니까 상관없을 것 같고. AI는 사진에 있는 이제 구조물이나 그런 것들을 불법 추정치 인지 여부만 판단할 수 있는 있으면 되잖아요. 거기까지만 하면 될 것 같은데요.</span></li><li><span class="ts">45:39</span><span><b class="who w0">박호용</b>쭉 보니까 래퍼 한번 공해 주세요. 아 저번에 공유 안 해 주셨더라고요. 네.</span></li><li><span class="ts">45:45</span><span><b class="who w0">박호용</b>아 로컬 로컬로만 하셨다고 했죠? 예</span></li><li><span class="ts">45:52</span><span><b class="who w1">이치국</b>조금만 더 손 보고 네</span></li><li><span class="ts">45:54</span><span><b class="who w1">이치국</b>네.</span></li><li><span class="ts">45:56</span><span><b class="who w0">박호용</b>그 말 중요합니다. 네 그럴게요.</span></li><li><span class="ts">45:58</span><span><b class="who w0">박호용</b>그리고 인터뷰 내용 나중에 한번 해 주시고.</span></li><li><span class="ts">46:02</span><span><b class="who w0">박호용</b>조금 다시 한번 다시 한번 말씀해</span></li><li><span class="ts">46:05</span><span><b class="who w0">박호용</b>말씀해 주세요. 아 인터뷰 내용 혹시 정리된 거 있으면은 어 들어오는 거 있으면 계속 말씀해 주시고 저도 음 다시 물어볼게요. 한번 공무원분들께.</span></li><li><span class="ts">46:15</span><span><b class="who w0">박호용</b>어. 실제 이 절차 절차 저도 그 뭐지? 업무 처리한 절차 확인 다시 한번 하고 어.</span></li><li><span class="ts">46:24</span><span><b class="who w0">박호용</b>그거를 이 앱을 통해서 어떻게 개선할 계속 개선 실제 업무량이 각 절차마다 어떤 짓 확인하고? 그리고 이 앱을 통해서 각 절차의 업무가 얼마나 개선될 수 있는지 그것들을 어 최대한 정량화할 수 있도록 한번 알아보겠습니다. 네.</span></li><li><span class="ts">46:44</span><span><b class="who w0">박호용</b>네. 저도 알아보고 이치국 프로님도 알아보고 해서 좀 비교해서 한번 어 나중에 담으면 좋을 것 같습니다.</span></li><li><span class="ts">46:53</span><span><b class="who w2">팀장님</b>사진은 그래도 더 필요</span></li><li><span class="ts">46:54</span><span><b class="who w2">팀장님</b>하니까. 예 계속 찍어 주십시오. 네.</span></li><li><span class="ts">46:57</span><span><b class="who w1">이치국</b>아 근데 혹시 이게 거기 실례지만 사진이 직접 진짜 다 찍으신 거</span></li><li><span class="ts">47:01</span><span><b class="who w0">박호용</b>저는 몇 개는 제가 찍었고 몇 개는 만든 거예요.</span></li><li><span class="ts">47:07</span><span><b class="who w2">팀장님</b>아 만든 거를 올리려고 그랬더니 그 우리 앱에서 통과가 안 되더라고.</span></li><li><span class="ts">47:13</span><span><b class="who w0">박호용</b>아 그거는 아마 시간 때문에 그럴 거예요. 시간 때문에 그렇고 그 아래에 그래서 그대 그대 그냥 그냥 그래도 신고하겠습니다라는 게 있어요. 네.</span></li><li><span class="ts">47:26</span><span><b class="who w0">박호용</b>그걸로 넘어가는 되긴 합니다.</span></li><li><span class="ts">47:29</span><span><b class="who w2">팀장님</b>그걸로 테스트 한번 해 보고 된다. 그러면은 우리 같이 공유를 할게요. 네.</span></li><li><span class="ts">47:33</span><span><b class="who w2">팀장님</b>거기 그 클라우드.</span></li><li><span class="ts">47:37</span><span><b class="who w0">박호용</b>또 판 늦은 시간까지 그거 판별할 때 차라리 이걸로 하세요. 그 아이 안 되겠구나. 네.</span></li><li><span class="ts">47:43</span><span><b class="who w0">박호용</b>그러시죠. 네.</span></li><li><span class="ts">47:45</span><span><b class="who w1">이치국</b>왜 말씀하시려던 거 말씀하신</span></li><li><span class="ts">47:47</span><span><b class="who w0">박호용</b>아니요 아니에요. 그 그게 구현이 안 된 거 같아서 아직 원래 그 각 사진마다 판정이 잘 됐는지 안 됐는지를 채점하는 그 페이지를 만들었었는데 이게 정답표가 없다 보니까는 잘 됐는지 안 될지를 모르니깐요. 네.</span></li><li><span class="ts">48:08</span><span><b class="who w0">박호용</b>그러네. 일단 사진은 다 찍은 거를 어 정답표로 만들어 놓고 나서 해야 되는 거라서. 네.</span></li><li><span class="ts">48:16</span><span><b class="who w0">박호용</b>네. 일단 사진 좀 많이 찍으시죠. 다들 네.</span></li><li><span class="ts">48:21</span><span><b class="who w0">박호용</b>네. 네. 알겠습니다.</span></li><li><span class="ts">48:23</span><span><b class="who w0">박호용</b>네.</span></li><li><span class="ts">48:24</span><span><b class="who w0">박호용</b>시간 혹시나 부족하시면은 다음에 한번 더 할까요? 아니면은 다음 주 금요일 날 뺄까요?</span></li><li><span class="ts">48:33</span><span><b class="who w1">이치국</b>필요하면 신청하시는 걸로 하죠. 네. 네.</span></li><li><span class="ts">48:37</span><span><b class="who w1">이치국</b>아니면은 그 카톡에서 뭐 이렇게 정리된 거 같이 보여요.</span></li><li><span class="ts">48:42</span><span><b class="who w2">팀장님</b>이치국 프로님이 만약에 인터뷰를 했는데 안 될 거 같다 싶으면은 그때 한번 보면</span></li><li><span class="ts">48:46</span><span><b class="who w2">팀장님</b>네 네.</span></li><li><span class="ts">48:48</span><span><b class="who w1">이치국</b>안 된다고 뭐 다 안 되진 않을 것 같아요. 낼 거 같은데 어느 정도 길다게까지 제가 체감할 정도로 가능한지. 아 근데 제일 좋은 건 사실은 가서 옆에 가서 그 화면을 보면 제일 좋은데</span></li><li><span class="ts">48:59</span><span><b class="who w0">박호용</b>그러니까 아는 사람이 이제 웃어 가지고.</span></li><li><span class="ts">49:03</span><span><b class="who w0">박호용</b>권동근 프로님한테 물어보면 안 되나?</span></li><li><span class="ts">49:05</span><span><b class="who w0">박호용</b>그거 부끄러운데 그거 하시나요?</span></li><li><span class="ts">49:07</span><span><b class="who w0">박호용</b>거기는 그래도 민원팀에 계실 텐데. 거기에도 주정차 처리하시나요? 아니요 거기 토지 토지 쪽이신데 바로 옆 팀에 계실 테니까는.</span></li><li><span class="ts">49:18</span><span><b class="who w0">박호용</b>아닌가? 놓치면 양계 신랑인가? 민원진은 아마 대부분 다 같이 있을 텐데.</span></li><li><span class="ts">49:30</span><span><b class="who w0">박호용</b>한번 물어볼게요.</span></li><li><span class="ts">49:31</span><span><b class="who w1">이치국</b>그것도 해 볼게요. 예 내년대까지 한번 네. 확인 바꾸겠습니다.</span></li><li><span class="ts">49:36</span><span><b class="who w1">이치국</b>알겠습니다.</span></li><li><span class="ts">49:38</span><span><b class="who w0">박호용</b>고생 많으셨습니다. 예 알겠습니다.</span></li><li><span class="ts">49:41</span><span><b class="who w2">팀장님</b>수고하셨습니다. 막 고생하셨어요. 네.</span></li><li><span class="ts">49:46</span><span><b class="who w0">박호용</b>감사합니다.</span></li><li><span class="ts">49:48</span><span><b class="who w0">박호용</b>네.</span></li></ol></details>
+</section>
+
+</main>
+
+<footer><div class="in">
+  <span>안전신문고 불법주정차 신고 개선 — 국민제안 준비 회의록</span>
+  <span>원본: 음성 261009_203422(.m4a·전사 .txt)</span>
+</div></footer>
+<a class="top" href="#main" aria-label="맨 위로">↑</a>
+</body>
+</html>

@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>불법주정차 신고 개선 회의 정리 · 2026-10-02</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+  :root {
+    --navy: #023064; --blue: #256ef4; --blue-50: #ecf2fe; --blue-100: #d8e5fd;
+    --ink: #1e2124; --sub: #464c53; --quiet: #6d7882; --line: #e5eaef; --head: #eef3f9;
+    --bg: #ffffff; --soft: #f4f5f6; --amber: #c28100; --amber-bg: #fff6e0;
+    --green: #228738; --green-bg: #eaf6ec; --red: #d63d4a; --red-bg: #fdeff0;
+    --edge: #b1b8be; --tint: #f4f5f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8ebee; --sub: #c6ccd2; --quiet: #9aa4ad; --line: #2e353c; --head: #1d2630;
+      --bg: #121619; --soft: #1a1f24; --blue-50: #13233d; --blue-100: #1f3a66; --blue: #6f9cf7;
+      --amber: #f0b64a; --amber-bg: #2d2412; --green: #6cc480; --green-bg: #15281a;
+      --red: #f17c86; --red-bg: #2e1719; --edge: #59636c; --tint: #1a1f24; --navy: #9cc0ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Pretendard Variable", Pretendard, -apple-system, "Malgun Gothic", sans-serif;
+    font-size: 17px; line-height: 1.7; letter-spacing: -0.02em; word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--blue); }
+  .skip { position: absolute; left: -999px; top: 8px; background: var(--ink); color: var(--bg); padding: 8px 12px; border-radius: 6px; z-index: 50; }
+  .skip:focus { left: 16px; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+
+  .notice { background: var(--soft); border-bottom: 1px solid var(--line); font-size: 13px; color: var(--quiet); }
+  .notice .in { max-width: 960px; margin: 0 auto; padding: 6px 16px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .hero { background: var(--blue-50); border-bottom: 1px solid var(--blue-100); }
+  .hero .in { max-width: 960px; margin: 0 auto; padding: 32px 16px 28px; }
+  .hero .kicker { font-size: 14px; font-weight: 700; color: var(--blue); margin: 0 0 6px; }
+  .hero h1 { margin: 0; font-size: clamp(26px, 5vw, 38px); line-height: 1.3; color: var(--navy); letter-spacing: -0.03em; }
+  .hero p { margin: 10px 0 0; color: var(--sub); }
+
+  nav.toc { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
+  nav.toc ul { max-width: 960px; margin: 0 auto; padding: 0 16px; list-style: none; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+  nav.toc a { display: block; padding: 12px 10px; font-size: 15px; font-weight: 700; color: var(--sub); text-decoration: none; white-space: nowrap; border-bottom: 3px solid transparent; }
+  nav.toc a:hover { color: var(--blue); border-bottom-color: var(--blue); }
+
+  main { max-width: 960px; margin: 0 auto; padding: 8px 16px 64px; }
+  section { padding-top: 40px; scroll-margin-top: 52px; }
+  h2 { font-size: 22px; margin: 0 0 6px; color: var(--ink); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  h2 .num { color: var(--blue); font-size: 16px; }
+  .lead { margin: 0 0 16px; color: var(--sub); }
+  h3 { font-size: 17px; margin: 24px 0 8px; }
+
+  .card { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 16px 20px; }
+  .summary { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .summary li { display: grid; grid-template-columns: 7.5em 1fr; gap: 12px; }
+  .summary b { color: var(--navy); }
+
+  ol.topics { margin: 0; padding: 0; list-style: none; counter-reset: t; display: grid; gap: 12px; }
+  ol.topics > li { counter-increment: t; border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px; }
+  ol.topics > li > b::before { content: counter(t) ". "; color: var(--blue); }
+  ol.topics ul, ul.plain { margin: 6px 0 0; padding-left: 1.1em; }
+  ol.topics ul li, ul.plain li { margin: 2px 0; }
+  ul.plain { padding-left: 1.1em; }
+
+  .flow-wrap { border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; }
+  .flow { display: block; width: 100%; min-width: 560px; height: auto; font-family: inherit; }
+  .flow .edges path { fill: none; stroke: var(--edge); stroke-width: 1.25; }
+  .flow .ties path { fill: none; stroke: var(--edge); stroke-width: 1; stroke-dasharray: 3 3; }
+  .flow .arh { fill: var(--edge); }
+  .flow .b { fill: none; stroke: var(--edge); stroke-width: 1.25; }
+  .flow .b-main { fill: var(--blue-50); stroke: var(--blue); stroke-width: 2; }
+  .flow .b-warn { fill: none; stroke: var(--amber); stroke-width: 2; }
+  .flow .b-note { fill: var(--tint); stroke: var(--edge); stroke-width: 1.25; stroke-dasharray: 4 4; }
+  .flow text { fill: var(--ink); text-anchor: middle; font-size: 13px; letter-spacing: -0.01em; }
+  .flow text.n { font-weight: 700; }
+  .flow text.s { fill: var(--quiet); font-size: 11.5px; }
+  .flow text.l { fill: var(--quiet); font-size: 11.5px; text-anchor: start; }
+  .flow text.l.m { text-anchor: middle; }
+  .caption { margin: 8px 0 0; font-size: 15px; color: var(--sub); }
+
+  .dec { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .dec li { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .dec b { display: block; font-size: 14px; color: var(--blue); }
+
+  .tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--head); font-weight: 700; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 4px; border: 1px solid; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .ok { color: var(--green); background: var(--green-bg); border-color: currentColor; }
+  .part { color: var(--amber); background: var(--amber-bg); border-color: currentColor; }
+  .no { color: var(--red); background: var(--red-bg); border-color: currentColor; }
+
+  ul.tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  ul.tasks li { display: flex; gap: 10px; align-items: flex-start; }
+  ul.tasks li::before { content: ""; flex: none; width: 16px; height: 16px; margin-top: 6px; border: 1.5px solid var(--edge); border-radius: 4px; }
+
+  details { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 10px; }
+  summary { cursor: pointer; padding: 12px 16px; font-weight: 700; }
+  summary .cnt { color: var(--quiet); font-weight: 400; font-size: 14px; margin-left: 6px; }
+  ol.tr { list-style: none; margin: 0; padding: 0 16px 12px; font-size: 15px; }
+  ol.tr li { display: grid; grid-template-columns: 3.4em 1fr; gap: 10px; padding: 3px 0; border-top: 1px dashed var(--line); }
+  .ts { color: var(--quiet); font-variant-numeric: tabular-nums; font-size: 13px; padding-top: 2px; }
+  .unk { color: var(--quiet); }
+  .q { color: var(--amber); font-size: 13px; }
+  .legend { font-size: 14px; color: var(--quiet); margin: 0 0 12px; }
+
+  footer { background: #1e2124; color: #c6ccd2; font-size: 14px; }
+  footer .in { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .top { position: fixed; right: 16px; bottom: 16px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 18px; text-decoration: none; display: grid; place-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+
+  @media (max-width: 640px) {
+    .summary li { grid-template-columns: 1fr; gap: 0; }
+    th, td { padding: 8px 10px; }
+  }
+  @media print {
+    nav.toc, .top, .skip { display: none; }
+    details { break-inside: avoid; }
+    details:not([open]) > *:not(summary) { display: block; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">본문 바로가기</a>
+
+<div class="notice"><div class="in">
+  <span>국민제안 준비용 내부 회의록 · 공식 문서 아님</span>
+  <span>작성 2026-10-02</span>
+</div></div>
+
+<header class="hero"><div class="in">
+  <p class="kicker">안전신문고 불법주정차 신고 개선 · 팀 회의</p>
+  <h1>첫 사진 즉시 판독, 남은 시간 알림, 이어하기, 단계별 화면</h1>
+  <p>회의 메모와 녹음 4개(약 14분)를 합친 정리본</p>
+</div></header>
+
+<nav class="toc" aria-label="목차"><ul>
+  <li><a href="#overview">개요</a></li>
+  <li><a href="#discussion">논의 내용</a></li>
+  <li><a href="#flow">신고 흐름</a></li>
+  <li><a href="#decisions">결정사항</a></li>
+  <li><a href="#current">기존 앱 절차</a></li>
+  <li><a href="#proto">시제품 대조</a></li>
+  <li><a href="#rules">지자체 규정</a></li>
+  <li><a href="#todo">할 일</a></li>
+  <li><a href="#reviews">앱 리뷰</a></li>
+  <li><a href="#transcript">녹음 전사</a></li>
+</ul></nav>
+
+<main id="main">
+
+<section id="overview">
+  <h2>회의 개요</h2>
+  <div class="card"><ul class="summary">
+    <li><b>주제</b><span>안전신문고 불법주정차 신고 개선안(국민제안용 시제품) 방향</span></li>
+    <li><b>결론</b><span>첫 사진 즉시 판독·재촬영 안내, 남은 시간 카운트다운·알림, 이어하기, 단계별 화면</span></li>
+    <li><b>자료</b><span>회의 메모, 회의 녹음 4개(약 14분, <a href="#transcript">전사본</a>), 앱 리뷰 불만(정리 중)</span></li>
+  </ul></div>
+</section>
+
+<section id="discussion">
+  <h2>논의 내용 <span class="num">10</span></h2>
+  <ol class="topics">
+    <li><b>첫 사진 즉시 판독</b><ul>
+      <li>첫 사진 촬영 즉시 AI 전송 → 두 번째 촬영 전 유형·발생지역·내용 작성</li>
+      <li>유형에 맞지 않는 사진이면 무엇이 부적합한지 안내 후 첫 사진 재촬영(예: ‘소화전이 나오게 다시 찍어 주세요’)</li>
+      <li>안내 없이 처음으로 되돌리지 않기</li>
+    </ul></li>
+    <li><b>두 사진 같은 자리 판정</b><ul>
+      <li>두 사진이 일정 비율(예: 50%) 이상 겹치면 통과, 미달 시 ‘일치하지 않음’ 알림</li>
+      <li>좌표 비교만으로는 부족 — 같은 좌표라도 방향이 다르면 문제</li>
+      <li>실제 경험: 상황상 반대편에서 찍기도 함 → 사람이 보면 같은 자리, 번호판 일치 시 통과 필요</li>
+      <li>접수 현장: 생각보다 느슨한 판단(완전히 다른 사진만 아니면 동일 처리)</li>
+      <li>두 장 모두 번호판 식별, 같은 번호여야 신고 가능</li>
+    </ul></li>
+    <li><b>유형 판정·복수 유형·기타</b><ul>
+      <li>첫 사진에 유형 2개 이상 → 사람이 선택, AI 추천·권장(또는 유사도 %) 표시</li>
+      <li>예: 소화전보다 어린이보호구역 우선 추천</li>
+      <li>‘기타’ 선택 이유 추정: 유형 고르기 귀찮음, 두 유형이 같이 있어 판단 곤란 → 사진 판정으로 기타 감소 기대</li>
+      <li>기타 신고 줄글의 핵심 키워드 추출 — 후속 활용 가치, 이번 범위(신고 편의성) 밖</li>
+    </ul></li>
+    <li><b>내용 칸</b><ul>
+      <li>유형·장소·시각·차량번호가 채워지면 더 쓸 내용 거의 없음</li>
+      <li>줄글 대신 개조식 — 받는 사람이 공무원</li>
+      <li>담당 공무원 의견: 가장 큰 바람은 분류 정확도 — 현재 사람이 하나씩 재분류, 촬영 부실 사진 다수</li>
+    </ul></li>
+    <li><b>대기시간·타이머</b><ul>
+      <li>현재 앱: 남은 시간 안내 없음, 두 번째를 찍어야 간격 적합 여부 표시 → 여러 번 재촬영</li>
+      <li>1분인지 5분인지 사용자가 모름, 현장에서 안내문 읽을 시간 없음</li>
+      <li>60초→0초 카운트다운, 0초에 소리·진동 알림</li>
+      <li>앱 전환·최소화 때도 화면 맨 위에 남은 시간 표시(아이폰 다이내믹 아일랜드 형식)</li>
+      <li>1~5분 휴대폰 들고 서 있기 눈치 보임 → 대기 중 자리 이동 허용 필요</li>
+    </ul></li>
+    <li><b>이어하기</b><ul>
+      <li>가장 큰 불만: 한 장 찍고 다른 앱을 쓰다 돌아오면 처음부터 다시</li>
+      <li>앱 전환·종료 후에도 진행 중 신고부터 재개, 저장소에 ‘이전 신고 이어하기’</li>
+    </ul></li>
+    <li><b>화면 구성</b><ul>
+      <li>스크롤형 대신 단계별 화면 전환, 한 화면에 한 작업(토스 방식)</li>
+      <li>안전신문고 UI 틀 유지, 편의성 위주 수정</li>
+      <li>사진 먼저 — 다른 칸부터 채우고 나중에 찍는 사람 방지</li>
+      <li>텍스트 과다·가독성 낮음(들여쓰기·띄어쓰기 미흡) 개선</li>
+    </ul></li>
+    <li><b>지자체 규정</b><ul>
+      <li>지자체·지역마다 규정 차이, 유형별 간격 차이</li>
+      <li>촬영 전 좌표로 관할 지자체 판별 → 규정·간격 자동 반영</li>
+    </ul></li>
+    <li><b>위치 사용</b><ul>
+      <li>신고 위치 = 사진 위치(촬영 후 이동해도 무관)</li>
+      <li>휴대폰 위치 = 촬영 전 주변 버스정류장·소화전 확인용</li>
+    </ul></li>
+    <li><b>형태·범위</b><ul>
+      <li>앱 구현 여부 미결 — 백그라운드 남은 시간 표시는 앱에서 구현 제안</li>
+      <li>동영상 촬영안은 범위가 넓어 제외(이전 논의 재확인)</li>
+    </ul></li>
+  </ol>
+</section>
+
+<section id="flow">
+  <h2>합의된 신고 흐름</h2>
+  <p class="lead">첫 사진이 부적합하면 바로 다시 찍고, 두 장이 겹치고 번호판이 같아야 제출</p>
+  <div class="flow-wrap"><svg class="flow" viewBox="0 52 760 768" role="img" aria-label="합의된 신고 흐름: 첫 사진이 부적합하면 바로 다시 찍고, 두 장이 겹치고 번호판이 같아야 제출">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="arh"/></marker></defs>
+<g class="edges"><path d="M300 120V154" marker-end="url(#ar)"/><path d="M300 210V240" marker-end="url(#ar)"/><path d="M300 320V352" marker-end="url(#ar)"/><path d="M300 408V440" marker-end="url(#ar)"/><path d="M300 512V546" marker-end="url(#ar)"/><path d="M300 602V632" marker-end="url(#ar)"/><path d="M300 720V752" marker-end="url(#ar)"/><path d="M410 280H470.0" marker-end="url(#ar)"/><path d="M430 676H470.0" marker-end="url(#ar)"/><path d="M590 252V92H450.0" marker-end="url(#ar)"/></g>
+<g class="ties"><path d="M450.0 476H470.0"/><path d="M450.0 574H470.0"/></g>
+<rect class="b" x="150.0" y="64.0" width="300" height="56" rx="8"/><text class="n" x="300" y="88">첫 사진 촬영</text><text class="s" x="300" y="104">촬영 전 주변 시설·지자체 규정 안내</text><rect class="b" x="150.0" y="154.0" width="300" height="56" rx="8"/><text class="n" x="300" y="178">첫 사진 즉시 판독</text><text class="s" x="300" y="194">유형·발생지역·내용 자동 작성</text><polygon class="b" points="190,280 300,240 410,280 300,320"/><text class="d" x="300" y="284">사진에 유형 근거 있음?</text><rect class="b-warn" x="470.0" y="252.0" width="240" height="56" rx="8"/><text class="n" x="590" y="276">부적합 이유 안내</text><text class="s" x="590" y="292">예: 소화전이 나오게 다시 찍기</text><rect class="b" x="150.0" y="352.0" width="300" height="56" rx="8"/><text class="n" x="300" y="376">유형 확정</text><text class="s" x="300" y="392">2개 이상이면 사람이 선택 · AI 추천 표시</text><rect class="b" x="150.0" y="440.0" width="300" height="72" rx="8"/><text class="n" x="300" y="464">남은 시간 카운트다운</text><text class="s" x="300" y="480">지자체·유형별 간격, 60초 → 0초</text><text class="s" x="300" y="496">0초에 소리·진동 알림</text><rect class="b-note" x="470.0" y="440.0" width="240" height="72" rx="8"/><text class="n" x="590" y="464">앱 전환·최소화 중</text><text class="s" x="590" y="480">화면 맨 위에 남은 시간 표시</text><text class="s" x="590" y="496">앱 구현 시</text><rect class="b" x="150.0" y="546.0" width="300" height="56" rx="8"/><text class="n" x="300" y="570">두 번째 촬영</text><text class="s" x="300" y="586">첫 사진 잔상 표시</text><rect class="b-note" x="470.0" y="546.0" width="240" height="56" rx="8"/><text class="n" x="590" y="570">앱을 벗어나도 진행 유지</text><text class="s" x="590" y="586">다시 열면 진행 중 신고부터</text><polygon class="b" points="170,676 300,632 430,676 300,720"/><text class="d" x="300" y="672">겹침 기준 이상 +</text><text class="d" x="300" y="690">번호판 두 장 일치?</text><rect class="b-warn" x="470.0" y="648.0" width="240" height="56" rx="8"/><text class="n" x="590" y="672">일치하지 않음 알림</text><text class="s" x="590" y="688">제출 불가</text><rect class="b-main" x="150.0" y="752.0" width="300" height="48" rx="8"/><text class="n" x="300" y="781">제출</text><text class="l" x="310" y="340">예</text><text class="l m" x="440" y="270">아니오</text><text class="l" x="600" y="174">첫 사진 다시 촬영</text><text class="l" x="310" y="740">예</text><text class="l m" x="450" y="666">아니오</text></svg></div>
+  <p class="caption">첫 사진 단계에서 부적합 사진을 걸러 재촬영 횟수 축소, 대기 중 앱을 벗어나도 진행 상태 유지.</p>
+</section>
+
+<section id="decisions">
+  <h2>결정사항 <span class="num">12</span></h2>
+  <ul class="dec">
+    <li><b>화면 구성</b>사진 먼저, 이후 단계별 화면 전환(한 화면 한 작업), 안전신문고 UI 틀 유지</li>
+    <li><b>첫 사진 판독</b>촬영 즉시 유형·발생지역·내용 작성, 부적합 시 이유 안내 후 첫 사진 재촬영</li>
+    <li><b>복수 유형</b>사람이 선택, AI 추천·권장 표시</li>
+    <li><b>대기시간</b>지자체·유형별 간격으로 60초→0초 카운트다운, 0초에 소리·진동 알림</li>
+    <li><b>두 번째 촬영</b>첫 사진 잔상 표시</li>
+    <li><b>제출 조건</b>두 사진 겹침 일정 비율(예: 50%) 이상 + 두 장 번호판 식별·일치</li>
+    <li><b>이어하기</b>앱 전환·종료 후에도 진행 중 신고 재개, 저장소의 ‘이전 신고 이어하기’</li>
+    <li><b>지자체 규정</b>촬영 전 좌표로 관할 지자체 판별, 규정·간격 자동 반영</li>
+    <li><b>가독성</b>글자 양 축소, 들여쓰기·띄어쓰기 정리</li>
+    <li><b>내용 칸(제안)</b>줄글 대신 개조식 자동 작성</li>
+    <li><b>앱 구현 시 추가</b>앱 전환·최소화 때 화면 맨 위 남은 시간 표시(아일랜드 형식)</li>
+    <li><b>제외</b>동영상 촬영</li>
+  </ul>
+</section>
+
+<section id="current">
+  <h2>기존 앱 신고 절차</h2>
+  <p class="lead">안전신문고 앱 불법주정차 신고 순서. 단계별 화면, 불편, 시제품 변경점.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>단계</th><th>기존 앱</th><th>불편</th><th>시제품</th></tr></thead>
+    <tbody>
+      <tr><td>1. 유형 선택</td><td>유형 10개 중 하나 선택</td><td>‘기타’ 선택 시 설명만 길고, 무엇이 기타인지 알 수 없음</td><td>유형 선택 없이 사진부터 촬영, 사진으로 유형 자동 판정. 단, 6대 유형만 지원</td></tr>
+    </tbody>
+  </table></div>
+  <h3>1단계 유형 목록(10개)</h3>
+  <ul class="plain">
+    <li><b>6대 유형</b>: 소화전, 교차로 모퉁이, 버스정류소, 횡단보도, 어린이 보호구역, 인도</li>
+    <li><b>그 외</b>: 기타, 장애인 전용구역, 소방차 전용구역, 친환경차 충전구역</li>
+    <li><b>시제품 빈칸</b>: ‘그 외’ 4개 미지원 — 추가 여부는 ‘유형 범위’ 쟁점과 함께 결정</li>
+  </ul>
+</section>
+
+<section id="proto">
+  <h2>현재 시제품과 대조</h2>
+  <p class="lead">결정사항 13개 중 반영 2, 일부 6, 미반영 5. 크게 바뀔 부분은 단계별 화면과 첫 사진 즉시 판독.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>항목</th><th>상태</th><th>시제품 현황</th></tr></thead>
+    <tbody>
+      <tr><td>사진 먼저</td><td><span class="badge ok">반영</span></td><td>첫 화면 = 카메라</td></tr>
+      <tr><td>단계별 화면 전환</td><td><span class="badge no">미반영</span></td><td>신고서는 한 화면 스크롤형</td></tr>
+      <tr><td>첫 사진 즉시 판독·재촬영 안내</td><td><span class="badge part">일부</span></td><td>두 장 촬영 후 판독. 사진에 근거 없으면 ‘○○이 나오게 다시 찍기’ 안내</td></tr>
+      <tr><td>복수 유형 선택·추천</td><td><span class="badge part">일부</span></td><td>규정 우선순위로 하나 자동 선택, 직접 변경 가능. 후보별 추천 표시 없음</td></tr>
+      <tr><td>60초→0초 카운트다운·알림</td><td><span class="badge part">일부</span></td><td>남은 초 카운트다운 있음(테스트용 3초). 소리·진동 없음</td></tr>
+      <tr><td>지자체·유형별 간격</td><td><span class="badge no">미반영</span></td><td>전국 6대 유형·1분 고정</td></tr>
+      <tr><td>첫 사진 잔상</td><td><span class="badge ok">반영</span></td><td>반투명(35%) 겹쳐 표시</td></tr>
+      <tr><td>두 사진 겹침 비율</td><td><span class="badge no">미반영</span></td><td>겹침 측정 없음(앨범 사진만 위치 30m 비교)</td></tr>
+      <tr><td>두 장 번호판 식별·일치</td><td><span class="badge part">일부</span></td><td>두 장 따로 판독, 다르면 제출 차단. 한 장만 읽히면 경고만</td></tr>
+      <tr><td>이어하기</td><td><span class="badge part">일부</span></td><td>진행 중 신고 자동 저장·재개(남은 시간 이어짐). 이전 신고 목록 없음</td></tr>
+      <tr><td>가독성</td><td><span class="badge part">일부</span></td><td>안내문 축소, 글자 크기·줄간격 기준 미정</td></tr>
+      <tr><td>개조식 내용</td><td><span class="badge no">미반영</span></td><td>문장형 자동 작성</td></tr>
+      <tr><td>백그라운드 남은 시간 표시</td><td><span class="badge no">미반영</span></td><td>웹앱 한계 — 앱 필요</td></tr>
+    </tbody>
+  </table></div>
+  <ul class="plain">
+    <li><b>촬영 전 안내</b>: 좌표 기준 근처 정류소·횡단보도·보호구역 안내 이미 있음 → 지자체 규정 안내를 같은 자리에 추가</li>
+    <li><b>겹침 비율 구현</b>: 두 사진 특징점 대조(규칙 기반 영상 처리)로 측정 가능, AI 불필요</li>
+  </ul>
+</section>
+
+<section id="rules">
+  <h2>사실 확인: 지자체별 규정</h2>
+  <p class="lead">회의 의견 대체로 맞음. 단, 6대 유형은 2023년 8월 전국 통일(1분 간격) — 차이는 <b>지자체 추가 유형·단속 시간·유예 시간</b>에서 발생(<a href="https://www.korea.kr/multi/visualNewsView.do?newsId=148918697">정책브리핑</a>).</p>
+  <div class="tbl"><table>
+    <thead><tr><th>지자체</th><th>추가 유형과 간격</th><th>단속·유예 시간 차이</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://www.gm.go.kr/gmpm/vinf/rsdnt_rept_info.jsp">경기 광명시</a></td><td>황색 실선·안전지대·주정차금지구역 <b>10분</b>, 장애인전용구역 1분, 전기차 충전구역 1분~14시간</td><td>인도: 평일 07~21시, 주말 09~18시</td></tr>
+      <tr><td><a href="https://www.andong.go.kr/portal/contents.do?mId=0606040700">경북 안동시</a></td><td>유턴지역·이중주차·안전지대·다리 위·주차장 출입구 <b>5분</b></td><td>버스정류장 06~24시, 점심(11:30~13:30)·주말 유예, 일부 보호구역 특례 15분</td></tr>
+      <tr><td><a href="https://www.asan.go.kr/main/cms/?no=475">충남 아산시</a></td><td>안전지대 <b>1분</b>(7대 운영)</td><td>6대 24시간, 보호구역 평일 08~20시</td></tr>
+    </tbody>
+  </table></div>
+  <ul class="plain">
+    <li><b>시사점</b>: ‘지자체 × 유형’별 간격·단속시간·유예시간 규정표 필요</li>
+    <li><b>자료 출처</b>: 전국 통합 규정 데이터 미확인 → 시군구 홈페이지에서 직접 수집 필요</li>
+    <li><b>참고 데이터</b>: <a href="https://www.data.go.kr/dcat/metadata/15153708">전주시 안전신문고 불법주정차 민원 및 과태료 부과현황</a>(2024년분, 위반구분·부과 여부) — 반려 유형 분석에 활용 가능</li>
+  </ul>
+</section>
+
+<section id="todo">
+  <h2>할 일과 남은 쟁점</h2>
+  <h3>할 일 <span style="font-weight:400;color:var(--quiet);font-size:15px">(담당·기한 미정)</span></h3>
+  <ul class="tasks">
+    <li>구글 리뷰 기반 불법주정차 신고방법 불만 유형화(이치국 프로) → 이 문서에 반영</li>
+    <li>안전신문고 접수 측의 ‘같은 자리’ 판단 기준 확인</li>
+    <li>규정 수집 대상 지역 결정, 지자체별 규정표 작성(유형·간격·단속시간·유예시간)</li>
+    <li>시제품: 단계별 화면 전환으로 재구성</li>
+    <li>시제품: 첫 사진 즉시 판독, 부적합 시 이유 안내·재촬영</li>
+    <li>시제품: 복수 유형 후보 선택 화면 + 추천 표시</li>
+    <li>시제품: 두 사진 겹침 비율 측정, 번호판 두 장 모두 식별 필수로 변경</li>
+    <li>시제품: 카운트다운 0초 소리·진동, 이전 신고 이어하기 목록</li>
+    <li>시제품: 좌표 기반 지자체 규정·간격 적용</li>
+    <li>시제품: 내용 칸 개조식 자동 작성</li>
+    <li>가독성 기준 정리(글자 크기·줄간격·들여쓰기) 후 화면 적용</li>
+    <li>시연 전 대기 간격 실제 기준 복원(테스트용 3초 → 60초)</li>
+  </ul>
+  <h3>남은 쟁점</h3>
+  <ul class="plain">
+    <li><b>앱 vs 웹</b>: 백그라운드 남은 시간 표시·알림은 앱이 유리, 시연은 현재 웹앱</li>
+    <li><b>겹침 기준값</b>: 50% 여부 — 접수 측 기준 확인 후 결정</li>
+    <li><b>유형 범위</b>: 6대 유형만인지, 기존 앱의 나머지 4개·지자체 추가 유형(5분·10분)까지인지</li>
+    <li><b>규정표 관리</b>: 수집·갱신 주체(직접 수집 vs 행안부·지자체 제공 제안)</li>
+  </ul>
+</section>
+
+<section id="reviews">
+  <h2>앱 리뷰 불만</h2>
+  <p class="lead">이치국 프로 작업 중 — 구글 리뷰 기반 불법주정차 신고방법 불만 유형화. 받으면 유형별 건수·시제품 해결 여부 대조 예정.</p>
+</section>
+
+<section id="transcript">
+  <h2>녹음 전사 <span class="num">4개 · 약 14분</span></h2>
+  <p class="legend">카카오톡 음성 자동 전사. 목소리가 작아 일부 부정확, 화자 구분 없음. <span class="unk">(불명확)</span> 알아듣기 어려운 구간 · <span class="q">(?)</span> 추정해서 고친 단어 · 순서는 파일 이름의 시각순(10:44:40·46·51·55).</p>
+  <details open><summary>녹음 1 — 두 사진 같은 자리 판정, 1차 판독 흐름 <span class="cnt">66줄</span></summary><ol class="tr"><li><span class="ts">00:00</span><span>이상에 대한 가이드는 좋은데 안 맞게 찍어도<span class="q">(?)</span> 넘어가는지 아니면 일치하지 않는다라고 알림을 줄거예요.</span></li><li><span class="ts">00:07</span><span>너무 일치 범위가 50% 특정 범위가 넘어가면 일치하지 않는다라고 하면서 넘어가지 않도록 하는 게 맞지 않을까요?</span></li><li><span class="ts">00:16</span><span>아니면 일치하지 않는다라는 게 기준으로 보는 게 좋은 일치 아닌가?</span></li><li><span class="ts">00:22</span><span>신고 자체가 너무 광각에 틀어지거나 아예 위치가 바뀌면 안 되잖아요.</span></li><li><span class="ts">00:29</span><span>그 근거에 따라서 퍼센트를 바꾸거나 아니면 해야 되지 않을까요?</span></li><li><span class="ts">00:34</span><span>사진의 좌표 위치는 좌표 가지고 사진 두개의 좌표 가지고도 비교하면 되긴 한데</span></li><li><span class="ts">00:43</span><span>근데 그 시야가 서로 아예 다른거면 시야가 얼마나 비슷한가에만 비교해가지고</span></li><li><span class="ts">00:53</span><span>한 50% 정도만 비슷하면은 그래도 같은 사진을 2장 찍었다라고 인식해서</span></li><li><span class="ts">00:58</span><span>넘어가는 걸로 하는 겁니다.</span></li><li><span class="ts">01:02</span><span>아예 다른 좌표는 비슷해도</span></li><li><span class="ts">01:06</span><span>아예 다른 위치에서 다른 방향으로 찍어서 하면은 좀 그럴 것 같아요.</span></li><li><span class="ts">01:11</span><span>왠지 저는 이제 신고를 해볼 때 그거는 있더라고요.</span></li><li><span class="ts">01:14</span><span>제가 차가 이렇게 있어요.</span></li><li><span class="ts">01:16</span><span>제가 여기서 이렇게 찍었단 말이에요.</span></li><li><span class="ts">01:20</span><span>상황이 여의치 않을 때가 많아요<span class="q">(?)</span>.</span></li><li><span class="ts">01:22</span><span>그래서 저쪽으로 가서 이제 넘어가서 반대편에서 찍은거에요.</span></li><li><span class="ts">01:26</span><span>물론 거의 비슷하게 나오긴 하는데</span></li><li><span class="ts">01:28</span><span>약간 이제 말씀하신 것처럼 조금 차이가 많아요.</span></li><li><span class="ts">01:32</span><span>그래서 그런 것도 일단 번호판이 맞으면</span></li><li><span class="ts">01:35</span><span>위치가 다르면 어떻게 되는지</span></li><li><span class="ts">01:36</span><span>사람이 봤을 때는 동일한 위치라는 걸 인지할 수 있잖아요.</span></li><li><span class="ts">01:40</span><span>그러니까 넘어가긴 해야되는데</span></li><li><span class="ts">01:42</span><span>이런 걸 말씀하신<span class="q">(?)</span></span></li><li><span class="ts">01:44</span><span>동일한 위치, 동일한 차를 찍었다라는 걸</span></li><li><span class="ts">01:47</span><span>판정할 기술을<span class="q">(?)</span> 어떻게 만들 거냐에 대해서는 조금 궁금해요</span></li><li><span class="ts">01:50</span><span>근데 사실 그거는 접수받는 중에서</span></li><li><span class="ts">01:53</span><span>어디까지를 동일한 위치</span></li><li><span class="ts">01:55</span><span>동일한 사진으로 판단할 것인가를 먼저 확인해봐야 될 것 같거든요</span></li><li><span class="ts">01:59</span><span>거기에 맞게 해야 되는 거니까</span></li><li><span class="ts">02:00</span><span>그래서 우리는 맞으면 통과시켜주자</span></li><li><span class="ts">02:04</span><span>판단을 사람이 하는 거고</span></li><li><span class="ts">02:06</span><span>그 규정이 있을 것 같아서</span></li><li><span class="ts">02:08</span><span>아마 안전신문고에도 좀 있을 것 같아서 다시 한번 확인해 볼게요</span></li><li><span class="ts">02:12</span><span>저도 물어볼 텐데 생각보다</span></li><li><span class="ts">02:14</span><span>체계적이지는 않더라고요</span></li><li><span class="ts">02:16</span><span>아 그래요? <span class="q">(?)</span></span></li><li><span class="ts">02:17</span><span>되게 러프하게 하더라고요 <span class="q">(?)</span></span></li><li><span class="ts">02:19</span><span>완전 딴판인 사진이 아니면은 <span class="q">(?)</span></span></li><li><span class="ts">02:21</span><span><span class="unk">(불명확)</span></span></li><li><span class="ts">02:22</span><span>동일하다 싶습니다 <span class="q">(?)</span></span></li><li><span class="ts">02:24</span><span>그 다음 분류를 해서 <span class="q">(?)</span></span></li><li><span class="ts">02:26</span><span>그 소관부서로 던져줍니다 <span class="q">(?)</span></span></li><li><span class="ts">02:29</span><span>소관부서에서 <span class="q">(?)</span></span></li><li><span class="ts">02:30</span><span>그 소관부서로 <span class="q">(?)</span></span></li><li><span class="ts">02:33</span><span>그런 식으로 왔는데 <span class="q">(?)</span></span></li><li><span class="ts">02:36</span><span>그러면은 <span class="q">(?)</span></span></li><li><span class="ts">02:36</span><span>아 다시 정리하자면은 <span class="q">(?)</span></span></li><li><span class="ts">02:38</span><span>사진 촬영할 때 <span class="q">(?)</span></span></li><li><span class="ts">02:40</span><span>가이드라인은<span class="q">(?)</span> 조금 좋지만은 <span class="q">(?)</span></span></li><li><span class="ts">02:42</span><span>일단 1차적으로 <span class="q">(?)</span></span></li><li><span class="ts">02:43</span><span>사진 2번 찍는데 <span class="q">(?)</span></span></li><li><span class="ts">02:45</span><span>첫 장 먼저 AI한테 보내주고</span></li><li><span class="ts">02:47</span><span>그 AI가 유형분류랑 사진이 어떤 위반사항이 있는지 등록한 다음에</span></li><li><span class="ts">02:54</span><span>그 위반사항이 실제 위반사항이라고 판단되면은</span></li><li><span class="ts">02:58</span><span>그냥 두 번째 장을 두 번째 사진을 찍도록 넘어가고</span></li><li><span class="ts">03:02</span><span>그렇지 않으면은 다시 재촬영하도록</span></li><li><span class="ts">03:05</span><span>어떤 사항 때문에 이거는 부적합한 사진인지</span></li><li><span class="ts">03:09</span><span>다시 안내하는 멘트가 나와가지고</span></li><li><span class="ts">03:11</span><span>다시 첫번째 사진을 찍게 만드는게 좋을 것 같긴 하거든요.</span></li><li><span class="ts">03:17</span><span>그리고 두번째 사진을 찍을때는 첫번째 사진의 잔상이 나와서</span></li><li><span class="ts">03:23</span><span>최대한 같은 각도에서 찍을 수 있도록 하고</span></li><li><span class="ts">03:26</span><span>첫번째 사진과 두번째 사진이 얼마나 겹친지를 확인하고</span></li><li><span class="ts">03:30</span><span>일정 퍼센트 이상 겹쳐야 신고가 가능하고</span></li><li><span class="ts">03:34</span><span>그리고 두 사진에 둘 다 촬영한 차량 번호판이 나와서</span></li><li><span class="ts">03:38</span><span>같은 번호와 일치해야 신고가 가능하도록</span></li><li><span class="ts">03:41</span><span>현재는 좋을 것 같습니다.</span></li></ol></details>
+<details><summary>녹음 2 — 내용 칸, 기타 유형, 복수 유형 <span class="cnt">104줄</span></summary><ol class="tr"><li><span class="ts">00:00</span><span>그 아래 항목들이 대부분 다 나오긴 하잖아요.</span></li><li><span class="ts">00:02</span><span>내용이 이렇게 길게 쓸 게 있나요?</span></li><li><span class="ts">00:05</span><span>그러니까 5자<span class="q">(?)</span>에서 900자인데.</span></li><li><span class="ts">00:08</span><span>그러니까 굳이 여기서 유형이 끝났으면 내용은 그냥 이거 말고는 더 이상 쓸말이 없을 것 같다는 생각이 드는데.</span></li><li><span class="ts">00:15</span><span>저도요. 몇 시에 어디에서 뭐 때문에 <span class="unk">(불명확)</span> 불법주정차인 것 같습니다.</span></li><li><span class="ts">00:22</span><span>근데 막 혹시나 그런 게 있나 싶어가지고 <span class="unk">(불명확)</span> 못 나가고 있습니다.</span></li><li><span class="ts">00:27</span><span>뭐 이런 것도 써야 되나.</span></li><li><span class="ts">00:30</span><span>며칠째 이러고 있네요</span></li><li><span class="ts">00:34</span><span>그런것도 좀</span></li><li><span class="ts">00:37</span><span>보니까 지금 발생시적 같은 경우에는</span></li><li><span class="ts">00:39</span><span><span class="unk">(불명확)</span></span></li><li><span class="ts">00:41</span><span>핸드폰 자체가 그냥</span></li><li><span class="ts">00:43</span><span>핸드폰의 (위치) 이슈<span class="q">(?)</span></span></li><li><span class="ts">00:45</span><span>사이인거 같은데</span></li><li><span class="ts">00:47</span><span>자기 위치가 뭐</span></li><li><span class="ts">00:49</span><span><span class="unk">(불명확)</span></span></li><li><span class="ts">00:51</span><span><span class="unk">(불명확)</span></span></li><li><span class="ts">00:57</span><span>근데 이거는</span></li><li><span class="ts">00:59</span><span>그거는 크게 건들 건 없을 것 같은데요.</span></li><li><span class="ts">01:01</span><span>그 정도는 잘 써줘서</span></li><li><span class="ts">01:03</span><span>저는 이렇게 나오네요.</span></li><li><span class="ts">01:05</span><span><span class="unk">(불명확)</span> 주차 중인 차량을 신고합니다.</span></li><li><span class="ts">01:08</span><span>그래서 유형 보여주고 차량 번호 다시 한 번 하고 시간이랑</span></li><li><span class="ts">01:12</span><span>사실 쓸 때</span></li><li><span class="ts">01:16</span><span>기존에 쓰는 내용을 줄글로 쓰게 나오잖아요.</span></li><li><span class="ts">01:20</span><span>근데 AI가 자동으로 나올 때</span></li><li><span class="ts">01:23</span><span>사실 저는 이런 게 좋아서</span></li><li><span class="ts">01:26</span><span>줄글보다는 개조식</span></li><li><span class="ts">01:28</span><span>약간 공무원 스타일의 딱딱딱딱 떠지는 그런 느낌이 약간 편하긴 하잖아요</span></li><li><span class="ts">01:34</span><span>사실 실제적으로 이거를 받는 사람도 공무원인데</span></li><li><span class="ts">01:39</span><span>접수받는 공무원인데 나오는 내용도</span></li><li><span class="ts">01:42</span><span>혹시 AI가 쓰신다면 공무원이 보기 편한 방식으로 써주면 어떨까?</span></li><li><span class="ts">01:47</span><span>혹시 그 질의할 때 한 번 물어볼 때</span></li><li><span class="ts">01:51</span><span>어떤 식의 내용이 왔으면 좋겠다라고 그런 게 있었나요?</span></li><li><span class="ts">01:55</span><span>솔직히 말씀드리면</span></li><li><span class="ts">02:00</span><span>안 왔으면 좋겠다고 하겠죠?</span></li><li><span class="ts">02:02</span><span>필요 없고 신고 안 했었잖아</span></li><li><span class="ts">02:06</span><span>귀찮다</span></li><li><span class="ts">02:08</span><span><span class="unk">(불명확)</span></span></li><li><span class="ts">02:10</span><span>죄송합니다</span></li><li><span class="ts">02:12</span><span>편했으면 좋겠다 이런 것보다</span></li><li><span class="ts">02:14</span><span>제일 큰 거는 분류가 정확하게</span></li><li><span class="ts">02:17</span><span>애초에 잘 되거나</span></li><li><span class="ts">02:19</span><span><span class="unk">(불명확)</span></span></li><li><span class="ts">02:21</span><span>키워드별로<span class="q">(?)</span></span></li><li><span class="ts">02:23</span><span>아니면 애초에 1차 가르마를 타서</span></li><li><span class="ts">02:26</span><span>그런 건 좋겠다라는 의견이 있었어요.</span></li><li><span class="ts">02:28</span><span>그러면 사람이 굳이 하나씩 있고</span></li><li><span class="ts">02:30</span><span>미분류됐거나 이런 거를 뭐 처리를 한다면</span></li><li><span class="ts">02:33</span><span><span class="unk">(불명확)</span> 처리를 하는 거? 그걸 안 할 수 있는데</span></li><li><span class="ts">02:35</span><span>현업 공무원이 좀 불편한 점이 그거잖아요.</span></li><li><span class="ts">02:38</span><span>아예 처음부터 분류가 제대로 안 돼 있다 보니까</span></li><li><span class="ts">02:41</span><span>그 분류를 지금 현재는 사람이 하나하나 하는데</span></li><li><span class="ts">02:45</span><span>처음부터 이제 사진 촬영도 제대로 안 돼 있는 경우도 많고</span></li><li><span class="ts">02:48</span><span>이런 것들이 여기서 개선하면 그쪽에서는 좀 좋아질 것 같은데</span></li><li><span class="ts">02:52</span><span>아니면은 이거를 기타로 신고하는 유형이 많은지까지는</span></li><li><span class="ts">02:55</span><span>제가 수치적으로 모르겠는데</span></li><li><span class="ts">02:57</span><span>기타로 한다로 치면 이 사람이 줄글로 엄청 썼을 수도 있고</span></li><li><span class="ts">03:01</span><span>거기서의 핵심 키워드를 아예 정해서 볼 수 있게</span></li><li><span class="ts">03:05</span><span>그 사람들이 볼 수 있게</span></li><li><span class="ts">03:07</span><span>그 기타까지 우리는 신경 쓸 수는 없으니까</span></li><li><span class="ts">03:09</span><span>지금 신고 편의성인 거잖아요</span></li><li><span class="ts">03:11</span><span>근데 나중에 활용할 수 있는 핵심 키워드 중간이 돼서</span></li><li><span class="ts">03:15</span><span>그게 가치인 거 같아요</span></li><li><span class="ts">03:18</span><span>사실 신고자분들이 귀찮아서 그냥 들어갈 수도 있을 것 같아요</span></li><li><span class="ts">03:22</span><span>그냥 아무리 봐도 명확하게</span></li><li><span class="ts">03:24</span><span>소화전이고 어린이 안전보호구역인데</span></li><li><span class="ts">03:27</span><span>그냥 그거 누르는 게 귀찮거나</span></li><li><span class="ts">03:30</span><span>아니면 아까 본 것처럼 두 가지가 같이 있어가지고</span></li><li><span class="ts">03:33</span><span>뭐 해야 되지? 기타를 해야 된다고 생각해서</span></li><li><span class="ts">03:36</span><span>하는 경우도 있을 것 같아요</span></li><li><span class="ts">03:38</span><span>그럼 기타로 했을 경우에</span></li><li><span class="ts">03:40</span><span>이게 자동으로 뭔지는</span></li><li><span class="ts">03:42</span><span>근데 사실 우리가 AI로 하면</span></li><li><span class="ts">03:44</span><span>기타를 누르는 일이 많이 없을 것 같긴 하거든요</span></li><li><span class="ts">03:46</span><span>그렇지</span></li><li><span class="ts">03:47</span><span>근데 이 목적 자체가</span></li><li><span class="ts">03:50</span><span>저희가 그렇잖아요</span></li><li><span class="ts">03:51</span><span>사진을 먼저 찍는 바람</span></li><li><span class="ts">03:53</span><span>찍어서 <span class="unk">(불명확)</span> 가이드로 던져주잖아요</span></li><li><span class="ts">03:55</span><span>사진만 같을때 요거 요거 같은데 <span class="q">(?)</span></span></li><li><span class="ts">03:58</span><span>그중에서 맞는거를 이렇게 선택해서 <span class="q">(?)</span></span></li><li><span class="ts">04:01</span><span>그 다음 단계를 진행하세요라는 식으로 하면 <span class="q">(?)</span></span></li><li><span class="ts">04:03</span><span>아마 그게 <span class="unk">(불명확)</span> 대한 문제는</span></li><li><span class="ts">04:07</span><span>조금 해결될 수도 있겠다고 <span class="q">(?)</span></span></li><li><span class="ts">04:09</span><span>일단 없어지고 만약에 <span class="q">(?)</span></span></li><li><span class="ts">04:11</span><span>내가 얘기를 해주겠지 <span class="q">(?)</span></span></li><li><span class="ts">04:12</span><span>소화전을 찍고 싶으셨던 거 같아요 <span class="q">(?)</span></span></li><li><span class="ts">04:15</span><span>소화전이 나오게 다시 찍어주세요 <span class="q">(?)</span></span></li><li><span class="ts">04:17</span><span>알려줘야지 <span class="q">(?)</span></span></li><li><span class="ts">04:18</span><span>그리고 아까 이거 꼭 넣어야 될 것 같아 <span class="q">(?)</span></span></li><li><span class="ts">04:20</span><span>생각하니까 중복에 있을 수 있으니까 <span class="q">(?)</span></span></li><li><span class="ts">04:22</span><span>뭐가 주된건지를 혹시나 사진에 두개가 나온다면</span></li><li><span class="ts">04:27</span><span>사진에 소화전이든 어린이 보호구역이든 두개 이상 나온다면</span></li><li><span class="ts">04:30</span><span>선택하시던지 아니면 얘가 추천을 하시던지</span></li><li><span class="ts">04:35</span><span>만약에 소화전보다 어린이 보호구역이 더 큰거라고 생각하면</span></li><li><span class="ts">04:38</span><span>어린이 보호구역을 더 우선으로 추천한다던지</span></li><li><span class="ts">04:42</span><span>퍼센트</span></li><li><span class="ts">04:44</span><span>추천하면 대부분 권장하는거 하잖아요</span></li><li><span class="ts">04:47</span><span>저 AI도 그렇고 질문하면</span></li><li><span class="ts">04:49</span><span>맞아 권장 나오고 <span class="q">(?)</span></span></li><li><span class="ts">04:51</span><span>너 맨날 얘기만 해 그냥 <span class="q">(?)</span></span></li><li><span class="ts">04:54</span><span>그런 것처럼 거기다가 달아가지고 <span class="q">(?)</span></span></li><li><span class="ts">04:57</span><span>권장 아니면 유사도 같은 식으로 <span class="q">(?)</span></span></li></ol></details>
+<details><summary>녹음 3 — 1차 피드백, 한 화면 한 작업, 타이머 <span class="cnt">37줄</span></summary><ol class="tr"><li><span class="ts">00:00</span><span>너무 좋은데? <span class="unk">(불명확)</span> 그냥 카톡으로 왔어요. 어차피 이거 다 텍스트로 전송하기 편해서.</span></li><li><span class="ts">00:09</span><span>그래서 이제 사진을 1차로 보내고 피드백을 받고 피드백을 보면서 이제 2차 사진을 찍어서 전송을 하겠죠. 전송하면 사실 거의 다 끝난 거겠네요.</span></li><li><span class="ts">00:20</span><span>이제 만약에 1차 분류를 했는데 가이드가 안 맞게 되면 다시 촬영하는 건 1차 촬영이 되는 거죠.</span></li><li><span class="ts">00:28</span><span>1차 촬영을 하고 또 1분이든 5분이든 있다가 촬영을 하고요 그거를 단계별로 그런 표현을 쓰던데 하나면에 하나의 작업만 수행할 수 있게</span></li><li><span class="ts">00:42</span><span>토스가 그런 것 같아요. 너무 여러 개 많이 넣었지 말고</span></li><li><span class="ts">00:48</span><span>이런 식으로 차라리 구성하는 게 더 나을 수도 있겠다.</span></li><li><span class="ts">00:54</span><span>재촬영을 해야된다고 하면 아무런 안내 없이 돌아가기가 아니라 <span class="q">(?)</span></span></li><li><span class="ts">00:59</span><span><span class="unk">(불명확)</span></span></li><li><span class="ts">01:03</span><span><span class="unk">(불명확)</span> 재촬영</span></li><li><span class="ts">01:05</span><span>1차 촬영이 나한테 안내해주고 <span class="q">(?)</span></span></li><li><span class="ts">01:07</span><span>촬영하고 그 다음에 또 시간 카운트까지 해주고 <span class="q">(?)</span></span></li><li><span class="ts">01:10</span><span>맞아요 <span class="q">(?)</span></span></li><li><span class="ts">01:11</span><span>시간 카운트도 좀 명확하게 <span class="q">(?)</span></span></li><li><span class="ts">01:13</span><span><span class="unk">(불명확)</span> 우리 그런거 있잖아</span></li><li><span class="ts">01:15</span><span>수강신청할때 <span class="q">(?)</span></span></li><li><span class="ts">01:17</span><span>뭐요? <span class="q">(?)</span></span></li><li><span class="ts">01:19</span><span>밀리스까지 나오게? <span class="q">(?)</span></span></li><li><span class="ts">01:21</span><span>그..그..그..그게 아니라 <span class="q">(?)</span></span></li><li><span class="ts">01:23</span><span>수강신청 타임<span class="q">(?)</span></span></li><li><span class="ts">01:26</span><span>(서버시간 사이트) 그거를</span></li><li><span class="ts">01:29</span><span>저 수강신청을 해본지가 너무 오래되가지고요</span></li><li><span class="ts">01:34</span><span>얘가 정각 타임을 맞춰놓잖아요</span></li><li><span class="ts">01:36</span><span><span class="unk">(불명확)</span></span></li><li><span class="ts">01:37</span><span>땡 울린다든지 진동을 준다든지</span></li><li><span class="ts">01:40</span><span>약간 뭐 이런식으로 알림을 줘서</span></li><li><span class="ts">01:42</span><span>아 괜찮네 괜찮다</span></li><li><span class="ts">01:46</span><span>차라리 이게 초가 지나가는게 아니라</span></li><li><span class="ts">01:48</span><span>타이머처럼</span></li><li><span class="ts">01:49</span><span>그냥 10,9,8,7 약간 여기서</span></li><li><span class="ts">01:52</span><span>몇초 끝나면 이제</span></li><li><span class="ts">01:53</span><span>진동이 온다든지</span></li><li><span class="ts">01:54</span><span>약간 그런 식의 UI를 주면은 또 좋을 것 같긴 해요. <span class="q">(?)</span></span></li><li><span class="ts">01:58</span><span>왜냐면 저도 할 때 이게 1분인지 5분인지도 <span class="q">(?)</span></span></li><li><span class="ts">02:01</span><span>사람들이 저조차도 진짜 <span class="unk">(불명확)</span>이다 생각하고 해보면</span></li><li><span class="ts">02:06</span><span>그 가이드를 읽을 시간이 없으니까 <span class="q">(?)</span></span></li><li><span class="ts">02:08</span><span>뭔가 뭐 남긴 기회 해야 된다 이런 거든 <span class="q">(?)</span></span></li><li><span class="ts">02:10</span><span>읽을 시간이 없고요. 저도 막 촬영을 받는다. <span class="q">(?)</span></span></li></ol></details>
+<details><summary>녹음 4 — 백그라운드 표시, 이어하기, 위치 <span class="cnt">46줄</span></summary><ol class="tr"><li><span class="ts">00:00</span><span>초가 나오잖아요. 초가 나오는데, 앱을 닫으면 초가 안보여요.</span></li><li><span class="ts">00:09</span><span>애플은 뭐라고 하죠? 아일랜드같은 느낌으로, 위에 뜨게 하는 경우는 어떨까?</span></li><li><span class="ts">00:19</span><span>백그라운드에서 돌면서, 몇 분 됐구나 라고 다른거 하면서 볼 수 있으니까, 대부분 다른 어플로 하고 싶을테니까.</span></li><li><span class="ts">00:28</span><span>그러면은 사용자분들도 편하게 뭔가 볼 수 있을 것 같아가지고</span></li><li><span class="ts">00:34</span><span>그거는 이제 앱으로 만들어볼 때</span></li><li><span class="ts">00:37</span><span>앱으로 만들 때 구현하면 이런 것까지 했구나 라는 생각을 할 것 같아요</span></li><li><span class="ts">00:42</span><span>그렇게 해서 가이드 주고 해서 두 번째 사진을 한다면</span></li><li><span class="ts">00:46</span><span>끝</span></li><li><span class="ts">00:48</span><span>근데 그거는 동영상으로 얘기하셨잖아요</span></li><li><span class="ts">00:53</span><span>처음 봤을 때</span></li><li><span class="ts">00:55</span><span>동영상은 하지 말자고 그랬던 것 같은데</span></li><li><span class="ts">00:59</span><span>동영상까지는 <span class="unk">(불명확)</span>. 너무 넓다고 하지 말자고 그랬던 것 같아요.</span></li><li><span class="ts">01:03</span><span>그리고 또 그때 얘기 나온 게 1분이나 5분 동안 들고 촬영을 해야 되는데</span></li><li><span class="ts">01:08</span><span>그거 더 눈치 보인다. 그런 사람이 힘들 것 같아요.</span></li><li><span class="ts">01:13</span><span><span class="unk">(불명확)</span> 그건 있더라고요.</span></li><li><span class="ts">01:16</span><span>지역으로 이동할 수도 있을 것 같아요.</span></li><li><span class="ts">01:19</span><span>왜냐면 사진을 이 앱으로 찍었잖아요.</span></li><li><span class="ts">01:23</span><span>이게 자동으로 어차피 백그라운드에 저장되더라구요</span></li><li><span class="ts">01:26</span><span>저장이 된 상태에서 내가 위치를 이동해서</span></li><li><span class="ts">01:30</span><span>이동해서 <span class="unk">(불명확)</span> 신고할 수 있겠고</span></li><li><span class="ts">01:33</span><span>근데 어차피 그건 상관없는게</span></li><li><span class="ts">01:35</span><span>제가 구현했을 때는</span></li><li><span class="ts">01:37</span><span>위치를 핸드폰의 위치가 아니라 사진을 (사진 위치를) 추출해 놨어요</span></li><li><span class="ts">01:41</span><span>사진을 잡고 찍히니까</span></li><li><span class="ts">01:43</span><span>사진을 (사진 위치를) 추출해 놨어요</span></li><li><span class="ts">01:45</span><span>그러면 이제 사진을</span></li><li><span class="ts">01:49</span><span>사람이 이동해도 상관없으니까</span></li><li><span class="ts">01:51</span><span>핸드폰을 위치로 한 거는 내가 사진 찍을 때 주변에 버스정류장이 있는지</span></li><li><span class="ts">02:00</span><span>소화전이 있는지 여부를 확인하기 위해서 그것만 확인하려고 핸드폰의 위치를 쓰게 했거든요.</span></li><li><span class="ts">02:07</span><span>나는 궁금한 게 첫 번째 사진을 제출을 했어요.</span></li><li><span class="ts">02:12</span><span>그 사이에 분석을 해가지고 잘된 점 미흡된 점 특히 미흡한 점을 알려주겠죠.</span></li><li><span class="ts">02:18</span><span>그럼 그 앱은 만약에 닫아버리면 나중에 열때</span></li><li><span class="ts">02:24</span><span>열면 자동으로 그게 나오게 해야겠죠?</span></li><li><span class="ts">02:26</span><span><span class="unk">(불명확)</span> 사진 나오는 사진 나오고 추가로 한 장 와서 할 수 있겠죠?</span></li><li><span class="ts">02:30</span><span>그게 안 꺼지게 하는 게 가장 중요한 것 같아요</span></li><li><span class="ts">02:33</span><span>가장 불편한 게 한 잔 찍고 나서 다른 거 하다가 다시 풀러봤는데</span></li><li><span class="ts">02:38</span><span>이미 리프레시돼서 처음부터 시작이 되고 그런 불편점이 너무 많아가지고</span></li><li><span class="ts">02:44</span><span>그거는 당연히</span></li><li><span class="ts">02:46</span><span>기억하고 있도록 해놓고야 할 것 같아요.</span></li><li><span class="ts">02:49</span><span>아니면은 최소한</span></li><li><span class="ts">02:51</span><span>지금 프로님이 만든 것처럼</span></li><li><span class="ts">02:54</span><span>저장해놓게, 이전 거 이어서 가게</span></li><li><span class="ts">02:57</span><span>그런 식으로 하든지</span></li><li><span class="ts">02:59</span><span>저장소에 넣어놔서</span></li><li><span class="ts">03:02</span><span>끝나지 않을까 싶어요.</span></li><li><span class="ts">03:07</span><span>정리해보겠습니다.</span></li></ol></details>
+
+</section>
+
+</main>
+
+<footer><div class="in">
+  <span>안전신문고 불법주정차 신고 개선 — 국민제안 준비 회의록</span>
+  <span>규정 출처: 정책브리핑, 광명·안동·아산시 누리집, 공공데이터포털</span>
+</div></footer>
+<a class="top" href="#main" aria-label="맨 위로">↑</a>
+</body>
+</html>
