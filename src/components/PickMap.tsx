@@ -1,154 +1,83 @@
-import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { LocateFixed, MapPin, Minus, Plus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-
-export interface LatLng {
-  lat: number;
-  lng: number;
-}
-
+import type { Facility, LatLng } from '../lib/geo';
+import type { CaptureHeadingSnapshot } from '../lib/heading';
+import { requestCurrentLocation, LOCATION_LABEL } from '../lib/locationQuality';
+import type { CaptureLocationSnapshot } from '../lib/locationQuality';
+import { createMapController } from '../lib/mapProvider';
+import type { MapController, MapMark } from '../lib/mapProvider';
+import { stopKey } from '../lib/stopCandidates';
+export type { LatLng } from '../lib/geo';
 interface Props {
-  /** 지도를 처음 펼칠 자리 — 보통 사진 좌표 */
   origin: LatLng;
-  /** 사진 좌표의 GPS 오차(m). 있으면 오차 범위를 원으로 그린다. */
   accuracy?: number;
-  /** 지도를 움직여 멈출 때마다 가운데 좌표를 알린다 */
+  originRole?: 'photo' | 'search' | 'manual_vehicle';
   onCenter: (c: LatLng) => void;
+  stops?: Facility[];
+  selectedStopKey?: string;
+  onStopSelect?: (stop: Facility) => void;
+  heading?: CaptureHeadingSnapshot;
 }
-
-type Layer = 'Base' | 'Satellite';
-
-/**
- * 위치찾기 지도 — 지금 앱과 같이 지도/스카이뷰, 확대·축소, 위치 초기화.
- * 핀은 화면 가운데 고정이고 지도를 끌어서 맞춘다. 타일은 /api/tile 이 키를 붙여 대신 받아온다.
- */
-export default function PickMap({ origin, accuracy, onCenter }: Props) {
-  const el = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const onCenterRef = useRef(onCenter);
-  onCenterRef.current = onCenter;
-
-  const [layer, setLayer] = useState<Layer>('Base');
+/** Moving the map changes only a draft center. Parent commits it through an explicit apply action. */
+export default function PickMap({ origin, accuracy, originRole = 'photo', onCenter, stops = [], selectedStopKey, onStopSelect, heading }: Props) {
+  const el = useRef<HTMLDivElement>(null); const controller = useRef<MapController | null>(null);
+  const onCenterRef = useRef(onCenter); onCenterRef.current = onCenter;
+  const dragVersion = useRef(0); const mounted = useRef(false);
+  const [provider, setProvider] = useState<'kakao' | 'vworld'>('vworld');
+  const [ready, setReady] = useState(false); const [satellite, setSatellite] = useState(false);
   const [tileState, setTileState] = useState<'loading' | 'ok' | 'failed'>('loading');
-
+  const [current, setCurrent] = useState<CaptureLocationSnapshot>(); const [locating, setLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState('');
   useEffect(() => {
     if (!el.current) return;
-    const map = L.map(el.current, {
-      center: [origin.lat, origin.lng],
-      zoom: 17,
-      minZoom: 7,
-      maxZoom: 19,
-      zoomControl: false,
-      attributionControl: true,
-    });
-    map.attributionControl.setPrefix(false);
-    if (accuracy !== undefined) {
-      L.circle([origin.lat, origin.lng], {
-        radius: accuracy,
-        color: '#3a8fdb',
-        weight: 1,
-        fillOpacity: 0.12,
-        interactive: false,
-      }).addTo(map);
-    }
-    map.on('moveend', () => {
-      const c = map.getCenter();
-      onCenterRef.current({ lat: c.lat, lng: c.lng });
-    });
-    mapRef.current = map;
-    // 시트가 펼쳐진 뒤 크기를 다시 잰다
-    const t = setTimeout(() => map.invalidateSize(), 50);
-    onCenterRef.current(origin);
-    return () => {
-      clearTimeout(t);
-      map.remove();
-      mapRef.current = null;
-    };
-    // 처음 한 번만 만든다. 다시 맞출 때는 recenter를 쓴다.
+    mounted.current = true; let cancelled = false;
+    const element = el.current;
+    void Promise.resolve().then(() => { if (cancelled) return; return createMapController(element, origin, (p) => { if (!cancelled) onCenterRef.current(p); }, () => { dragVersion.current++; }, (state) => { if (!cancelled) setTileState(state); }, () => cancelled); }).then((map) => {
+      if (!map) return;
+      if (cancelled) { map.destroy(); return; }
+      controller.current = map; setProvider(map.provider); setReady(true);
+    }).catch(() => { if (!cancelled) setTileState('failed'); });
+    return () => { cancelled = true; mounted.current = false; controller.current?.destroy(); controller.current = null; };
+    // A changed draft center is not a new origin. Reopening the sheet starts a fresh map.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
+  useEffect(() => { controller.current?.layer(satellite); }, [satellite, ready]);
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    let loaded = false;
-    setTileState('loading');
-    const tl = L.tileLayer(`/api/tile?layer=${layer}&z={z}&x={x}&y={y}`, {
-      minZoom: 6,
-      maxZoom: 19,
-      attribution: '© 브이월드(국토교통부)',
-    });
-    tl.on('tileload', () => {
-      loaded = true;
-      setTileState('ok');
-    });
-    tl.on('tileerror', () => {
-      if (!loaded) setTileState('failed');
-    });
-    tl.addTo(map);
-    return () => {
-      tl.remove();
-    };
-  }, [layer]);
-
-  const recenter = () => mapRef.current?.setView([origin.lat, origin.lng], 17);
-
+    const items: MapMark[] = [{ ...origin, accuracy: originRole === 'photo' ? accuracy : undefined, color: '#2563eb', label: originRole === 'photo' ? '사진 촬영 위치' : originRole === 'manual_vehicle' ? '사용자 지정 차량 위치' : '탐색 시작 위치', bearing: heading?.status === 'usable' ? heading.sample?.bearing : undefined }];
+    if (current?.sample) items.push({ ...current.sample, color: '#7c3aed', label: '현재 기기 위치' });
+    for (const stop of stops) items.push({ ...stop, label: `${selectedStopKey === stopKey(stop) ? '선택 · ' : ''}${stop.name || '정류소'}${stop.publicId ? ` (${stop.publicId})` : ''}`, color: selectedStopKey === stopKey(stop) ? '#b45309' : '#15803d', onClick: () => onStopSelect?.(stop) });
+    controller.current?.marks(items);
+  }, [origin, accuracy, originRole, current, stops, selectedStopKey, onStopSelect, heading, ready]);
+  const locate = async () => {
+    if (locating) return; setLocating(true); const atDrag = dragVersion.current;
+    const result = await requestCurrentLocation();
+    if (!mounted.current) return;
+    setLocating(false);
+    if (!result.sample || result.quality.status === 'stale') { setLocationMessage(result.quality.reasons[0] || '위치를 확인하지 못했어요. 기존 위치는 유지해요.'); return; }
+    setCurrent(result); setLocationMessage(`${LOCATION_LABEL[result.quality.status]} · 현재 위치는 사진 GPS에 저장되지 않아요.`);
+    if (atDrag === dragVersion.current) controller.current?.center(result.sample);
+  };
   return (
     <div className="relative isolate aspect-square border border-slate-300 bg-slate-100 overflow-hidden">
       <div ref={el} className="absolute inset-0" />
-
-      {/* 가운데 고정 핀 — 핀 끝이 정확히 가운데에 오도록 위로 올린다 */}
-      <MapPin
-        className="pointer-events-none absolute left-1/2 top-1/2 z-[1001] -translate-x-1/2 -translate-y-full w-11 h-11 text-[#3a8fdb] fill-white drop-shadow"
-        strokeWidth={2.5}
-        aria-hidden="true"
-      />
-
-      <button
-        onClick={recenter}
-        className="absolute top-3 left-3 z-[1001] w-[76px] h-[76px] rounded-full bg-[#3a8fdb] text-white text-[14px] leading-tight flex flex-col items-center justify-center shadow"
-      >
-        <LocateFixed className="w-5 h-5" aria-hidden="true" />
-        위치
-        <br />
-        초기화
-      </button>
-
-      <div className="absolute top-3 right-14 z-[1001] flex bg-white shadow rounded-sm overflow-hidden text-[15px]">
-        {(['Base', 'Satellite'] as Layer[]).map((l) => (
-          <button
-            key={l}
-            onClick={() => setLayer(l)}
-            className={`px-3 h-10 ${layer === l ? 'bg-[#3a8fdb] text-white' : 'text-slate-800'}`}
-          >
-            {l === 'Base' ? '지도' : '스카이뷰'}
-          </button>
-        ))}
+      <MapPin className="pointer-events-none absolute left-1/2 top-1/2 z-[1001] -translate-x-1/2 -translate-y-full w-11 h-11 text-[#3a8fdb] fill-white drop-shadow" strokeWidth={2.5} aria-hidden="true" />
+      <div className="absolute top-3 left-3 z-[1001] flex flex-col gap-1">
+        <button type="button" onClick={() => { dragVersion.current++; controller.current?.center(origin); }} className="rounded bg-white shadow px-2 py-2 text-xs text-slate-800">{originRole === 'photo' ? '촬영 위치 보기' : originRole === 'manual_vehicle' ? '지정한 차량 위치 보기' : '시작 위치 보기'}</button>
+        <button type="button" onClick={() => void locate()} disabled={locating} className="rounded bg-[#3a8fdb] text-white shadow px-2 py-2 text-xs flex items-center gap-1 disabled:opacity-50"><LocateFixed className="w-4 h-4" />{locating ? '현재 위치 확인 중' : '현재 위치 다시 찾기'}</button>
       </div>
-
+      <div className="absolute top-3 right-14 z-[1001] flex bg-white shadow rounded-sm overflow-hidden text-xs">
+        {[false, true].map((value) => <button type="button" key={String(value)} onClick={() => setSatellite(value)} className={`px-2 h-9 ${satellite === value ? 'bg-[#3a8fdb] text-white' : 'text-slate-800'}`}>{value ? '스카이뷰' : '지도'}</button>)}
+      </div>
       <div className="absolute top-3 right-2 z-[1001] flex flex-col bg-white shadow rounded-sm">
-        <button
-          onClick={() => mapRef.current?.zoomIn()}
-          aria-label="확대"
-          className="w-10 h-10 flex items-center justify-center border-b border-slate-200"
-        >
-          <Plus className="w-5 h-5 text-slate-700" aria-hidden="true" />
-        </button>
-        <button
-          onClick={() => mapRef.current?.zoomOut()}
-          aria-label="축소"
-          className="w-10 h-10 flex items-center justify-center"
-        >
-          <Minus className="w-5 h-5 text-slate-700" aria-hidden="true" />
-        </button>
+        <button type="button" onClick={() => controller.current?.zoomIn()} aria-label="확대" className="w-10 h-10 flex items-center justify-center border-b border-slate-200"><Plus className="w-5 h-5 text-slate-700" /></button>
+        <button type="button" onClick={() => controller.current?.zoomOut()} aria-label="축소" className="w-10 h-10 flex items-center justify-center"><Minus className="w-5 h-5 text-slate-700" /></button>
       </div>
-
-      {tileState === 'failed' && (
-        <p className="absolute bottom-8 inset-x-3 z-[1001] text-center text-[13px] bg-white/90 rounded py-1.5 text-slate-600">
-          지도를 불러오지 못했습니다 — 지도 키 설정을 확인해 주세요
-        </p>
-      )}
+      <div className="absolute bottom-6 inset-x-2 z-[1001] bg-white/95 text-[11px] text-slate-700 rounded px-2 py-1" aria-live="polite">
+        <p>{provider === 'kakao' ? '카카오 지도' : '브이월드 지도'} · 가운데 핀은 선택 중인 위치예요. 적용 전에는 저장되지 않아요.</p>
+        {locationMessage && <p>{locationMessage}</p>}
+        {tileState === 'failed' && <p>지도를 불러오지 못했어요. 사진 보관과 주소 직접 입력은 계속할 수 있어요.</p>}
+      </div>
     </div>
   );
 }

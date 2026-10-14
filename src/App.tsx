@@ -14,6 +14,8 @@ import type { VisionState } from './lib/vision';
 import { compareShots } from './lib/overlap';
 import { rulesFor } from './lib/localRules';
 import { rankTypes } from './lib/choose';
+import { appendPhoto, normalizeDraft, primaryShots, primaryReads, reviewedReads, activeLocatedShot } from './lib/photoEvidence';
+import { EvidenceWorkspace } from './components/EvidenceWorkspace';
 import { mergeReads } from '../api/vision';
 import { PLATE_CONFIDENCE_FLOOR, isValidPlate } from './lib/rules';
 import { BuildBadge, PhoneFrame, ProtoNotice } from './components/Ui';
@@ -21,7 +23,6 @@ import StartScreen from './components/StartScreen';
 import CaptureFlow from './components/CaptureFlow';
 import ReportSteps from './components/ReportSteps';
 import type { PickedAddress, TypeInfo } from './components/FormParts';
-import { locatedShot } from './types/report';
 import type { DraftReport, EditableField, Shot, ViolationType } from './types/report';
 
 type Screen = 'loading' | 'home' | 'capture' | 'form';
@@ -31,6 +32,11 @@ const NO_TYPE: TypeInfo = { state: 'idle', candidates: [], missing: [], coverage
 
 const statesOf = (d: DraftReport): (VisionState | undefined)[] =>
   d.shots.map((_, i) => (d.reads?.[i] === undefined ? undefined : d.reads[i] ? 'ok' : 'error'));
+
+// EXIF 시각은 여러 사진에서 같을 수 있다. 입력의 사진 ID와 위치 스냅샷으로 재점검을 구분한다.
+const locationInputKey = (shot: Shot) => JSON.stringify([shot.id, shot.takenAt, shot.lat, shot.lng, shot.accuracy, shot.location]);
+const overlapInputKey = (draft: DraftReport, reportId?: string) =>
+  JSON.stringify([reportId, primaryShots(draft).map((shot) => [shot.id, shot.takenAt])]);
 
 /**
  * 흐름(회의 결정)
@@ -48,6 +54,9 @@ export default function App() {
   const [albumState, setAlbumState] = useState<'idle' | 'busy' | 'error'>('idle');
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const pendingPhoto = useRef(false);
+  const [photoImporting, setPhotoImporting] = useState(false);
+  const onPhotoWork = useCallback((pending: boolean) => { pendingPhoto.current = pending; setPhotoImporting(pending); }, []);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const saved = useRef<ReportRecord | null>(null);
   const autoPaused = useRef(false);
@@ -82,8 +91,9 @@ export default function App() {
   }, []);
 
   // 앱을 열면 — 하던 신고가 있으면 바로 그 자리로
-  const geoKey = useRef<number | undefined>(undefined);
-  const open = useCallback((r: ReportRecord) => {
+  const geoKey = useRef<string | undefined>(undefined);
+  const open = useCallback((stored: ReportRecord) => {
+    const r = { ...stored, draft: normalizeDraft(stored.draft) };
     navigation.current += 1;
     autoPaused.current = false;
     saved.current = r;
@@ -93,8 +103,8 @@ export default function App() {
     setSaveState('saved');
     setStorageError(null);
     setReadStates(statesOf(r.draft));
-    const at = locatedShot(r.draft.shots);
-    geoKey.current = r.draft.address && at ? at.takenAt : undefined;
+    const at = activeLocatedShot(r.draft);
+    geoKey.current = r.draft.address && at ? locationInputKey(at) : undefined;
     setScreen(r.phase === 'capture' ? 'capture' : 'form');
   }, []);
   useEffect(() => {
@@ -149,7 +159,7 @@ export default function App() {
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (replacementRef.current || (current.current?.draft.shots.length && current.current !== saved.current)) {
+      if (pendingPhoto.current || replacementRef.current || (current.current?.draft.shots.length && current.current !== saved.current)) {
         event.preventDefault();
         event.returnValue = '';
       }
@@ -165,9 +175,12 @@ export default function App() {
       if (draft.reads?.[i] !== undefined || inflight.current.has(s)) return;
       inflight.current.add(s);
       setReadStates((st) => Object.assign([...st], { [i]: 'loading' }));
-      void readOne(s.dataUrl).then((r) => {
+      const run = navigation.current;
+      const primary = primaryShots(draft);
+      const reference = !primary.includes(s) && primary[0]?.id ? { dataUrl: primary[0].originalDataUrl ?? primary[0].dataUrl, photoId: primary[0].id } : undefined;
+      void readOne(s.originalDataUrl ?? s.dataUrl, { reference, regionHints: s.analysisRegion ? [s.analysisRegion] : undefined, photoIds: [s.id ?? `legacy-${i}-${s.takenAt}`], inputVersion: String(draft.evidenceRevision ?? 0) }).then((r) => {
         inflight.current.delete(s);
-        if (current.current?.id !== rec?.id || current.current?.draft.shots[i] !== s) return;
+        if (run !== navigation.current || current.current?.id !== rec?.id || current.current?.draft.shots[i] !== s) return;
         setDraft((d) => {
           if (d.shots[i] !== s) return d; // 그사이 다시 찍었다
           const reads = [...(d.reads ?? [])];
@@ -182,30 +195,32 @@ export default function App() {
   // 두 사진 겹침 — 규칙 기반 영상 대조
   const ovKey = useRef('');
   useEffect(() => {
-    const [a, b] = draft.shots;
+    const [a, b] = primaryShots(draft);
     if (!a || !b || draft.overlap) return;
-    const key = `${rec?.id}-${a.takenAt}-${b.takenAt}`;
+    const key = overlapInputKey(draft, rec?.id);
     if (ovKey.current === key) return;
     ovKey.current = key;
+    const run = navigation.current;
     void compareShots(a.dataUrl, b.dataUrl).then((o) => {
-      if (current.current?.id !== rec?.id) return;
+      if (run !== navigation.current || current.current?.id !== rec?.id) return;
       setDraft((d) =>
-        d.shots[0] === a && d.shots[1] === b
+        overlapInputKey(d, rec?.id) === key && primaryShots(d)[0]?.dataUrl === a.dataUrl && primaryShots(d)[1]?.dataUrl === b.dataUrl
           ? { ...d, overlap: o ? { ratio: o.ratio, score: o.score, same: o.same } : { ratio: 0, score: -1, same: false } }
           : d,
       );
     });
-  }, [draft.shots, draft.overlap, rec?.id, setDraft]);
+  }, [draft.shots, draft.primaryPair, draft.overlap, rec?.id, setDraft]);
 
   // 사진 좌표 → 발생지역. 사람이 고친 주소는 덮어쓰지 않는다.
-  const located = locatedShot(draft.shots);
+  const located = activeLocatedShot(draft);
   const manualAddress = Boolean(draft.manual?.address);
   useEffect(() => {
     if (!located || manualAddress) {
       setAddressState('idle');
       return;
     }
-    if (geoKey.current === located.takenAt) {
+    const key = locationInputKey(located);
+    if (geoKey.current === key && draft.address) {
       setAddressState('ok');
       return;
     }
@@ -213,7 +228,7 @@ export default function App() {
     setAddressState('loading');
     void reverseGeocode(located.lat!, located.lng!).then((r) => {
       if (stale) return;
-      if (r.state === 'ok') geoKey.current = located.takenAt;
+      if (r.state === 'ok') geoKey.current = key;
       setAddressState(r.state);
       if (r.state === 'ok') {
         setDraft((d) => (d.manual?.address ? d : { ...d, address: r.road ?? r.parcel, addressParcel: r.road ? r.parcel : undefined }));
@@ -251,21 +266,25 @@ export default function App() {
 
   // 판독 합본(읽힌 장만) → 유형 판정(사진 증거)
   const merged = useMemo(() => {
-    const reads = (draft.reads ?? []).map((r) => r ?? null);
+    const reads = primaryReads(draft);
     return reads.some(Boolean) ? mergeReads(reads, draft.model ?? '') ?? undefined : undefined;
-  }, [draft.reads, draft.model]);
-  const verdict = useMemo(() => crosscheck(typeInfo.candidates, typeInfo.coverage, merged), [typeInfo, merged]);
+  }, [draft.reads, draft.model, draft.primaryPair, draft.shots]);
+  const evidenceMerged = useMemo(() => {
+    const reads = reviewedReads(draft).map((r) => r ?? null);
+    return reads.some(Boolean) ? mergeReads(reads, draft.model ?? '') ?? undefined : undefined;
+  }, [draft.reads, draft.model, draft.primaryPair, draft.shots]);
+  const verdict = useMemo(() => crosscheck(typeInfo.candidates, typeInfo.coverage, evidenceMerged), [typeInfo, evidenceMerged]);
   const validation = useRef({ verdict, merged });
   validation.current = { verdict, merged };
   const rules = useMemo(() => rulesFor(draft.address), [draft.address]);
   const options = useMemo(() => {
     if (!verdict.type || !draft.shots[0]) return [];
-    return rankTypes([verdict.type, ...verdict.alternatives], { takenAt: draft.shots[0].takenAt, rules, candidates: typeInfo.candidates });
+    return rankTypes([verdict.type, ...verdict.alternatives], { takenAt: primaryShots(draft)[0]?.takenAt ?? Date.now(), rules, candidates: typeInfo.candidates });
   }, [verdict, rules, typeInfo.candidates, draft.shots]);
 
   useEffect(() => {
-    setDraft((d) => (d.manual?.type || d.type === verdict.type ? d : { ...d, type: verdict.type }));
-  }, [verdict, setDraft]);
+    setDraft((d) => (d.manual?.type || Boolean(d.type) || !evidenceMerged?.evidenceReview?.some((e) => e.status === 'observed') || d.type === verdict.type ? d : { ...d, type: verdict.type }));
+  }, [verdict, evidenceMerged, setDraft]);
 
   // 번호판 — 두 장에서 따로 읽은 값이 같고, 확신이 높고, 형식이 맞을 때만 채운다
   useEffect(() => {
@@ -298,7 +317,7 @@ export default function App() {
 
   // 저장 중에는 화면 조작과 지연 자동저장을 멈추고, 커밋 뒤에만 화면을 바꾼다.
   const persist = async (snapshot: ReportRecord, next: () => void, retry: () => void) => {
-    if (busyRef.current) return;
+    if (busyRef.current || pendingPhoto.current) return;
     busyRef.current = true;
     autoPaused.current = false;
     setBusy(true);
@@ -328,6 +347,7 @@ export default function App() {
   };
 
   const goHome = () => {
+    if (pendingPhoto.current) return;
     if (replacementRef.current) return cancelReplacement();
     const snapshot = current.current;
     const leave = () => { setRec(null); setScreen('home'); void refresh(); };
@@ -344,13 +364,13 @@ export default function App() {
     }));
 
   const onPickAddress = (a: PickedAddress) =>
-    setDraft((d) => ({ ...d, address: a.address, addressParcel: a.parcel, addressFrom: a.from, manual: { ...d.manual, address: true } }));
+    setDraft((d) => ({ ...d, address: a.address, addressParcel: a.parcel, addressFrom: a.from, ...(a.position ? { vehicleLocation: { ...a.position, selectedAt: Date.now(), source: 'user_map' as const } } : {}), manual: { ...d.manual, address: true } }));
 
-  const onShot = (s: Shot) => setDraft((d) => ({ ...d, shots: [...d.shots, s].slice(0, 2) }));
+  const onShot = (s: Shot) => setDraft((d) => primaryShots(d).length < 2 ? appendPhoto(d, s) : d);
 
   const retake = (index: 0 | 1) => {
     const snapshot = current.current;
-    if (!snapshot || busyRef.current) return;
+    if (!snapshot || busyRef.current || pendingPhoto.current) return;
     const begin = () => {
       setReplacement((old) => old ?? snapshot);
       const next = replacementDraft(snapshot.draft, index);
@@ -367,7 +387,7 @@ export default function App() {
   const retakeSecond = () => retake(1);
   const finishCapture = () => {
     const snapshot = current.current;
-    if (!snapshot || snapshot.draft.shots.length !== 2) return;
+    if (!snapshot || primaryShots(snapshot.draft).length !== 2) return;
     const completed: ReportRecord = { ...snapshot, phase: 'form', step: 0, submittedAt: undefined };
     void persist(completed, () => {
       setReplacement(null);
@@ -394,7 +414,7 @@ export default function App() {
       .then(({ readAlbum }) => readAlbum(files))
       .then((shots) => {
         const t = Date.now();
-        setRec({ id: newId(t), draft: { shots, firstOk: true }, phase: 'form', step: 0, createdAt: t, updatedAt: t });
+        setRec({ id: newId(t), draft: normalizeDraft({ shots, firstOk: true }), phase: 'form', step: 0, createdAt: t, updatedAt: t });
         setReadStates([]);
         geoKey.current = undefined;
         setAlbumState('idle');
@@ -406,7 +426,7 @@ export default function App() {
 
   const onSubmit = () => {
     const snapshot = current.current;
-    if (!snapshot || busyRef.current) return;
+    if (!snapshot || busyRef.current || pendingPhoto.current) return;
     const body = snapshot.draft.manual?.body ? snapshot.draft.body ?? '' : composeBody(snapshot.draft);
     const checked = precheck({ draft: snapshot.draft, body, verdict: validation.current.verdict, vision: validation.current.merged, now: Date.now() });
     if (checked.blocked) {
@@ -427,7 +447,7 @@ export default function App() {
   };
 
   const remove = async (id: string) => {
-    if (busyRef.current) return;
+    if (busyRef.current || pendingPhoto.current) return;
     busyRef.current = true;
     setBusy(true);
     clearTimeout(saveTimer.current);
@@ -471,6 +491,7 @@ export default function App() {
             {saveState === 'saving' ? '기기에 저장 중…' : saveState === 'saved' ? '기기에 저장됨' : saveState === 'error' ? '저장 안 됨 · 이 화면의 자료를 유지하세요' : '사진을 찍으면 기기에 저장합니다'}
           </p>
         )}
+        {photoImporting && <p role="status" className="px-4 py-2 text-sm text-blue-800">추가 사진 처리 중 · 완료 또는 추가 취소 후 이동할 수 있어요</p>}
         {busy && albumState !== 'busy' && <p role="status" className="shrink-0 px-4 py-1 text-sm text-blue-700">저장 완료를 기다리는 중…</p>}
         <fieldset disabled={busy} className="contents">
 
@@ -509,8 +530,10 @@ export default function App() {
         {screen === 'form' && rec && (
           <ReportSteps
             draft={draft}
+            evidencePanel={<EvidenceWorkspace draft={draft} readStates={readStates} onChange={setDraft} onRetry={retryRead} onPendingChange={onPhotoWork} />}
             step={rec.step}
-            onStep={(n) => setRec((r) => (r ? { ...r, step: n } : r))}
+            photoImporting={photoImporting}
+            onStep={(n) => { if (!busyRef.current && !pendingPhoto.current) setRec((r) => (r ? { ...r, step: n } : r)); }}
             addressState={addressState}
             typeInfo={typeInfo}
             vision={{ state: visionState, result: merged }}

@@ -4,8 +4,9 @@ import type { DraftReport } from '../types/report';
 export function replacementDraft(draft: DraftReport, index: 0 | 1): DraftReport {
   return {
     ...draft,
-    shots: draft.shots.slice(0, index),
-    reads: (draft.reads ?? []).slice(0, index),
+    shots: draft.schemaVersion === 2 ? draft.shots : draft.shots.slice(0, index),
+    ...(draft.schemaVersion === 2 ? { primaryPair: (draft.primaryPair ?? []).slice(0, index), evidenceRevision: (draft.evidenceRevision ?? 0) + 1 } : {}),
+    reads: draft.schemaVersion === 2 ? draft.reads : (draft.reads ?? []).slice(0, index),
     overlap: undefined,
     firstOk: index === 1,
     ...(index === 0 ? {

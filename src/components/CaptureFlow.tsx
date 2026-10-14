@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ArrowLeft, Camera, Check, Loader2, MapPin, RotateCcw, Scale, TriangleAlert, X } from 'lucide-react';
-import { captureFrame, startCamera, stopCamera } from '../lib/camera';
+import { captureEvidenceFrame, startCamera, stopCamera } from '../lib/camera';
 import { isValidPlate, IS_TEST_INTERVAL, MIN_INTERVAL_SEC, PLATE_CONFIDENCE_FLOOR } from '../lib/rules';
 import { distanceMeters } from '../lib/geo';
 import { loadNearby } from '../lib/facilities';
@@ -20,7 +20,11 @@ import { OVERLAP_MIN } from '../lib/overlap';
 import { primeAlerts, ringReady, titleCountdown } from '../lib/alert';
 import type { VisionState } from '../lib/vision';
 import type { VisionResult } from '../../api/vision';
-import { VIOLATION_LABEL } from '../types/report';
+import { primaryShots } from '../lib/photoEvidence';
+import { createLocationTracker, LOCATION_LABEL, GPS_POLICY } from '../lib/locationQuality';
+import { snapshotHeading, startHeadingTracking } from '../lib/heading';
+import type { HeadingSample } from '../lib/heading';
+import { VIOLATION_LABEL, isBasicType } from '../types/report';
 import type { DraftReport, Shot, ViolationType } from '../types/report';
 import { TypeChooser } from './FormParts';
 
@@ -32,7 +36,7 @@ const NEAR_LABEL: Partial<Record<ViolationType, string>> = {
 };
 
 /** 위치를 기다리는 최대 시간(초). 넘으면 위치 없이도 찍게 한다. */
-const LOC_WAIT_SEC = 10;
+const LOC_WAIT_SEC = 15;
 
 interface Pos {
   lat: number;
@@ -74,12 +78,30 @@ interface Props {
  */
 export default function CaptureFlow(p: Props) {
   const { draft } = p;
-  const shots = draft.shots;
+  const shots = primaryShots(draft);
   const first = shots[0];
   const second = shots[1];
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const locationTracker = useRef(createLocationTracker());
+  const headingSamples = useRef<HeadingSample[]>([]);
+  const headingStop = useRef<(() => void) | undefined>(undefined);
+  const [headingIssue, setHeadingIssue] = useState<'denied' | 'unsupported' | undefined>();
+  const [headingStarted, setHeadingStarted] = useState(false);
+  const alive = useRef(true);
+  const headingRequest = useRef(0);
+  const enableHeading = async () => {
+    const request = ++headingRequest.current;
+    headingStop.current?.(); headingSamples.current = [];
+    const facing = streamRef.current?.getVideoTracks()[0]?.getSettings().facingMode;
+    const tracked = await startHeadingTracking({ facingMode: facing === 'environment' || facing === 'user' ? facing : 'unknown', onSample: (sample) => { if (alive.current && request === headingRequest.current) headingSamples.current = [...headingSamples.current.slice(-19), sample]; } });
+    if (!alive.current || request !== headingRequest.current) { tracked.stop(); return; }
+    headingStop.current = tracked.stop;
+    setHeadingIssue(tracked.issue);
+    setHeadingStarted(true);
+  };
+  useEffect(() => { alive.current = true; return () => { alive.current = false; headingRequest.current++; headingStop.current?.(); }; }, []);
   const [camError, setCamError] = useState<string | null>(null);
   const [pos, setPos] = useState<Pos | null>(null);
   const [posErrCode, setPosErrCode] = useState<number | null>(null);
@@ -110,10 +132,12 @@ export default function CaptureFlow(p: Props) {
     const id = navigator.geolocation.watchPosition(
       (g) => {
         setPosErrCode(null);
-        setPos({ lat: g.coords.latitude, lng: g.coords.longitude, accuracy: g.coords.accuracy });
+        locationTracker.current.ingest(g);
+        const sample = locationTracker.current.snapshot(Date.now()).sample;
+        setPos(sample ? { lat: sample.lat, lng: sample.lng, accuracy: sample.accuracy ?? Infinity } : null);
       },
       (e) => setPosErrCode(e.code),
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_POLICY.requestTimeoutMs },
     );
     return () => navigator.geolocation.clearWatch(id);
   }, []);
@@ -131,21 +155,25 @@ export default function CaptureFlow(p: Props) {
   const [noPark, setNoPark] = useState<NoParkingHere | null>(null);
   const hintAt = useRef<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
-    if (!pos || pos.accuracy > 50) return;
+    if (!pos || !Number.isFinite(pos.accuracy) || pos.accuracy > 50 || locationTracker.current.snapshot(Date.now()).quality.status === 'stale') return;
     if (hintAt.current && distanceMeters(hintAt.current, pos) < 15) return;
+    let stale = false;
     hintAt.current = { lat: pos.lat, lng: pos.lng };
-    void loadNearby(pos).then((n) => setHint(recommend(pos, n).slice(0, 2)));
-    void reverseGeocode(pos.lat, pos.lng).then((r) => {
+    void loadNearby(pos).then((n) => { if (!stale) setHint(recommend(pos, n).slice(0, 2)); }).catch(() => { if (!stale) setHint([]); });
+    void reverseGeocode(pos.lat, pos.lng).then(async (r) => {
+      if (stale) return;
       if (r.state === 'ok') setHereRules(rulesFor(r.road ?? r.parcel));
-      void noParkingFor(r.state === 'ok' ? r.road : undefined).then(setNoPark);
-    });
+      const result = await noParkingFor(r.state === 'ok' ? r.road : undefined);
+      if (!stale) setNoPark(result);
+    }).catch(() => { if (!stale) setNoPark(null); });
+    return () => { stale = true; hintAt.current = null; };
   }, [pos]);
   const noParkZone = noPark?.zones[0];
   const noParkNow = noParkZone ? zoneNow(noParkZone, now) : null;
 
   // 사진 주소가 들어오면 그 주소의 규정이 우선
   const rules = draft.address ? rulesFor(draft.address) : hereRules;
-  const intervalSec = effectiveInterval(draft.type ? rules.types[draft.type].intervalSec : maxInterval(rules));
+  const intervalSec = effectiveInterval(isBasicType(draft.type) ? rules.types[draft.type].intervalSec : draft.type ? 0 : maxInterval(rules));
   const remainSec = first ? Math.max(0, Math.ceil(intervalSec - (now - first.takenAt) / 1000)) : 0;
 
   const firstOk = Boolean(draft.firstOk);
@@ -175,8 +203,8 @@ export default function CaptureFlow(p: Props) {
   useEffect(() => () => titleCountdown(null), []);
 
   const waitedSec = Math.floor((now - mountedAt.current) / 1000);
-  const locGiveUp = posErrCode === 1 || waitedSec >= LOC_WAIT_SEC;
-  const locBlocking = !pos && !locGiveUp;
+  const locBlocking = false; // 위치 대기와 촬영은 분리한다.
+  const locationNow = locationTracker.current.snapshot(now, posErrCode === 1 ? 'denied' : posErrCode ? 'unavailable' : undefined);
   const shootable = (phase === 'first' || phase === 'second') && !camError && !locBlocking;
 
   const shoot = useCallback(() => {
@@ -184,18 +212,23 @@ export default function CaptureFlow(p: Props) {
     if (!video || video.readyState < 2) return;
     primeAlerts();
     const takenAt = Date.now();
+    const location = locationTracker.current.snapshot(takenAt, posErrCode === 1 ? 'denied' : posErrCode ? 'unavailable' : undefined);
+    const at = location.quality.status === 'stale' || location.quality.status === 'unavailable' ? undefined : location.sample;
+    const images = captureEvidenceFrame(video, { takenAt, lat: at?.lat, lng: at?.lng, accuracy: at?.accuracy });
     p.onShot({
       takenAt,
-      lat: pos?.lat,
-      lng: pos?.lng,
-      accuracy: pos?.accuracy,
-      locIssue: pos ? undefined : posErrCode === 1 ? 'denied' : 'unavailable',
-      dataUrl: captureFrame(video, { takenAt, lat: pos?.lat, lng: pos?.lng, accuracy: pos?.accuracy }),
+      ...images,
+      location,
+      heading: snapshotHeading(headingSamples.current, takenAt, headingIssue),
+      lat: at?.lat,
+      lng: at?.lng,
+      accuracy: at?.accuracy,
+      locIssue: at ? undefined : posErrCode === 1 ? 'denied' : 'unavailable',
       source: 'camera',
     });
-  }, [pos, posErrCode, p]);
+  }, [pos, posErrCode, p, headingIssue]);
 
-  const accTone = !pos ? 'bg-slate-900/70' : pos.accuracy <= 10 ? 'bg-green-600/90' : pos.accuracy <= 30 ? 'bg-amber-600/90' : 'bg-red-600/90';
+  const accTone = locationNow.quality.status === 'nearby' ? 'bg-green-600/90' : locationNow.quality.status === 'broad' ? 'bg-amber-600/90' : 'bg-slate-900/70';
 
   return (
     <div className="relative flex-1 min-h-0 bg-slate-900 overflow-hidden">
@@ -214,7 +247,7 @@ export default function CaptureFlow(p: Props) {
           </button>
           <span className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-white text-xs font-bold ${accTone}`}>
             <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            {pos ? <span className="tabular-nums">±{Math.round(pos.accuracy)}m</span> : <span>{posErrCode === 1 ? '위치 권한 꺼짐' : '위치 찾는 중'}</span>}
+            <span>{LOCATION_LABEL[locationNow.quality.status]}{pos && Number.isFinite(pos.accuracy) ? ` · ±${Math.round(pos.accuracy)}m` : ''}</span>
           </span>
         </div>
         {first && !second && (
@@ -228,6 +261,9 @@ export default function CaptureFlow(p: Props) {
         )}
       </div>
 
+      <button onClick={() => void enableHeading()} className="absolute top-14 left-3 z-10 text-xs text-white bg-slate-900/75 rounded px-2 py-1">
+        {headingStarted ? (snapshotHeading(headingSamples.current, now, headingIssue).status === 'usable' ? '촬영 방향 기록 중' : '촬영 방향 미확인 · 다시 확인') : '촬영 방향 함께 확인'}
+      </button>
       {/* 가운데: 큰 카운트다운(첫 번째 사진 확인 뒤) */}
       {phase === 'wait' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/50 text-white text-center px-8 pointer-events-none">
@@ -388,8 +424,9 @@ const READ_FAIL: Partial<Record<VisionState, string>> = {
 /** 1단계 — 첫 번째 사진 판독 결과: 부적합이면 이유와 재촬영, 유형이 여럿이면 고르기, 맞으면 확인 */
 function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
   const { draft, verdict, options } = p;
-  const st = p.readStates[0];
-  const read = draft.reads?.[0];
+  const index = draft.shots.indexOf(primaryShots(draft)[0]);
+  const st = p.readStates[index];
+  const read = draft.reads?.[index];
   const [pick, setPick] = useState<ViolationType | undefined>(undefined);
 
   if (!st || st === 'loading' || read === undefined) {
@@ -398,6 +435,7 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
         <p className="text-[19px] font-bold">첫 번째 사진 확인 중</p>
         <Spinner text="유형과 번호판을 읽고 있습니다" />
         <p className="text-[13px] text-slate-500">판독하는 동안에도 두 번째 사진까지 남은 시간은 줄어듭니다.</p>
+        <button onClick={p.onAcceptFirst} className="w-full py-3 rounded bg-blue-600 text-white font-bold">분석을 기다리지 않고 두 번째 촬영으로</button>
       </div>
     );
   }
@@ -408,7 +446,7 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
         <p className="text-[19px] font-bold">첫 번째 사진을 판독하지 못했습니다</p>
         <p className="text-[14px] text-slate-600">{READ_FAIL[st] ?? '사진 판독에 실패했습니다'}</p>
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => p.onRetryRead(0)} className="h-12 rounded-lg bg-[#3a8fdb] text-white font-bold">다시 판독</button>
+          <button onClick={() => p.onRetryRead(index)} className="h-12 rounded-lg bg-[#3a8fdb] text-white font-bold">다시 판독</button>
           <button onClick={p.onAcceptFirst} className="h-12 rounded-lg border-2 border-slate-300 text-slate-700 font-bold">판독 없이 계속</button>
         </div>
       </div>
@@ -433,7 +471,7 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
   if (reasons.length) {
     return (
       <div className="space-y-3">
-        <p className="text-[19px] font-bold text-red-700">이 사진으로는 신고하기 어렵습니다</p>
+        <p className="text-[19px] font-bold text-red-700">사진에서 확인하지 못한 내용이 있습니다</p>
         <ul className="space-y-2">
           {reasons.map((r) => (
             <li key={r.title} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
@@ -446,7 +484,7 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
           <RotateCcw className="w-5 h-5" aria-hidden="true" /> 첫 번째 사진 다시 찍기
         </button>
         <button onClick={p.onAcceptFirst} className="w-full text-[13px] text-slate-500 underline underline-offset-2">
-          그래도 계속 (제출 전 점검에서 다시 확인합니다)
+          원본을 보관하고 계속 · 보완사진은 나중에 추가
         </button>
       </div>
     );
@@ -500,9 +538,10 @@ function Item({ k, v, note }: { k: string; v: string; note?: string }) {
 /** 4단계 — 두 사진 같은 자리(겹침)·같은 번호판 확인 */
 function SecondCheck(p: Props) {
   const { draft, vision } = p;
-  const st = p.readStates[1];
+  const index = draft.shots.indexOf(primaryShots(draft)[1]);
+  const st = p.readStates[index];
   const ov = draft.overlap;
-  const read2 = draft.reads?.[1];
+  const read2 = draft.reads?.[index];
   const reading = !st || st === 'loading' || read2 === undefined;
   const measuring = ov === undefined;
 
@@ -554,7 +593,7 @@ function SecondCheck(p: Props) {
           </button>
           <div className="flex items-center justify-between text-[13px]">
             {st !== 'ok' ? (
-              <button onClick={() => p.onRetryRead(1)} className="font-bold text-blue-700 underline underline-offset-2">다시 판독</button>
+              <button onClick={() => p.onRetryRead(index)} className="font-bold text-blue-700 underline underline-offset-2">다시 판독</button>
             ) : (
               <span />
             )}
@@ -562,7 +601,7 @@ function SecondCheck(p: Props) {
           </div>
         </>
       ) : (
-        <Spinner text="확인하는 중입니다" />
+        <><Spinner text="확인하는 중입니다" /><button onClick={p.onDone} className="w-full py-3 rounded bg-blue-600 text-white">사진을 보관하고 내용 확인으로</button></>
       )}
       <button onClick={p.onRetakeFirst} className="w-full flex items-center justify-center gap-1 text-[13px] text-slate-500">
         <X className="w-4 h-4" aria-hidden="true" /> 처음부터 다시 찍기

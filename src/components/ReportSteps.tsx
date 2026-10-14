@@ -14,7 +14,8 @@ import type { Verdict } from '../lib/crosscheck';
 import type { VisionState } from '../lib/vision';
 import type { VisionResult } from '../../api/vision';
 import type { AddressState } from '../lib/reverseGeocode';
-import { VIOLATION_LABEL } from '../types/report';
+import { primaryShots, primaryReads, knownPhotoTime } from '../lib/photoEvidence';
+import { VIOLATION_LABEL, isBasicType } from '../types/report';
 import type { DraftReport, EditableField } from '../types/report';
 import {
   CheckLine,
@@ -36,6 +37,8 @@ export const STEPS = ['유형', '발생지역', '차량번호', '내용', '점�
 
 interface Props {
   draft: DraftReport;
+  evidencePanel?: ReactNode;
+  photoImporting?: boolean;
   step: number;
   onStep: (n: number) => void;
   addressState: AddressState;
@@ -82,7 +85,7 @@ export default function ReportSteps(p: Props) {
   const pc = useMemo(() => precheck({ draft, body, verdict, vision: vision.result, now }), [draft, body, verdict, vision.result, now]);
   const fails = pc.checks.filter((c) => c.status === 'fail').length;
   // 담당 공무원에게 함께 가는 사전 점검 요약 — 규칙으로 잰 값(수용 여부는 담당자 판단)
-  const minInterval = effectiveInterval(draft.type ? currentRules.types[draft.type].intervalSec : maxInterval(currentRules));
+  const minInterval = effectiveInterval(isBasicType(draft.type) ? currentRules.types[draft.type].intervalSec : draft.type ? 0 : maxInterval(currentRules));
   const sent = useMemo(
     () => withOfficerSummary(body, officerLines({ draft, precheck: pc, rules: currentRules, minInterval })),
     [body, draft, pc, currentRules, minInterval],
@@ -100,13 +103,13 @@ export default function ReportSteps(p: Props) {
     }
   };
 
-  const [first, second] = draft.shots;
+  const [first, second] = primaryShots(draft);
 
   return (
     <div className="relative flex-1 min-h-0 flex flex-col bg-white text-slate-900">
       {/* 파란 띠 — 지금 앱의 상단 띠 색. 기관 메뉴는 옮기지 않는다 */}
       <div className="shrink-0 h-12 bg-[#3a8fdb] text-white flex items-center gap-1 pr-3">
-        <button onClick={p.onHome} aria-label="처음 화면" className="w-12 h-12 flex items-center justify-center">
+        <button onClick={p.onHome} disabled={p.photoImporting} aria-label="처음 화면" className="w-12 h-12 flex items-center justify-center disabled:opacity-50">
           <ArrowLeft className="w-6 h-6" aria-hidden="true" />
         </button>
         <p className="flex-1 text-[18px] font-bold">불법 주정차 신고</p>
@@ -119,7 +122,7 @@ export default function ReportSteps(p: Props) {
       <ol className="shrink-0 grid grid-cols-5 gap-1 px-3 pt-2 pb-1 bg-white" aria-label="신고 단계">
         {STEPS.map((s, i) => (
           <li key={s}>
-            <button onClick={() => onStep(i)} className="w-full text-center" aria-current={i === step ? 'step' : undefined}>
+            <button onClick={() => onStep(i)} disabled={p.photoImporting} className="w-full text-center disabled:opacity-50" aria-current={i === step ? 'step' : undefined}>
               <span className={`block h-1.5 rounded-full ${i <= step ? 'bg-[#3a8fdb]' : 'bg-slate-200'}`} />
               <span className={`block mt-1 text-[11px] ${i === step ? 'font-bold text-blue-700' : 'text-slate-500'}`}>{s}</span>
             </button>
@@ -129,7 +132,7 @@ export default function ReportSteps(p: Props) {
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-3 pb-6">
         {step === 0 && (
-          <Step title="위반 유형 확인" sub="사진에 보이는 것으로 정했습니다">
+          <Step title="위반 유형 확인" sub="사진에 보이는 근거와 미확인 내용을 나누어 확인합니다">
             <div className="grid grid-cols-2 gap-2">
               {[first, second].map((s, i) => (
                 <button
@@ -149,7 +152,7 @@ export default function ReportSteps(p: Props) {
             </div>
             {first && second && (
               <p className="mt-1.5 text-[13px] text-slate-500">
-                {Math.floor(intervalSeconds(first.takenAt, second.takenAt))}초 간격
+                {knownPhotoTime(first) && knownPhotoTime(second) ? `${Math.floor(intervalSeconds(first.takenAt, second.takenAt))}초 간격` : '촬영 간격 미확인'}
                 {draft.overlap && ` · 두 사진 겹침 ${Math.round(draft.overlap.ratio * 100)}%`}
               </p>
             )}
@@ -167,11 +170,12 @@ export default function ReportSteps(p: Props) {
                 info={p.typeInfo}
                 verdict={verdict}
                 photoLoading={vision.state === 'loading'}
-                hasShots={draft.shots.length >= 2}
+                hasShots={primaryShots(draft).length >= 2}
                 onPick={(t) => p.onEdit('type', t)}
                 options={p.options}
               />
             </div>
+            {p.evidencePanel}
           </Step>
         )}
 
@@ -189,7 +193,7 @@ export default function ReportSteps(p: Props) {
               <p>
                 <b className="text-slate-800">적용 규정</b> {describeRules(currentRules)}
               </p>
-              {draft.type && (
+              {isBasicType(draft.type) && (
                 <p>
                   {VIOLATION_LABEL[draft.type]} 단속 시간:{' '}
                   {currentRules.types[draft.type].weekday
@@ -199,7 +203,7 @@ export default function ReportSteps(p: Props) {
                     : '24시간'}
                 </p>
               )}
-              <p>접수 기한: 촬영일 {currentRules.deadlineDays === 1 ? '다음 날' : `${currentRules.deadlineDays}일 뒤`} 자정까지</p>
+              <p>기본 6개 유형의 참고 접수 기한: 촬영일 {currentRules.deadlineDays === 1 ? '다음 날' : `${currentRules.deadlineDays}일 뒤`} 자정까지</p>
               {currentRules.local?.extra && <p>이 지역 추가 유형: {currentRules.local.extra.join(', ')}</p>}
               {currentRules.local?.notes && <p>{currentRules.local.notes.join(' · ')}</p>}
               <p className="text-slate-400">
@@ -223,7 +227,7 @@ export default function ReportSteps(p: Props) {
               plateOk={draft.plate ? isValidPlate(draft.plate) : false}
               onUse={(t) => p.onEdit('plate', t)}
             />
-            <PlateZoom shots={draft.shots} reads={draft.reads} />
+            <PlateZoom shots={primaryShots(draft)} reads={primaryReads(draft)} />
           </Step>
         )}
 
@@ -288,9 +292,9 @@ export default function ReportSteps(p: Props) {
                 ))}
             </ul>
             <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-3">
-              <p className="text-[15px] font-bold text-slate-900">담당 공무원이 받는 내용</p>
+              <p className="text-[15px] font-bold text-slate-900">검토용으로 복사할 내용</p>
               <p className="mt-0.5 text-[12.5px] text-slate-600 leading-snug">
-                앱이 규칙으로 잰 값을 함께 보냅니다. 담당자는 사진을 다시 재지 않고 확인만 하면 됩니다.
+                사진 관찰과 자동 점검 결과를 정리합니다. 실제 접수·위반 여부는 별도로 확인해야 합니다.
               </p>
               <pre className="mt-2 whitespace-pre-wrap break-keep font-sans text-[12.5px] leading-relaxed text-slate-800">{sent}</pre>
               <p className="mt-1 text-right text-[12px] text-slate-500 tabular-nums">{sent.length} / {BODY_MAX}자</p>
@@ -319,22 +323,22 @@ export default function ReportSteps(p: Props) {
       <div className="shrink-0 bg-white px-1.5 pb-1.5 pt-1 border-t border-slate-100">
         <div className="grid grid-cols-2 gap-1.5">
           {step === 0 ? (
-            <button onClick={p.onRetake} className="h-14 rounded bg-slate-400 text-white text-[19px] font-bold">
+            <button onClick={p.onRetake} disabled={p.photoImporting} className="h-14 rounded bg-slate-400 text-white text-[19px] font-bold disabled:opacity-50">
               다시 찍기
             </button>
           ) : (
-            <button onClick={() => onStep(step - 1)} className="h-14 rounded bg-slate-400 text-white text-[19px] font-bold">
+            <button onClick={() => onStep(step - 1)} disabled={p.photoImporting} className="h-14 rounded bg-slate-400 text-white text-[19px] font-bold disabled:opacity-50">
               이전
             </button>
           )}
           {step < last ? (
-            <button onClick={() => onStep(step + 1)} className="h-14 rounded bg-[#3a8fdb] text-white text-[19px] font-bold">
+            <button onClick={() => onStep(step + 1)} disabled={p.photoImporting} className="h-14 rounded bg-[#3a8fdb] text-white text-[19px] font-bold disabled:opacity-50">
               다음
             </button>
           ) : (
             <button
               onClick={p.onSubmit}
-              disabled={pc.blocked}
+              disabled={pc.blocked || p.photoImporting}
               className="h-14 rounded bg-[#3a8fdb] disabled:bg-slate-300 text-white text-[19px] font-bold flex items-center justify-center gap-1.5"
             >
               {pc.blocked ? (
@@ -350,7 +354,7 @@ export default function ReportSteps(p: Props) {
       </div>
 
       {sheet === 'evidence' && vision.result && (
-        <EvidenceSheet shots={draft.shots} result={vision.result} onClose={() => setSheet(null)} />
+        <EvidenceSheet shots={primaryShots(draft)} result={vision.result} onClose={() => setSheet(null)} />
       )}
       {sheet === 'type' && (
         <TypeDialog

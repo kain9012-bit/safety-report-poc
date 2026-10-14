@@ -14,7 +14,9 @@ import { effectiveInterval, inEnforcement, maxInterval, rulesFor } from './local
 import { OVERLAP_MIN } from './overlap';
 import type { CheckResult } from './rules';
 import type { Verdict } from './crosscheck';
-import { locatedShot } from '../types/report';
+import { primaryShots, reviewedReads, sameImportedPhoto } from './photoEvidence';
+import { summarizeEvidence } from './evidence';
+import { locatedShot, isBasicType } from '../types/report';
 import type { DraftReport } from '../types/report';
 import type { VisionResult } from '../../api/vision';
 
@@ -36,9 +38,19 @@ export interface Precheck {
 }
 
 export function precheck({ draft, body, verdict, vision, now = Date.now(), minInterval }: PrecheckInput): Precheck {
-  const shots = draft.shots;
+  const shots = primaryShots(draft);
+  if (draft.type && !isBasicType(draft.type)) {
+    const checks: CheckResult[] = [
+      { id: 'photos', label: '사진 보관', status: draft.shots.length ? 'pass' : 'fail', detail: `${draft.shots.length}장 보관 · 기본 쌍 ${shots.length}장. 이 유형의 법적 촬영 간격을 뜻하지 않습니다.` },
+      { id: 'evidence', label: '유형 사진 근거', status: 'warn', detail: '표시·주차면·차량 관계와 미확인 내용을 검토해 주세요. 차량 자격·주차 허용 여부는 사진만으로 확정하지 않습니다.' },
+      { id: 'dedicated_rules', label: '전용구역·기타 요건', status: 'warn', detail: '기본 6개 유형의 시간·거리·과태료·접수 기한을 적용하지 않았습니다. 관할 접수 조건을 별도로 확인해야 합니다.' },
+      { id: 'address', label: '발생지역', status: draft.address ? 'pass' : 'warn', detail: draft.address || '미입력 · 나중에 이어서 확인할 수 있습니다.' },
+      { id: 'body', label: '내용', status: body.trim() ? 'pass' : 'warn', detail: body.trim() ? '입력 내용 보관' : '미입력 · 기록 저장 가능' },
+    ];
+    return { checks, album: [], blocked: !draft.shots.length };
+  }
   const rules = rulesFor(draft.address, now);
-  minInterval ??= effectiveInterval(draft.type ? rules.types[draft.type].intervalSec : maxInterval(rules));
+  minInterval ??= effectiveInterval(isBasicType(draft.type) ? rules.types[draft.type].intervalSec : maxInterval(rules));
   const at = locatedShot(shots);
   const albumShots = shots.filter((s) => s.source === 'album' && s.meta);
   const album = albumShots.length ? checkAlbum(albumShots.map((s) => s.meta!), now, minInterval, rules.deadlineDays) : [];
@@ -66,6 +78,7 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
   });
 
   const out: CheckResult[] = [...base];
+  if (shots.length === 2 && sameImportedPhoto(shots[0], shots[1])) out.push({ id: 'duplicate_photo', label: '서로 다른 촬영본', status: 'fail', detail: '같은 사진을 두 장으로 지정했습니다. 서로 다른 촬영본을 기본 사진으로 골라 주세요.' });
 
   // 위반유형 — 사진 증거가 있어야 한다
   // 사람이 고른 유형이라도 사진 판독에서 보인 유형 중 하나면 사진 증거가 있다
@@ -136,9 +149,10 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
   }
 
   // 단속 시간 — 두 촬영 시각을 각각 검사한다(마감 시각·주말 경계를 넘은 두 번째 사진 포함).
-  if (draft.type && shots.length) {
+  if (isBasicType(draft.type) && shots.length) {
+    const rule = rules.types[draft.type];
     const times = shots.map((shot, i) => ({
-      ...inEnforcement(rules.types[draft.type!], shot.takenAt),
+      ...inEnforcement(rule, shot.takenAt),
       label: `${i + 1}장 ${kstShort(shot.takenAt)}`,
     }));
     if (times.some((e) => e.text !== '24시간 단속')) {
@@ -180,5 +194,15 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
     detail: body.trim().length >= BODY_MIN ? `${body.length}자` : `${BODY_MIN}자 이상 적어야 합니다.`,
   });
 
+  if (draft.schemaVersion === 2) {
+    const evidence = summarizeEvidence(reviewedReads(draft)).find((s) => s.type === draft.type);
+    const check = out.find((c) => c.id === 'evidence');
+    if (check && draft.type) {
+      check.status = evidence?.status === 'observed' ? 'pass' : 'warn';
+      check.detail = evidence?.status === 'observed' ? '사진에서 표시·대상 차량의 연결을 관찰했습니다. 위반·신고 적합성 확정은 아닙니다.' : '이 유형의 사진 연결 근거가 미확인 또는 상충합니다. 선택과 원본은 유지합니다.';
+    }
+    if (draft.type && ['hydrant', 'corner', 'busstop'].includes(draft.type)) out.push({ id: 'distance', label: '실제 거리', status: 'warn', detail: '사진 픽셀·휴대폰 GPS로 차량의 실제 거리를 확정하지 않습니다. 유형 이름의 거리 수치는 측정 결과가 아닙니다.' });
+    if (draft.type === 'schoolzone') out.push({ id: 'school_scope', label: '지정 구간·공휴일', status: 'warn', detail: '학교 근접·노면 색만으로 지정 구간을 확정하지 않습니다. 공식 구간·공휴일·관할 접수 조건은 별도 확인이 필요합니다.' });
+  }
   return { checks: out, album, blocked: out.some((c) => c.status === 'fail') };
 }

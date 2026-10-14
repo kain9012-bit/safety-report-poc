@@ -1,13 +1,18 @@
 import type { PhotoMeta } from '../lib/authenticity';
 import type { PhotoRead } from '../../api/vision';
 /** 안전신문고 불법주정차 신고서 한 건이 채워야 하는 칸 */
-export type ViolationType =
+export type BasicViolationType =
   | 'hydrant'      // 소화전 5m 이내
   | 'crossing'     // 횡단보도
   | 'corner'       // 교차로 모퉁이 5m 이내
   | 'busstop'      // 버스정류소 10m 이내
   | 'schoolzone'   // 어린이보호구역
   | 'sidewalk';    // 인도
+
+export type ViolationType = BasicViolationType | 'disabled' | 'firelane' | 'evcharging' | 'other';
+export const isBasicType = (type?: ViolationType): type is BasicViolationType =>
+  Boolean(type && ['hydrant', 'crossing', 'corner', 'busstop', 'schoolzone', 'sidewalk'].includes(type));
+export type PhotoRole = 'vehicle' | 'marking' | 'connection' | 'context';
 
 export const VIOLATION_LABEL: Record<ViolationType, string> = {
   hydrant: '소화전 5m 이내',
@@ -16,9 +21,20 @@ export const VIOLATION_LABEL: Record<ViolationType, string> = {
   busstop: '버스정류소 10m 이내',
   schoolzone: '어린이보호구역',
   sidewalk: '인도',
+  disabled: '장애인전용주차구역',
+  firelane: '소방차전용구역',
+  evcharging: '친환경차 충전·전용구역',
+  other: '기타 · 직접 확인',
 };
 
 export interface Shot {
+  id?: string;
+  roles?: PhotoRole[];
+  analysisRegion?: { type: import('./evidence').EvidenceType; box: import('./evidence').EvidenceBox };
+  /** 판독·표시 사본과 분리한 원본. 이전 기록에는 없을 수 있다. */
+  originalDataUrl?: string;
+  location?: import('../lib/locationQuality').CaptureLocationSnapshot;
+  heading?: import('../lib/heading').CaptureHeadingSnapshot;
   /** 촬영 시각 — 신고서의 '발생일시'이자 1분 간격 판정의 기준 */
   takenAt: number;
   lat?: number;
@@ -41,6 +57,26 @@ export function locatedShot(shots: readonly Shot[]): Shot | undefined {
 
 export interface DraftReport {
   shots: Shot[];
+  schemaVersion?: 2;
+  /** 시간·번호판·겹침 점검에 쓰는 두 장. 보완사진은 자동 대체하지 않는다. */
+  primaryPair?: string[];
+  evidenceRevision?: number;
+  confirmations?: Record<string, { value: string; inputKey: string; answeredAt: number }>;
+  sharedParking?: {
+    answer: 'yes' | 'not_seen' | 'unknown';
+    notice: string;
+    targetBay: string;
+    scope: 'same_bay' | 'different_bay' | 'unknown';
+    permission: 'general' | 'ev_extra_time' | 'unknown';
+    timeCondition: string;
+    timeMatch: 'matches' | 'outside' | 'unknown';
+    conditions: string;
+    inputKey: string;
+    answeredAt: number;
+  };
+  vehicleLocation?: { lat: number; lng: number; selectedAt: number; source: 'user_map' };
+  selectedStopId?: string;
+  stopSelection?: import('../lib/stopCandidates').StopSelection;
   /** 발생지역 — 도로명주소가 있으면 도로명, 없으면 지번 */
   address?: string;
   /** 도로명과 함께 받은 지번주소(참고용) */

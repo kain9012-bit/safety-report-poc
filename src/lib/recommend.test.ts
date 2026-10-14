@@ -12,9 +12,9 @@ describe('위반유형 추천', () => {
     expect(recommend({ ...BASE, accuracy: 5 }, empty)).toEqual([]);
   });
 
-  it('정류장 3m, 오차 5m → 유력', () => {
+  it('정류장 3m, 오차 5m라도 촬영자의 탐색 후보일 뿐 위반 유력이 아니다', () => {
     const c = recommend({ ...BASE, accuracy: 5 }, { ...empty, busstops: [{ id: '1', name: '전주시청', ...north(3) }] });
-    expect(c[0]).toMatchObject({ type: 'busstop', level: 'likely', name: '전주시청' });
+    expect(c[0]).toMatchObject({ type: 'busstop', level: 'possible', name: '전주시청' });
     expect(c[0].reason).toContain('약 3m');
   });
 
@@ -23,8 +23,9 @@ describe('위반유형 추천', () => {
     expect(c[0]).toMatchObject({ type: 'busstop', level: 'possible' });
   });
 
-  it('정류장 40m, 오차 8m → 후보 아님', () => {
-    expect(recommend({ ...BASE, accuracy: 8 }, { ...empty, busstops: [{ id: '1', ...north(40) }] })).toEqual([]);
+  it('정류장 40m도 탐색에 남고 500m 밖은 이 탐색 요약에서 제외한다', () => {
+    expect(recommend({ ...BASE, accuracy: 8 }, { ...empty, busstops: [{ id: '1', ...north(40) }] })[0]).toMatchObject({ level: 'possible', type: 'busstop' });
+    expect(recommend({ ...BASE, accuracy: 8 }, { ...empty, busstops: [{ id: '1', ...north(600) }] })).toEqual([]);
   });
 
   it('횡단보도는 가까워도 가능까지만 — 위에 섰는지는 사진으로', () => {
@@ -38,7 +39,7 @@ describe('위반유형 추천', () => {
     expect(recommend({ ...BASE, accuracy: 5 }, { ...empty, schools: [{ id: 's', ...north(400) }] })).toEqual([]);
   });
 
-  it('유력이 가능보다 앞에 온다', () => {
+  it('모두 참고 후보이며 각 탐색 범위 대비 가까움으로만 나열한다', () => {
     const c = recommend(
       { ...BASE, accuracy: 3 },
       {
@@ -67,10 +68,10 @@ describe('격자 파일', () => {
 });
 
 describe('정류장 합치기', () => {
-  it('실시간과 파일이 3m 안에서 겹치면 하나로, 떨어져 있으면 둘 다', () => {
+  it('가까운 정류장도 출처·ID가 다르면 합치지 않는다', () => {
     const live = [{ id: 'L', name: '실시간', ...north(0) }];
     const file = [{ id: 'F1', name: '파일', ...north(1) }, { id: 'F2', name: '파일2', ...north(30) }];
-    expect(mergeStops(live, file).map((s) => s.id)).toEqual(['L', 'F2']);
+    expect(mergeStops(live, file).map((s) => s.id)).toEqual(['L', 'F1', 'F2']);
   });
   it('격자 파일의 정류장(b)도 읽는다 — 서울은 실시간 API에 없다', () => {
     expect(mergeCells([{ b: [[37.5665, 126.978, '시청앞']] }]).busstops[0].name).toBe('시청앞');
@@ -88,7 +89,7 @@ describe('버스정류장 API 응답', () => {
     ] } } } };
     expect(parseTago(many)).toHaveLength(2);
     const one = { response: { header: { resultCode: '00' }, body: { items: { item: { nodeid: 'X', nodenm: 'A', gpslati: 35.1, gpslong: 127.1 } } } } };
-    expect(parseTago(one)).toEqual([{ id: 'X', name: 'A', lat: 35.1, lng: 127.1 }]);
+    expect(parseTago(one)).toEqual([{ id: 'X', name: 'A', lat: 35.1, lng: 127.1, source: 'TAGO' }]);
     const none = { response: { header: { resultCode: '00' }, body: { items: '' } } };
     expect(parseTago(none)).toEqual([]);
   });

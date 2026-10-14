@@ -80,6 +80,7 @@ export async function readAlbumFile(file: File): Promise<Shot> {
     takenAt: meta.takenAt ?? file.lastModified,
     lat: meta.lat,
     lng: meta.lng,
+    originalDataUrl: await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); }),
     dataUrl: c.toDataURL('image/jpeg', 0.92),
     source: 'album',
     meta: full,

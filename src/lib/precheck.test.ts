@@ -7,7 +7,7 @@ import type { VisionResult } from '../../api/vision';
 
 // 평일(2026-10-07 수) 오전 10시(한국 시각)
 const T0 = kstTime(2026, 10, 7, 10, 0, 0);
-const shot = (t: number): Shot => ({ takenAt: t, lat: 35.8242, lng: 127.148, accuracy: 6, dataUrl: 'data:,', source: 'camera' });
+const shot = (t: number): Shot => ({ takenAt: t, lat: 35.8242, lng: 127.148, accuracy: 6, dataUrl: `data:,synthetic-${t}`, source: 'camera' });
 
 const vision = (over: Partial<VisionResult> = {}): VisionResult =>
   ({
@@ -120,7 +120,7 @@ describe('발생지역·내용', () => {
     expect(status(precheck(input({ address: undefined })), 'address')).toBe('warn');
   });
   it('좌표도 주소도 없으면 막는다', () => {
-    const bare: Shot = { takenAt: T0, dataUrl: 'data:,', source: 'camera' };
+    const bare: Shot = { takenAt: T0, dataUrl: 'data:,synthetic-first', source: 'camera' };
     const r = precheck(input({ address: undefined, shots: [bare, { ...bare, takenAt: T0 + 61_000 }] }));
     expect(status(r, 'address')).toBe('fail');
   });

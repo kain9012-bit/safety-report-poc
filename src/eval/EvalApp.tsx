@@ -13,7 +13,10 @@ const NAME: Record<Truth, string> = {
   busstop: '버스정류소',
   corner: '교차로 모퉁이',
   schoolzone: '어린이보호구역',
-  none: '위반 아님·비움',
+  disabled: '장애인전용구역',
+  firelane: '소방차전용구역',
+  evcharging: '충전·전용구역',
+  none: '사진 근거 미확인',
 };
 const SCENE_NAME: Record<keyof Scene, string> = {
   onCrosswalk: '횡단보도 위',

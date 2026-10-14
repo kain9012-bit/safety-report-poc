@@ -6,6 +6,7 @@
  * 다시 열면 가장 최근에 하던 신고로 바로 돌아간다. 처음 화면에는 이어할 신고 목록을 보여 준다.
  * 사진이 커서 localStorage 는 금방 넘치므로 IndexedDB 를 쓴다. 서버로는 보내지 않는다.
  */
+import { primaryShots } from './photoEvidence';
 import type { DraftReport } from '../types/report';
 
 export type Phase = 'capture' | 'form' | 'submitted';
@@ -33,8 +34,11 @@ export const RESUME_MAX_MS = 36 * 60 * 60 * 1000;
 /** @deprecated 예전 자동 삭제 기준. 이제 자료는 사용자가 삭제할 때까지 보존한다. */
 export const KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 
+let fallbackSequence = 0;
 export function newId(now = Date.now()): string {
-  return `r${now.toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+  // 짧은 난수의 충돌로 다른 기록을 덮어쓰지 않도록 UUID를 사용한다.
+  const suffix = globalThis.crypto?.randomUUID?.() ?? `${(++fallbackSequence).toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `r${now.toString(36)}-${suffix}`;
 }
 
 function open(): Promise<IDBDatabase> {
@@ -143,7 +147,7 @@ export interface Measure {
 export function measure(r: ReportRecord): Measure | null {
   if (r.submittedAt === undefined) return null;
   const totalSec = Math.max(0, Math.round((r.submittedAt - r.createdAt) / 1000));
-  const [a, b] = r.draft.shots;
+  const [a, b] = primaryShots(r.draft);
   const waitSec = a && b ? Math.round(Math.abs(b.takenAt - a.takenAt) / 1000) : undefined;
   const resumed = totalSec > 30 * 60;
   const dur = (sec: number) => (sec >= 60 ? `${Math.floor(sec / 60)}분 ${sec % 60}초` : `${sec}초`);

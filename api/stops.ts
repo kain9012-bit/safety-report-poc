@@ -1,94 +1,82 @@
-/**
- * 좌표 주변 버스정류장 중계.  GET /api/stops?lat=35.82&lng=127.14
- *
- * 국토교통부 (TAGO) 버스정류소정보 — 좌표기반 근접정류소 목록조회(반경 500m).
- * 공공데이터포털 키는 브라우저에 두지 않는다. 좌표는 기록·캐시하지 않는다.
- *
- * 이 파일은 다른 파일을 import 하지 않는다 — Vercel 함수로 따로 묶여도 깨지지 않게.
- */
-
+/** TAGO nearby stop discovery. Server key stays private; no coordinate logs/cache. */
 export interface Stop {
   id: string;
   name: string;
   lat: number;
   lng: number;
+  source: 'TAGO';
+  regionCode?: string;
+  publicId?: string;
+  publicIdNamespace?: string;
 }
-
 export type StopsError = 'bad_request' | 'no_key' | 'upstream';
-
 export function parseLatLng(lat: string | null, lng: string | null): { lat: number; lng: number } | null {
   if (lat === null || lng === null || lat.trim() === '' || lng.trim() === '') return null;
-  const la = Number(lat);
-  const ln = Number(lng);
-  if (!Number.isFinite(la) || !Number.isFinite(ln)) return null;
-  if (la < 32.5 || la > 39 || ln < 124 || ln > 132.5) return null;
+  const la = Number(lat); const ln = Number(lng);
+  if (!Number.isFinite(la) || !Number.isFinite(ln) || la < 32.5 || la > 39 || ln < 124 || ln > 132.5) return null;
   return { lat: la, lng: ln };
 }
-
-export function tagoUrl(lat: number, lng: number, key: string): string {
-  const q = new URLSearchParams({
-    serviceKey: key,
-    gpsLati: String(lat),
-    gpsLong: String(lng),
-    numOfRows: '50',
-    pageNo: '1',
-    _type: 'json',
-  });
+export function tagoUrl(lat: number, lng: number, key: string, page = 1): string {
+  const q = new URLSearchParams({ serviceKey: key, gpsLati: String(lat), gpsLong: String(lng), numOfRows: '50', pageNo: String(page), _type: 'json' });
   return `https://apis.data.go.kr/1613000/BusSttnInfoInqireService/getCrdntPrxmtSttnList?${q}`;
 }
-
-/**
- * TAGO 응답 해석. 결과가 1건이면 item이 배열이 아니라 객체로, 0건이면 items가 빈 문자열로 온다.
- * 키 오류는 정상 JSON이 아니라 OpenAPI_ServiceResponse 로 온다.
- */
-export function parseTago(json: unknown): Stop[] | 'upstream' {
-  const j = json as {
-    response?: { header?: { resultCode?: string }; body?: { items?: unknown } };
-  };
+export interface TagoPage { stops: Stop[]; totalCount?: number; rawCount: number }
+export function parseTagoPage(json: unknown): TagoPage | 'upstream' {
+  const j = json as { response?: { header?: { resultCode?: string | number }; body?: { items?: unknown; totalCount?: unknown } } };
   const r = j?.response;
-  if (!r || (r.header?.resultCode && r.header.resultCode !== '00')) return 'upstream';
-  const items = r.body?.items;
-  if (!items || typeof items !== 'object') return [];
-  const raw = (items as { item?: unknown }).item;
+  if (!r?.body || (r.header?.resultCode !== undefined && String(r.header.resultCode) !== '00' && String(r.header.resultCode) !== '0')) return 'upstream';
+  const raw = r.body.items && typeof r.body.items === 'object' ? (r.body.items as { item?: unknown }).item : undefined;
   const arr = Array.isArray(raw) ? raw : raw ? [raw] : [];
-  const out: Stop[] = [];
-  for (const it of arr as Record<string, unknown>[]) {
-    const lat = Number(it.gpslati);
-    const lng = Number(it.gpslong);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-    out.push({ id: String(it.nodeid ?? ''), name: String(it.nodenm ?? '').trim(), lat, lng });
+  const stops: Stop[] = [];
+  for (const item of arr) {
+    if (!item || typeof item !== 'object') continue;
+    const it = item as Record<string, unknown>;
+    if (it.gpslati === null || it.gpslati === '' || it.gpslong === null || it.gpslong === '') continue;
+    const p = parseLatLng(String(it.gpslati), String(it.gpslong));
+    const id = String(it.nodeid ?? '').trim();
+    if (!p || !id) continue;
+    const regionCode = String(it.citycode ?? '').trim() || undefined;
+    const publicId = String(it.nodeno ?? '').trim() || undefined;
+    stops.push({ id, name: String(it.nodenm ?? '').trim(), ...p, source: 'TAGO', ...(regionCode ? { regionCode } : {}), ...(publicId ? { publicId } : {}), ...(publicId && regionCode ? { publicIdNamespace: `TAGO:${regionCode}:nodeno` } : {}) });
   }
-  return out;
+  const total = r.body.totalCount === null || r.body.totalCount === '' || r.body.totalCount === undefined ? NaN : Number(r.body.totalCount);
+  return { stops, rawCount: arr.length, ...(Number.isSafeInteger(total) && total >= 0 ? { totalCount: total } : {}) };
 }
-
+export function parseTago(json: unknown): Stop[] | 'upstream' {
+  const page = parseTagoPage(json); return page === 'upstream' ? page : page.stops;
+}
 function reply(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-  });
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 }
-
 export async function GET(request: Request): Promise<Response> {
   const u = new URL(request.url);
   const p = parseLatLng(u.searchParams.get('lat'), u.searchParams.get('lng'));
   if (!p) return reply({ error: 'bad_request' }, 400);
-
   const key = process.env.DATA_GO_KR_KEY;
   if (!key) return reply({ error: 'no_key' }, 503);
-
+  const stops = new Map<string, Stop>();
+  let pages = 0; let partial = false; let totalCount: number | undefined;
+  const start = Date.now();
   try {
-    const res = await fetch(tagoUrl(p.lat, p.lng, key), { signal: AbortSignal.timeout(6000) });
-    const text = await res.text();
-    let json: unknown;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      return reply({ error: 'upstream' }, 502); // 키 오류는 XML로 오기도 한다
+    for (let pageNo = 1; pageNo <= 5; pageNo++) {
+      const remaining = 12_000 - (Date.now() - start);
+      if (remaining <= 0) { partial = true; break; }
+      const res = await fetch(tagoUrl(p.lat, p.lng, key, pageNo), { signal: AbortSignal.timeout(Math.min(6_000, remaining)) });
+      if (!res.ok) throw new Error('upstream');
+      const page = parseTagoPage(await res.json());
+      if (page === 'upstream') throw new Error('upstream');
+      pages += 1; totalCount = page.totalCount ?? totalCount;
+      const previous = stops.size;
+      for (const stop of page.stops) stops.set(`${stop.regionCode ?? ''}:${stop.id}`, stop);
+      // A malformed record or duplicated row does not become an absence claim.
+      if (page.stops.length < page.rawCount) partial = true;
+      const complete = totalCount !== undefined ? pageNo * 50 >= totalCount : page.rawCount < 50;
+      if (complete) { if (totalCount !== undefined && stops.size < totalCount) partial = true; break; }
+      if (pageNo === 5 || stops.size === previous) { partial = true; break; }
     }
-    const out = parseTago(json);
-    if (out === 'upstream') return reply({ error: 'upstream' }, 502);
-    return reply({ stops: out });
   } catch {
-    return reply({ error: 'upstream' }, 502);
+    if (pages === 0) return reply({ error: 'upstream' }, 502);
+    partial = true;
   }
+  return reply({ stops: [...stops.values()], coverage: { source: 'TAGO', radiusMeters: 500, pages, totalCount, partial, retrievedAt: new Date().toISOString(), sourceUpdatedAt: null } });
 }

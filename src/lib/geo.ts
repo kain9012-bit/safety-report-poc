@@ -25,11 +25,26 @@ export function distanceMeters(a: LatLng, b: LatLng): number {
 export interface Facility extends LatLng {
   id: string;
   name?: string;
+  /** Stable provider identity is distinct from the number printed on the stop sign. */
+  source?: string;
+  regionCode?: string;
+  publicId?: string;
+  publicIdNamespace?: string;
+  sourceUpdatedAt?: string;
 }
 
 export interface NearestHit<T extends Facility = Facility> {
   facility: T;
   distance: number;
+}
+
+/** Geographic initial bearing uses true north; it is not camera direction or legal distance. */
+export function bearingDegrees(a: LatLng, b: LatLng): number {
+  const rad = Math.PI / 180;
+  const dl = (b.lng - a.lng) * rad;
+  const y = Math.sin(dl) * Math.cos(b.lat * rad);
+  const x = Math.cos(a.lat * rad) * Math.sin(b.lat * rad) - Math.sin(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos(dl);
+  return ((Math.atan2(y, x) / rad) + 360) % 360;
 }
 
 /** 가장 가까운 시설 하나. 후보가 없으면 null. */
@@ -43,15 +58,14 @@ export function nearest<T extends Facility>(at: LatLng, list: readonly T[]): Nea
 }
 
 /**
- * 좌표만으로 유형을 확정할 수 있는지.
+ * 주어진 보고 오차 원이 기준 경계를 가로지르는지 확인하는 수학적 보조 함수.
  *
- * GPS 정확도가 기준 거리보다 나쁘면 "5m 이내"라는 말 자체가 성립하지 않는다.
- * 소화전 기준은 5m 인데 폰 정확도는 흔히 5~10m 라서, 이 함수는 자주 false 를 준다.
- * 그게 맞다 — 확정할 수 없을 때 확정한 척하지 않는 것이 이 앱의 약속이다.
+ * 반환값은 실측 성공 또는 법적 거리 확정이 아니다. 단말 보고 오차는 절대 오차 상한이 아니며,
+ * 촬영자 위치와 차량 위치도 다르다. 위반 유형 확정에 사용하지 않는다.
  */
 export function isDecisive(distance: number, threshold: number, accuracy?: number): boolean {
-  if (accuracy === undefined) return false;
-  // 실제 위치는 [distance-accuracy, distance+accuracy] 어딘가에 있다.
+  if (accuracy === undefined || ![distance, threshold, accuracy].every(Number.isFinite) || distance < 0 || threshold < 0 || accuracy < 0) return false;
+  // 보고된 원을 수학적으로 대조할 뿐 실제 위치가 이 안에 있음을 보장하지 않는다.
   // 그 구간이 통째로 기준 안쪽이거나 통째로 바깥일 때만 말이 된다.
   return distance + accuracy <= threshold || distance - accuracy > threshold;
 }

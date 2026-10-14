@@ -9,7 +9,7 @@ import { kstParts, kstShort, kstTime } from './kst';
 import type { ViolationType } from '../types/report';
 
 /** 유형별 기준 거리(m). 거리 기준이 없는 유형은 undefined. */
-export const THRESHOLD_METERS: Record<ViolationType, number | undefined> = {
+export const THRESHOLD_METERS: Partial<Record<ViolationType, number | undefined>> = {
   hydrant: 5,
   corner: 5,
   busstop: 10,

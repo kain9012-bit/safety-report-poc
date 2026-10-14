@@ -17,7 +17,8 @@ import type { BoxLabel, Scene, VisionResult } from '../../api/vision';
 import { isValidPlate, PLATE_CONFIDENCE_FLOOR } from '../lib/rules';
 import type { AddressState } from '../lib/reverseGeocode';
 import type { LatLng } from './PickMap';
-import { VIOLATION_LABEL, locatedShot } from '../types/report';
+import { activeLocatedShot, primaryShots } from '../lib/photoEvidence';
+import { VIOLATION_LABEL } from '../types/report';
 import type { DraftReport, Shot, ViolationType } from '../types/report';
 import { recommendLine } from '../lib/choose';
 import type { TypeOption } from '../lib/choose';
@@ -33,6 +34,7 @@ export interface PickedAddress {
   address: string;
   parcel?: string;
   from: 'map' | 'typed';
+  position?: LatLng;
 }
 
 /** 지도 라이브러리는 위치찾기를 열 때만 받는다 — 현장에서 첫 화면이 빨리 떠야 한다 */
@@ -49,7 +51,7 @@ export const SOURCE: Record<Source, { cls: string; text: string }> = {
   auto: { cls: 'bg-green-50 text-green-700 border-green-200', text: '자동 작성' },
   manual: { cls: 'bg-slate-50 text-slate-600 border-slate-300', text: '직접 입력' },
   map: { cls: 'bg-slate-50 text-slate-600 border-slate-300', text: '지도에서 선택' },
-  photo_confirmed: { cls: 'bg-green-50 text-green-700 border-green-200', text: '사진 증거 · 위치자료 일치' },
+  photo_confirmed: { cls: 'bg-green-50 text-green-700 border-green-200', text: '사진 관찰 · 주변 자료 참고' },
   photo_only: { cls: 'bg-amber-50 text-amber-800 border-amber-200', text: '사진 증거 · 확인 필요' },
   chosen: { cls: 'bg-green-50 text-green-700 border-green-200', text: '사진 증거 · 직접 고름' },
 };
@@ -220,7 +222,7 @@ export function TypeValue({
       {verdict.suspicions.map((c) => (
         <p key={c.type}>
           · {VIOLATION_LABEL[c.type]} — {c.reason}
-          {SHOW_IN_PHOTO[c.type] && <> → <b>{SHOW_IN_PHOTO[c.type]}</b> 나오게 다시 찍으면 신고할 수 있습니다</>}
+          {SHOW_IN_PHOTO[c.type] && <> → <b>{SHOW_IN_PHOTO[c.type]}</b> 나오게 보완하면 사진 근거 확인에 도움이 됩니다</>}
         </p>
       ))}
     </div>
@@ -406,6 +408,12 @@ export const BOX_STYLE: Record<BoxLabel, { color: string; text: string }> = {
   schoolzone_mark: { color: '#16a34a', text: '보호구역 표시' },
   corner: { color: '#16a34a', text: '교차로 모퉁이' },
   hydrant: { color: '#16a34a', text: '소화전' },
+  disabled_mark: { color: '#16a34a', text: '장애인 구역 표시' },
+  firelane_mark: { color: '#16a34a', text: '소방차전용 표시' },
+  ev_mark: { color: '#16a34a', text: '충전·전용 표시' },
+  charger: { color: '#16a34a', text: '충전기' },
+  bay: { color: '#2563eb', text: '주차면' },
+  notice: { color: '#d97706', text: '운영 안내' },
 };
 
 export const SCENE_TEXT: Record<keyof Scene, string> = {
@@ -563,9 +571,9 @@ export function PlaceValue({
   state: AddressState;
   onRevert: () => void;
 }) {
-  const first = locatedShot(draft.shots);
+  const first = activeLocatedShot(draft);
   const acc = first?.accuracy !== undefined ? `±${Math.round(first.accuracy)}m` : undefined;
-  const taken = draft.shots[0];
+  const taken = primaryShots(draft)[0];
 
   if (draft.address) {
     return (
@@ -682,9 +690,10 @@ export function PlaceSheet({
   onPick: (a: PickedAddress) => void;
   onClose: () => void;
 }) {
-  const shot = locatedShot(draft.shots);
+  const shot = activeLocatedShot(draft);
   const origin: LatLng = shot ? { lat: shot.lat!, lng: shot.lng! } : DEFAULT_ORIGIN;
   const [typed, setTyped] = useState('');
+  const center = useRef<LatLng>(draft.vehicleLocation ?? origin);
   const [here, setHere] = useState<{ state: 'loading' | 'ok' | 'fail'; road?: string; parcel?: string }>({
     state: 'loading',
   });
@@ -695,6 +704,7 @@ export function PlaceSheet({
 
   // 지도가 멈추면 가운데 자리의 주소를 찾는다(0.4초 기다렸다가 — 끄는 동안 매번 부르지 않게)
   const onCenter = (c: LatLng) => {
+    center.current = c;
     clearTimeout(timer.current);
     const my = ++seq.current;
     setHere({ state: 'loading' });
@@ -711,7 +721,7 @@ export function PlaceSheet({
   const pick = () => {
     if (typed.trim()) onPick({ address: typed.trim(), from: 'typed' });
     else if (here.state === 'ok' && hereText)
-      onPick({ address: hereText, parcel: here.road ? here.parcel : undefined, from: 'map' });
+      onPick({ address: hereText, parcel: here.road ? here.parcel : undefined, from: 'map', position: center.current });
   };
 
   return (
@@ -726,7 +736,7 @@ export function PlaceSheet({
 
         <div className="mt-3">
           <Suspense fallback={<div className="aspect-square border border-slate-300 bg-slate-100" />}>
-            <PickMap origin={origin} accuracy={shot?.accuracy} onCenter={onCenter} />
+            <PickMap origin={origin} originRole={shot ? 'photo' : 'search'} accuracy={shot?.accuracy} heading={shot?.heading} onCenter={onCenter} />
           </Suspense>
         </div>
 
@@ -741,7 +751,7 @@ export function PlaceSheet({
         </p>
         <p className="mt-1 text-[14px] text-slate-500">
           {shot
-            ? `파란 원은 사진을 찍은 자리의 GPS 오차 범위(±${Math.round(shot.accuracy ?? 0)}m)입니다`
+            ? shot.accuracy === undefined ? '촬영 좌표의 GPS 오차는 미확인입니다' : `파란 원은 단말이 보고한 촬영 위치 오차 범위(±${Math.round(shot.accuracy)}m)입니다. 차량 거리 측정값은 아닙니다`
             : '사진에 좌표가 없어 기본 위치에서 시작합니다. 지도를 끌어 핀을 맞춰 주세요'}
         </p>
 
@@ -767,8 +777,8 @@ export function PlaceSheet({
 export function WhyPanel({ onClose }: { onClose: () => void }) {
   const items: [string, string][] = [
     ['사진부터', '유형을 고르기 전에 카메라가 열립니다. 고르는 사이 차가 떠나지 않게.'],
-    ['첫 번째 사진 바로 확인', '찍자마자 유형·번호판을 읽습니다. 위반 장소나 번호판이 안 보이면 이유를 알려 드리고 첫 번째 사진을 다시 찍게 합니다 — 1분 기다린 뒤에 반려되지 않게.'],
-    ['유형이 여럿이면 고르기', '사진에 유형이 둘 이상 보이면 직접 고릅니다. 앱은 단속 시간·과태료·위치자료로 추천만 합니다.'],
+    ['첫 번째 사진 바로 확인', '찍자마자 유형·번호판을 읽습니다. 판독을 기다리지 않고 다음 촬영으로 갈 수 있고, 기존 사진을 보관한 채 부족한 부분만 보완합니다.'],
+    ['유형이 여럿이면 고르기', '사진에 유형이 둘 이상 보이면 직접 고릅니다. 앱은 사진의 표시·대상 차량 연결을 보여줍니다. 과태료 금액으로 추천하지 않습니다.'],
     ['남은 시간 알림', '60초에서 0초로 세고, 0초가 되면 소리·진동으로 알립니다. 그동안 자리를 떠도 됩니다.'],
     ['우리 동네 규정', '찍기 전 위치로 관할 지자체를 찾아 그 규정(간격·단속 시간)을 적용합니다.'],
     ['같은 자리·같은 차 확인', '두 번째 사진은 첫 번째 사진 잔상에 맞춰 찍고, 두 사진 겹침과 두 장 번호판 일치를 확인합니다.'],

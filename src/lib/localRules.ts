@@ -15,7 +15,7 @@
  */
 import { kstParts, kstTime } from './kst';
 import { INTERVAL_SEC, MIN_INTERVAL_SEC } from './rules';
-import type { ViolationType } from '../types/report';
+import type { BasicViolationType as ViolationType } from '../types/report';
 
 /** 단속 시간대. to 는 그 시각 직전까지(24 = 자정). */
 export interface Hours {

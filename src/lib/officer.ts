@@ -11,7 +11,8 @@
 import { BODY_MAX } from './compose';
 import { OVERLAP_MIN } from './overlap';
 import { intervalSeconds } from './rules';
-import { VIOLATION_LABEL, locatedShot } from '../types/report';
+import { primaryShots, knownPhotoTime } from './photoEvidence';
+import { VIOLATION_LABEL, locatedShot, isBasicType } from '../types/report';
 import type { AppliedRules } from './localRules';
 import type { Precheck } from './precheck';
 import type { DraftReport } from '../types/report';
@@ -31,9 +32,9 @@ const mark = (s?: string) => (s === 'pass' ? '충족' : s === 'warn' ? '확인 �
 
 /** 요약 줄들 — 값이 없는 항목은 지어내지 않고 뺀다 */
 export function officerLines({ draft, precheck: pc, rules, minInterval }: OfficerInput): string[] {
-  const [a, b] = draft.shots;
+  const [a, b] = primaryShots(draft);
   const lines: string[] = [];
-  if (a && b) {
+  if (a && b && knownPhotoTime(a) && knownPhotoTime(b) && (!draft.type || isBasicType(draft.type))) {
     lines.push(`- 간격: ${Math.floor(intervalSeconds(a.takenAt, b.takenAt))}초(기준 ${minInterval}초) ${mark(st(pc, 'interval'))}`);
   }
   if (draft.overlap) {
@@ -50,7 +51,7 @@ export function officerLines({ draft, precheck: pc, rules, minInterval }: Office
   const at = locatedShot(draft.shots);
   if (at) lines.push(`- 위치: ${at.accuracy !== undefined ? `오차 약 ${Math.round(at.accuracy)}m` : '오차 기록 없음'}${draft.address ? '' : ' · 주소 미확인(좌표만)'}`);
   const hours = st(pc, 'hours');
-  const base = rules.region ? `${rules.region} 규정(확인 ${rules.local!.checkedAt})` : '전국 기준(6대 유형)';
+  const base = draft.type && !isBasicType(draft.type) ? '전용구역·기타 요건 미확인 (기본 6개 규정 미적용)' : rules.region ? `${rules.region} 규정(확인 ${rules.local!.checkedAt})` : '전국 기준(6대 유형)';
   lines.push(`- 적용 기준: ${base}${hours ? ` · 단속 시간 ${hours === 'pass' ? '안' : '밖'}` : ''} · 접수 기한 ${mark(st(pc, 'deadline'))}`);
   const need = pc.checks.filter((c) => c.status !== 'pass' && !['body'].includes(c.id)).map((c) => c.label);
   lines.push(`- 확인 필요: ${need.length ? need.join(', ') : '없음'}`);

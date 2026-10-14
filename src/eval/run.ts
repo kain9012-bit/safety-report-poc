@@ -48,7 +48,7 @@ async function callVision(image: string, onWait: (sec: number) => void): Promise
 
 export function decide(row: Row, r: VisionResult): Outcome {
   const verdict = crosscheck([], {}, r);
-  const auto: Truth = verdict.type ?? 'none';
+  const auto: Truth = verdict.type && verdict.type !== 'other' ? verdict.type : 'none';
   const opts = verdict.type
     ? rankTypes([verdict.type, ...verdict.alternatives], { takenAt: NEUTRAL_TIME, rules: rulesFor() })
     : [];
@@ -58,7 +58,7 @@ export function decide(row: Row, r: VisionResult): Outcome {
     row,
     ok: true,
     auto,
-    recommended: opts.find((o) => o.recommended)?.type ?? auto,
+    recommended: (opts.find((o) => o.recommended)?.type ?? auto) as Truth,
     candidates: r.ruleTypes.filter((t): t is Truth => t !== 'none'),
     plateFilled: fill ? read.text : '',
     plateRead: read.text,

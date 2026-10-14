@@ -6,7 +6,8 @@
  * scripts/collect_facilities.py 가 전북·서울 자료를 받아 0.01° 격자(약 1km)로 쪼개
  * public/fac/{위도칸}_{경도칸}.json 에 둔다. 사진 좌표 주변 3×3칸만 받아 앱 안에서 거리를 잰다.
  */
-import { distanceMeters } from './geo';
+import { validCoordinate } from './locationQuality';
+import { stopKey } from './stopCandidates';
 import type { Facility, LatLng } from './geo';
 
 /** 격자 한 칸 크기(도). 수집 스크립트와 같아야 한다. */
@@ -43,27 +44,27 @@ export interface NearbyResult extends Nearby {
   state: NearbyState;
   /** 무엇이 빠졌는지 — 화면에 그대로 적는다 */
   missing: string[];
+  stopCoverage?: { source: string; radiusMeters?: number; pages?: number; totalCount?: number; partial: boolean; retrievedAt?: string; sourceUpdatedAt?: string | null };
 }
 
 export function mergeCells(cells: (CellData | null)[]): Nearby {
   const crosswalks: Facility[] = [];
   const schools: Facility[] = [];
   const busstops: Facility[] = [];
-  cells.forEach((c, ci) => {
-    c?.c?.forEach(([lat, lng], i) => crosswalks.push({ id: `c${ci}-${i}`, lat, lng }));
-    c?.s?.forEach(([lat, lng, name], i) => schools.push({ id: `s${ci}-${i}`, lat, lng, name }));
-    c?.b?.forEach(([lat, lng, name], i) => busstops.push({ id: `b${ci}-${i}`, lat, lng, name }));
+  cells.forEach((c) => {
+    c?.c?.forEach(([lat, lng]) => { if (validCoordinate({ lat, lng })) crosswalks.push({ id: `c:${lat}:${lng}`, lat, lng, source: 'collected_grid' }); });
+    c?.s?.forEach(([lat, lng, name]) => { if (validCoordinate({ lat, lng })) schools.push({ id: `s:${lat}:${lng}:${name}`, lat, lng, name, source: 'collected_grid' }); });
+    // Legacy rows have no official ID. Keep a stable local record ID and make that limitation explicit.
+    c?.b?.forEach(([lat, lng, name], i) => { if (validCoordinate({ lat, lng })) busstops.push({ id: `b:${lat}:${lng}:${name}:${i}`, lat, lng, name, source: 'collected_grid' }); });
   });
   return { crosswalks, schools, busstops };
 }
 
-/** 실시간 API 정류장과 파일 정류장을 합친다. 3m 안에 겹치면 같은 정류장으로 본다(실시간 쪽을 남김). */
+/** Merge only identical provider/region/record identity. Nearby or same-name stops remain separate. */
 export function mergeStops(live: Facility[], file: Facility[]): Facility[] {
-  const out = [...live];
-  for (const f of file) {
-    if (!out.some((s) => distanceMeters(s, f) < 3)) out.push(f);
-  }
-  return out;
+  const out = new Map<string, Facility>();
+  for (const stop of [...live, ...file]) if (!out.has(stopKey(stop))) out.set(stopKey(stop), stop);
+  return [...out.values()];
 }
 
 async function loadCell(key: string): Promise<CellData | null> {
@@ -77,15 +78,18 @@ async function loadCell(key: string): Promise<CellData | null> {
 
 export async function loadNearby(p: LatLng): Promise<NearbyResult> {
   const missing: string[] = [];
+  let stopCoverage: NearbyResult['stopCoverage'];
 
   const stopsP = fetch(`/api/stops?lat=${p.lat}&lng=${p.lng}`, { cache: 'no-store' })
     .then(async (r) => {
-      const j = (await r.json().catch(() => ({}))) as { stops?: Facility[]; error?: string };
+      const j = (await r.json().catch(() => ({}))) as { stops?: Facility[]; error?: string; coverage?: NearbyResult['stopCoverage'] };
       if (!r.ok || !j.stops) {
         missing.push(j.error === 'no_key' ? '버스정류장(키 없음)' : '버스정류장(조회 실패)');
         return [] as Facility[];
       }
-      return j.stops;
+      stopCoverage = j.coverage;
+      if (j.coverage?.partial) missing.push('버스정류장(일부 조회·누락 가능)');
+      return j.stops.filter((s) => typeof s.id === 'string' && validCoordinate(s));
     })
     .catch(() => {
       missing.push('버스정류장(조회 실패)');
@@ -111,12 +115,9 @@ export async function loadNearby(p: LatLng): Promise<NearbyResult> {
 
   const [live, grid] = await Promise.all([stopsP, gridP]);
   const busstops = mergeStops(live, grid.busstops);
-  // 실시간 조회가 실패해도 파일 정류장이 있으면 정류장 판단은 할 수 있다
-  if (grid.busstops.length > 0) {
-    const i = missing.findIndex((m) => m.startsWith('버스정류장'));
-    if (i >= 0) missing.splice(i, 1);
-  }
+  // Fallback records help discovery, but cannot erase an upstream coverage failure.
+  if (!stopCoverage) stopCoverage = { source: 'collected_grid', partial: true };
   const state: NearbyState =
     missing.length === 0 ? 'ok' : missing.length >= 2 ? (grid.noData ? 'no_data' : 'error') : 'partial';
-  return { busstops, crosswalks: grid.crosswalks, schools: grid.schools, state, missing };
+  return { busstops, crosswalks: grid.crosswalks, schools: grid.schools, state, missing, stopCoverage };
 }
