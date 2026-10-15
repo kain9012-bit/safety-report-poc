@@ -11,7 +11,7 @@
  *
  * 좌표·주변 시설은 일부러 보내지 않는다 — 힌트를 주면 그쪽으로 기울 수 있다.
  * 키는 서버에만 있다. 사진은 기록·저장하지 않는다.
- * 이 파일은 다른 파일을 import 하지 않는다 — Vercel 함수로 따로 묶여도 깨지지 않게.
+ * 기존 웹의 자료 형식과 순수 함수는 유지한다. 사진 ID를 보내는 개선 클라이언트는 최신 상세 분석 서버로 연결한다.
  */
 
 export type Tri = 'yes' | 'no' | 'unclear';
@@ -397,7 +397,7 @@ async function readOne(img: { mime: string; data: string }, key: string, models:
   return 'busy';
 }
 
-export async function POST(request: Request): Promise<Response> {
+async function legacyPOST(request: Request): Promise<Response> {
   let body: { images?: unknown[] };
   try {
     body = (await request.json()) as { images?: unknown[] };
@@ -425,4 +425,24 @@ export async function POST(request: Request): Promise<Response> {
   } catch {
     return reply({ error: 'upstream' }, 502);
   }
+}
+
+
+/** Read-only readiness metadata. Never returns provider secrets or image data. */
+export function GET(): Response {
+  return reply({ service: 'parking-photo-analysis', analysisVersion: 2, release: 'vision-api-2026-10-15', capabilities: ['photo_binding', 'structured_observations', 'original_regions'], legacyClientsSupported: true });
+}
+
+/** Existing deployed web keeps its protocol; current web/iPhone use photo-bound v2. */
+export async function POST(request: Request): Promise<Response> {
+  let body: unknown;
+  try { body = await request.clone().json(); } catch { return reply({ error: 'bad_request' }, 400); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return reply({ error: 'bad_request' }, 400);
+  const input = body as Record<string, unknown>;
+  if (input.analysisVersion !== undefined && input.analysisVersion !== 2) return reply({ error: 'unsupported_version' }, 400);
+  if (['analysisVersion', 'photoIds', 'inputVersion', 'detailImages', 'reference'].some((key) => key in input)) {
+    const modern = await import('../server/vision-v2');
+    return modern.POST(request);
+  }
+  return legacyPOST(request);
 }
