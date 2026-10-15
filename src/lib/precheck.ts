@@ -17,6 +17,7 @@ import type { CheckResult } from './rules';
 import type { Verdict } from './crosscheck';
 import { primaryShots, reviewedReads, sameImportedPhoto } from './photoEvidence';
 import { summarizeEvidence } from './evidence';
+import { busStopNumbers, sharedParkingQuestion } from './followUps';
 import { locatedShot } from '../types/report';
 import type { DraftReport } from '../types/report';
 import type { VisionResult } from '../../api/vision';
@@ -190,15 +191,33 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
     detail: body.trim().length >= BODY_MIN ? `${body.length}자` : `${BODY_MIN}자 이상 적어야 합니다.`,
   });
 
+  // 새 판독(사진별 관찰) — 결과를 바꿀 만큼 중요한 미확인만 노란불로 꺼낸다. 나머지 근거는 기록에만 남는다.
   if (draft.schemaVersion === 2) {
     const evidence = summarizeEvidence(reviewedReads(draft)).find((s) => s.type === draft.type);
     const check = out.find((c) => c.id === 'evidence');
-    if (check && draft.type) {
+    if (check && draft.type && draft.type !== 'other') {
       check.status = evidence?.status === 'observed' ? 'pass' : 'warn';
-      check.detail = evidence?.status === 'observed' ? '사진에서 표시·대상 차량의 연결을 관찰했습니다. 위반·신고 적합성 확정은 아닙니다.' : '이 유형의 사진 연결 근거가 미확인 또는 상충합니다. 선택과 원본은 유지합니다.';
+      check.detail = evidence?.status === 'observed'
+        ? '사진에서 위반 장소의 근거를 찾았습니다.'
+        : '사진에서 이 유형의 근거를 확인하지 못했습니다. 그 근거(표지판·노면 표시 등)가 사진에 보이는지 확인해 주세요.';
     }
-    if (draft.type && ['hydrant', 'corner', 'busstop'].includes(draft.type)) out.push({ id: 'distance', label: '실제 거리', status: 'warn', detail: '사진 픽셀·휴대폰 GPS로 차량의 실제 거리를 확정하지 않습니다. 유형 이름의 거리 수치는 측정 결과가 아닙니다.' });
-    if (draft.type === 'schoolzone') out.push({ id: 'school_scope', label: '지정 구간·공휴일', status: 'warn', detail: '학교 근접·노면 색만으로 지정 구간을 확정하지 않습니다. 공식 구간·공휴일·관할 접수 조건은 별도 확인이 필요합니다.' });
+    const shared = sharedParkingQuestion(draft);
+    if (shared && shared.answer !== 'different_bay') {
+      out.push({
+        id: 'shared_parking',
+        label: '일반 자동차 주차 안내',
+        status: 'warn',
+        detail: shared.answer === 'same_bay'
+          ? '이 칸에 일반 자동차도 주차할 수 있다는 안내가 있다고 답했습니다. 안내의 시간·조건에 해당하면 신고 대상이 아닐 수 있습니다.'
+          : shared.answer === 'unknown'
+            ? '일반 자동차 주차 안내가 이 칸에 적용되는지 확인하지 못했습니다. 안내의 시간·조건에 해당하면 신고 대상이 아닐 수 있습니다.'
+            : '사진에 일반 자동차 주차 안내가 보입니다. 위반 유형 확인 단계에서 이 칸에 적용되는지 답해 주세요.',
+      });
+    }
+    const stops = draft.type === 'busstop' ? busStopNumbers(draft) : [];
+    if (stops.length > 1) {
+      out.push({ id: 'busstop_number', label: '정류소 표지', status: 'warn', detail: `사진에서 서로 다른 정류소 번호가 읽혔습니다(${stops.join(' / ')}). 차 옆 정류소 표지가 사진에 보이는지 확인해 주세요.` });
+    }
   }
   return { checks: out, album, blocked: out.some((c) => c.status === 'fail') };
 }

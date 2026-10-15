@@ -7,11 +7,12 @@ import type { DraftReport } from './types/report';
 import type { PhotoRead, VisionResult } from '../api/vision';
 import App from './App';
 import { kstTime } from './lib/kst';
+import { normalizeDraft } from './lib/photoEvidence';
 
-const mock = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), remove: vi.fn(), read: vi.fn(), album: vi.fn() }));
+const mock = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), remove: vi.fn(), read: vi.fn(), album: vi.fn(), albumFile: vi.fn() }));
 vi.mock('./lib/reports', async (original) => ({ ...await original<object>(), listReports: mock.list, saveReport: mock.save, deleteReport: mock.remove }));
 vi.mock('./lib/vision', () => ({ readOne: mock.read }));
-vi.mock('./lib/album', () => ({ readAlbum: mock.album }));
+vi.mock('./lib/album', () => ({ readAlbum: mock.album, readAlbumFile: mock.albumFile }));
 vi.mock('./lib/reverseGeocode', () => ({ reverseGeocode: vi.fn(async () => ({ state: 'error' })) }));
 vi.mock('./lib/facilities', () => ({ loadNearby: vi.fn(async () => ({ state: 'ok', busstops: [], crosswalks: [], schools: [], missing: [] })) }));
 vi.mock('./lib/recommend', () => ({ recommend: () => [] }));
@@ -33,6 +34,7 @@ vi.mock('./components/ReportSteps', () => ({ default: (p: ComponentProps<typeof 
   <output data-testid="draft">{JSON.stringify(p.draft)}</output>
   <button onClick={p.onRetake}>retake</button><button onClick={p.onHome}>home</button><button onClick={p.onSubmit}>submit</button>
   <button onClick={() => p.onEdit('body', '수정한 수동 내용')}>edit body</button>
+  <button onClick={() => p.followUps?.onSupplement(new File(['more'], 'more.jpg'), 'hydrant:connection')}>supplement</button>
 </div> }));
 
 const NOW = kstTime(2026, 10, 7, 11);
@@ -43,6 +45,8 @@ const initial = (): ReportRecord => ({
     reads: [read, read], type: 'crossing', plate: '12가3456', address: '전북특별자치도 전주시 완산구 테스트길', body: '기존 수동 신고 내용',
     manual: { body: true, address: true, plate: true, type: true }, overlap: { ratio: .9, score: .9, same: true }, firstOk: true },
 });
+// 예전 형식 기록은 열 때 사진 ID·기본 두 장 표시만 더해 읽는다(사진·주소·본문은 그대로)
+const opened = () => normalizeDraft(initial().draft);
 const draft = () => JSON.parse(screen.getByTestId('draft').textContent!) as DraftReport;
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
 const deferred = <T,>() => { let resolve!: (v: T) => void; let reject!: (e: Error) => void; const promise = new Promise<T>((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
@@ -65,12 +69,12 @@ describe('실제 App의 보존·저장 화면 전환', () => {
     expect(draft().shots).toHaveLength(1);
     click('shot');
     await act(() => new Promise((r) => setTimeout(r, 350)));
-    expect(stored.draft.shots).toEqual(initial().draft.shots);
+    expect(stored.draft.shots).toEqual(opened().shots);
     expect(stored.draft.body).toBe(initial().draft.body);
     click('재촬영 취소 · 기존 자료로 돌아가기');
     await screen.findByTestId('form');
-    expect(draft()).toEqual(initial().draft);
-    cleanup(); await boot(); expect(draft()).toEqual(initial().draft);
+    expect(draft()).toEqual(opened());
+    cleanup(); await boot(); expect(draft()).toEqual(opened());
   });
 
   it('첫 사진 재촬영도 수동 주소·본문을 유지하며 저장 실패 후 기존 사진을 복원한다', async () => {
@@ -78,14 +82,14 @@ describe('실제 App의 보존·저장 화면 전환', () => {
     expect(draft().shots).toHaveLength(0); expect(draft().address).toBe(initial().draft.address); expect(draft().body).toBe(initial().draft.body);
     click('shot'); click('shot'); mock.save.mockRejectedValueOnce(new Error('quota')); click('finish');
     await screen.findByRole('alert');
-    expect(stored.draft.shots).toEqual(initial().draft.shots); expect(draft().shots[0].dataUrl).toBe('data:,replacement');
-    click('재촬영 취소 · 기존 자료로 돌아가기'); await screen.findByTestId('form'); expect(draft()).toEqual(initial().draft);
+    expect(stored.draft.shots).toEqual(opened().shots); expect(draft().shots[0].dataUrl).toBe('data:,replacement');
+    click('재촬영 취소 · 기존 자료로 돌아가기'); await screen.findByTestId('form'); expect(draft()).toEqual(opened());
   });
 
   it('교체 저장 커밋 전에는 촬영 화면에 머물고 성공 후에만 새 사진으로 넘어간다', async () => {
     await boot(); click('retake'); await screen.findByTestId('capture'); click('shot');
     const commit = deferred<void>(); mock.save.mockImplementationOnce(async (r: ReportRecord) => { await commit.promise; stored = structuredClone(r); });
-    click('finish'); expect(screen.queryByTestId('form')).toBeNull(); expect(stored.draft.shots).toEqual(initial().draft.shots);
+    click('finish'); expect(screen.queryByTestId('form')).toBeNull(); expect(stored.draft.shots).toEqual(opened().shots);
     await act(async () => commit.resolve()); await screen.findByTestId('form');
     expect(stored.draft.shots[1].dataUrl).toBe('data:,replacement'); expect(stored.draft.body).toBe(initial().draft.body);
   });
@@ -124,7 +128,7 @@ describe('실제 App의 보존·저장 화면 전환', () => {
   it('재촬영 시작 전 최신 입력 저장이 실패하면 원래 화면과 사진을 유지한다', async () => {
     await boot(); click('edit body'); mock.save.mockRejectedValueOnce(new Error('quota')); click('retake');
     await screen.findByRole('alert'); expect(screen.queryByTestId('capture')).toBeNull();
-    expect(draft().shots).toEqual(initial().draft.shots); expect(draft().body).toBe('수정한 수동 내용');
+    expect(draft().shots).toEqual(opened().shots); expect(draft().body).toBe('수정한 수동 내용');
     click('다시 시도'); await screen.findByTestId('capture'); expect(stored.draft.body).toBe('수정한 수동 내용');
   });
 
@@ -133,13 +137,13 @@ describe('실제 App의 보존·저장 화면 전환', () => {
     await boot(); click('retake'); await screen.findByTestId('capture'); click('shot');
     click('재촬영 취소 · 기존 자료로 돌아가기'); await screen.findByTestId('form');
     await act(async () => reading.resolve({ state: 'ok', read: { ...read, evidence: 'late replacement read' } }));
-    expect(draft()).toEqual(initial().draft); expect(stored.draft).toEqual(initial().draft);
+    expect(draft()).toEqual(opened()); expect(stored.draft).toEqual(opened());
   });
 
   it('삭제 실패 시 보관함에 기존 자료를 남기고 오류를 알린다', async () => {
     await boot(); click('home'); await screen.findByTestId('home'); mock.remove.mockRejectedValueOnce(new Error('abort'));
     click('delete r1'); await screen.findByRole('alert'); expect(screen.getByRole('button', { name: 'open r1' })).toBeTruthy();
-    expect(stored.draft).toEqual(initial().draft);
+    expect(stored.draft).toEqual(opened());
   });
 
   it('보관함 재시도의 늦은 실패가 새 촬영 화면을 홈으로 돌려보내지 않는다', async () => {
@@ -151,4 +155,30 @@ describe('실제 App의 보존·저장 화면 전환', () => {
     expect(screen.queryByTestId('home')).toBeNull(); expect(screen.getByTestId('capture')).toBeTruthy();
   });
 
+});
+
+describe('main 화면 뒤에서 도는 개선 로직', () => {
+  it('새 촬영은 사진 ID·기본 두 장을 가진 새 형식으로 만들고, 세 번째 촬영은 받지 않으며, 사진 ID를 붙여 판독한다', async () => {
+    mock.list.mockResolvedValue([]); render(<App />); await screen.findByTestId('home');
+    click('new'); await screen.findByTestId('capture');
+    click('shot'); click('shot'); click('shot');
+    const d = draft();
+    expect(d.schemaVersion).toBe(2);
+    expect(d.shots).toHaveLength(2);
+    expect(d.primaryPair).toEqual(d.shots.map((s) => s.id));
+    expect(mock.read).toHaveBeenCalledWith('data:,replacement', expect.objectContaining({ photoIds: [d.shots[0].id] }));
+  });
+
+  it('보완사진은 기본 두 장 뒤에 붙고 같은 사유를 기록하며, 기본 첫 사진과 대조해 판독한다. 두 번째 재촬영 후보에서는 빠진다', async () => {
+    mock.albumFile.mockResolvedValue({ takenAt: NOW, dataUrl: 'data:,stamped', originalDataUrl: 'data:,more', source: 'album' });
+    await boot(); click('supplement');
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    const d = draft();
+    expect(d.shots.map((s) => s.dataUrl)).toEqual(['data:,original0', 'data:,original1', 'data:,stamped']);
+    expect(d.primaryPair).toEqual(opened().primaryPair);
+    expect(d.supplementAsked).toEqual(['hydrant:connection']);
+    expect(mock.read).toHaveBeenCalledWith('data:,more', expect.objectContaining({ reference: { dataUrl: 'data:,original0', photoId: opened().primaryPair![0] } }));
+    click('retake'); await screen.findByTestId('capture');
+    expect(draft().shots.map((s) => s.dataUrl)).toEqual(['data:,original0']);
+  });
 });

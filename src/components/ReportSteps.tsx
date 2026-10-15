@@ -32,6 +32,8 @@ import {
   VisionLine,
 } from './FormParts';
 import type { PickedAddress, TypeInfo } from './FormParts';
+import FollowUps from './FollowUps';
+import type { FollowUpProps } from './FollowUps';
 
 export const STEPS = ['유형', '발생지역', '차량번호', '내용', '점검·제출'] as const;
 
@@ -48,6 +50,8 @@ interface Props {
   onRetryVision: () => void;
   onEdit: (field: EditableField, value: string | undefined) => void;
   onPickAddress: (a: PickedAddress) => void;
+  /** 해당할 때만 보이는 후속 질문(보완 촬영 한 장·일반 자동차 주차 안내) */
+  followUps?: FollowUpProps;
   /** 촬영 화면으로 돌아가 사진을 다시 찍는다 */
   onRetake: () => void;
   onHome: () => void;
@@ -173,6 +177,7 @@ export default function ReportSteps(p: Props) {
                 options={p.options}
               />
             </div>
+            {p.followUps && <FollowUps {...p.followUps} />}
           </Step>
         )}
 

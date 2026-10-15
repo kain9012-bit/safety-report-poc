@@ -21,7 +21,9 @@ import StartScreen from './components/StartScreen';
 import CaptureFlow from './components/CaptureFlow';
 import ReportSteps from './components/ReportSteps';
 import type { PickedAddress, TypeInfo } from './components/FormParts';
-import { locatedShot } from './types/report';
+import { activeLocatedShot, appendPhoto, normalizeDraft, primaryFirst, primaryReads, primaryShots, reviewedReads } from './lib/photoEvidence';
+import { answerSharedParking, sharedParkingQuestion, supplementRequest } from './lib/followUps';
+import type { SharedScope } from './lib/followUps';
 import type { DraftReport, EditableField, Shot, ViolationType } from './types/report';
 
 type Screen = 'loading' | 'home' | 'capture' | 'form';
@@ -83,7 +85,9 @@ export default function App() {
 
   // 앱을 열면 — 하던 신고가 있으면 바로 그 자리로
   const geoKey = useRef<number | undefined>(undefined);
-  const open = useCallback((r: ReportRecord) => {
+  const open = useCallback((stored: ReportRecord) => {
+    // 이전 형식 기록도 사진 ID·기본 두 장을 붙여 읽는다(원본·본문은 그대로). 기본 두 장을 앞에 둔다.
+    const r = { ...stored, draft: primaryFirst(normalizeDraft(stored.draft)) };
     navigation.current += 1;
     autoPaused.current = false;
     saved.current = r;
@@ -93,7 +97,7 @@ export default function App() {
     setSaveState('saved');
     setStorageError(null);
     setReadStates(statesOf(r.draft));
-    const at = locatedShot(r.draft.shots);
+    const at = activeLocatedShot(r.draft);
     geoKey.current = r.draft.address && at ? at.takenAt : undefined;
     setScreen(r.phase === 'capture' ? 'capture' : 'form');
   }, []);
@@ -159,13 +163,22 @@ export default function App() {
   }, []);
 
   // 사진마다 판독 — 첫 번째 사진은 찍자마자, 두 번째 사진도 찍자마자. 한 장씩 따로 읽는다.
+  // 시각을 새기기 전 원본으로 읽고, 보완사진은 기본 첫 사진과 같은 차·장소인지 함께 확인한다.
   const inflight = useRef(new Set<Shot>());
   useEffect(() => {
+    const primary = primaryShots(draft);
     draft.shots.forEach((s, i) => {
       if (draft.reads?.[i] !== undefined || inflight.current.has(s)) return;
       inflight.current.add(s);
       setReadStates((st) => Object.assign([...st], { [i]: 'loading' }));
-      void readOne(s.dataUrl).then((r) => {
+      const reference = !primary.includes(s) && primary[0]?.id
+        ? { dataUrl: primary[0].originalDataUrl ?? primary[0].dataUrl, photoId: primary[0].id }
+        : undefined;
+      void readOne(s.originalDataUrl ?? s.dataUrl, {
+        reference,
+        photoIds: [s.id ?? `legacy-${i}-${s.takenAt}`],
+        inputVersion: String(draft.evidenceRevision ?? 0),
+      }).then((r) => {
         inflight.current.delete(s);
         if (current.current?.id !== rec?.id || current.current?.draft.shots[i] !== s) return;
         setDraft((d) => {
@@ -177,12 +190,13 @@ export default function App() {
         setReadStates((st) => Object.assign([...st], { [i]: r.state }));
       });
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.shots, draft.reads, rec?.id, setDraft]);
 
   // 두 사진 겹침 — 규칙 기반 영상 대조
   const ovKey = useRef('');
   useEffect(() => {
-    const [a, b] = draft.shots;
+    const [a, b] = primaryShots(draft);
     if (!a || !b || draft.overlap) return;
     const key = `${rec?.id}-${a.takenAt}-${b.takenAt}`;
     if (ovKey.current === key) return;
@@ -190,15 +204,16 @@ export default function App() {
     void compareShots(a.dataUrl, b.dataUrl).then((o) => {
       if (current.current?.id !== rec?.id) return;
       setDraft((d) =>
-        d.shots[0] === a && d.shots[1] === b
+        primaryShots(d)[0] === a && primaryShots(d)[1] === b
           ? { ...d, overlap: o ? { ratio: o.ratio, score: o.score, same: o.same } : { ratio: 0, score: -1, same: false } }
           : d,
       );
     });
-  }, [draft.shots, draft.overlap, rec?.id, setDraft]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.shots, draft.primaryPair, draft.overlap, rec?.id, setDraft]);
 
   // 사진 좌표 → 발생지역. 사람이 고친 주소는 덮어쓰지 않는다.
-  const located = locatedShot(draft.shots);
+  const located = activeLocatedShot(draft);
   const manualAddress = Boolean(draft.manual?.address);
   useEffect(() => {
     if (!located || manualAddress) {
@@ -250,18 +265,33 @@ export default function App() {
   }, [located]);
 
   // 판독 합본(읽힌 장만) → 유형 판정(사진 증거)
+  // 번호판·같은 차는 기본 두 장으로만 맞춘다. 유형 근거에는 기본 사진과 연결이 확인된 보완사진도 더한다.
+  // 유형은 사진에서 표시·대상 차량·경계가 모두 확인됐을 때만 채워지고, 아니면 비워 두어 직접 고르게 한다.
   const merged = useMemo(() => {
-    const reads = (draft.reads ?? []).map((r) => r ?? null);
+    const reads = primaryReads(draft).map((r) => r ?? null);
     return reads.some(Boolean) ? mergeReads(reads, draft.model ?? '') ?? undefined : undefined;
-  }, [draft.reads, draft.model]);
-  const verdict = useMemo(() => crosscheck(typeInfo.candidates, typeInfo.coverage, merged), [typeInfo, merged]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.reads, draft.model, draft.primaryPair, draft.shots]);
+  const evidenceMerged = useMemo(() => {
+    const reads = reviewedReads(draft).map((r) => r ?? null);
+    return reads.some(Boolean) ? mergeReads(reads, draft.model ?? '') ?? undefined : undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.reads, draft.model, draft.primaryPair, draft.shots]);
+  const verdict = useMemo(() => crosscheck(typeInfo.candidates, typeInfo.coverage, evidenceMerged), [typeInfo, evidenceMerged]);
   const validation = useRef({ verdict, merged });
   validation.current = { verdict, merged };
   const rules = useMemo(() => rulesFor(draft.address), [draft.address]);
   const options = useMemo(() => {
-    if (!verdict.type || !draft.shots[0]) return [];
-    return rankTypes([verdict.type, ...verdict.alternatives], { takenAt: draft.shots[0].takenAt, rules, candidates: typeInfo.candidates });
-  }, [verdict, rules, typeInfo.candidates, draft.shots]);
+    const first = primaryShots(draft)[0];
+    if (!verdict.type || !first) return [];
+    return rankTypes([verdict.type, ...verdict.alternatives], { takenAt: first.takenAt, rules, candidates: typeInfo.candidates });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verdict, rules, typeInfo.candidates, draft.shots, draft.primaryPair]);
+
+  // 화면에 꺼낼 후속 질문 — 민원인이 직접 해야 할 일이 있을 때만
+  const supplement = useMemo(() => supplementRequest(draft), [draft]);
+  const shared = useMemo(() => sharedParkingQuestion(draft), [draft]);
+  const [supplementBusy, setSupplementBusy] = useState(false);
 
   useEffect(() => {
     setDraft((d) => (d.manual?.type || d.type === verdict.type ? d : { ...d, type: verdict.type }));
@@ -290,7 +320,7 @@ export default function App() {
     setSaveState('idle');
     setStorageError(null);
     const t = Date.now();
-    setRec({ id: newId(t), draft: { shots: [] }, phase: 'capture', step: 0, createdAt: t, updatedAt: t });
+    setRec({ id: newId(t), draft: normalizeDraft({ shots: [] }), phase: 'capture', step: 0, createdAt: t, updatedAt: t });
     setReadStates([]);
     geoKey.current = undefined;
     setScreen('capture');
@@ -346,7 +376,27 @@ export default function App() {
   const onPickAddress = (a: PickedAddress) =>
     setDraft((d) => ({ ...d, address: a.address, addressParcel: a.parcel, addressFrom: a.from, manual: { ...d.manual, address: true } }));
 
-  const onShot = (s: Shot) => setDraft((d) => ({ ...d, shots: [...d.shots, s].slice(0, 2) }));
+  const onShot = (s: Shot) => setDraft((d) => (primaryShots(d).length < 2 ? appendPhoto(d, s) : d));
+
+  // 보완사진 한 장 — 기본 두 장은 그대로 두고 뒤에 붙인다. 같은 부족 사유로는 다시 요청하지 않는다.
+  const onSupplement = (file: File, needId: string) => {
+    if (busyRef.current || supplementBusy) return;
+    const id = rec?.id;
+    setSupplementBusy(true);
+    void import('./lib/album')
+      .then(({ readAlbumFile }) => readAlbumFile(file))
+      .then((shot) => {
+        if (current.current?.id !== id) return;
+        setDraft((d) => ({ ...appendPhoto(d, shot, true), supplementAsked: [...new Set([...(d.supplementAsked ?? []), needId])] }));
+      })
+      .catch(() => {
+        setToast('사진을 읽지 못했습니다. 기존 사진과 입력은 그대로입니다.');
+        setTimeout(() => setToast(null), 4000);
+      })
+      .finally(() => setSupplementBusy(false));
+  };
+
+  const onSharedAnswer = (scope: SharedScope) => setDraft((d) => answerSharedParking(d, scope));
 
   const retake = (index: 0 | 1) => {
     const snapshot = current.current;
@@ -394,7 +444,7 @@ export default function App() {
       .then(({ readAlbum }) => readAlbum(files))
       .then((shots) => {
         const t = Date.now();
-        setRec({ id: newId(t), draft: { shots, firstOk: true }, phase: 'form', step: 0, createdAt: t, updatedAt: t });
+        setRec({ id: newId(t), draft: normalizeDraft({ shots, firstOk: true }), phase: 'form', step: 0, createdAt: t, updatedAt: t });
         setReadStates([]);
         geoKey.current = undefined;
         setAlbumState('idle');
@@ -520,6 +570,13 @@ export default function App() {
             onRetryVision={() => draft.reads?.forEach((r, i) => r === null && retryRead(i))}
             onEdit={onEdit}
             onPickAddress={onPickAddress}
+            followUps={{
+              supplement,
+              supplementBusy,
+              onSupplement,
+              shared,
+              onSharedAnswer,
+            }}
             onRetake={retakeSecond}
             onHome={goHome}
             onSubmit={onSubmit}

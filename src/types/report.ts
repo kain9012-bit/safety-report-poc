@@ -92,6 +92,8 @@ export interface DraftReport {
     inputKey: string;
     answeredAt: number;
   };
+  /** 이미 한 번 보완 촬영을 요청한 부족 사유(같은 사유로 다시 묻지 않는다) */
+  supplementAsked?: string[];
   vehicleLocation?: { lat: number; lng: number; selectedAt: number; source: 'user_map' };
   selectedStopId?: string;
   stopSelection?: import('../lib/stopCandidates').StopSelection;

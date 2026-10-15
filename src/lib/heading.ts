@@ -49,11 +49,16 @@ export function snapshotHeading(samples: readonly HeadingSample[], capturedAt: n
 }
 
 /** Invoke in a user click. Browser absolute orientation has no standardized accuracy or guaranteed true-north datum. */
-export async function startHeadingTracking(options: { facingMode: HeadingSample['facingMode']; onSample: (sample: HeadingSample) => void }): Promise<{ stop: () => void; issue?: 'denied' | 'unsupported' }> {
+export async function startHeadingTracking(options: {
+  facingMode: HeadingSample['facingMode'];
+  onSample: (sample: HeadingSample) => void;
+  /** false — 권한 창을 띄우지 않고 이미 받을 수 있는 센서 값만 기록한다(뒤에서만 도는 기록용). */
+  askPermission?: boolean;
+}): Promise<{ stop: () => void; issue?: 'denied' | 'unsupported' }> {
   if (typeof window === 'undefined' || !('DeviceOrientationEvent' in window)) return { stop() {}, issue: 'unsupported' };
   const constructor = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: (absolute?: boolean) => Promise<string> };
   try {
-    if (constructor.requestPermission && await constructor.requestPermission(true) !== 'granted') return { stop() {}, issue: 'denied' };
+    if (options.askPermission !== false && constructor.requestPermission && await constructor.requestPermission(true) !== 'granted') return { stop() {}, issue: 'denied' };
   } catch { return { stop() {}, issue: 'denied' }; }
   const listener = (event: DeviceOrientationEvent) => {
     const now = Date.now();

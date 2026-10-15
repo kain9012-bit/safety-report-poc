@@ -13,6 +13,18 @@ export function normalizeDraft(d: DraftReport): DraftReport {
   return { ...d, type, schemaVersion: 2, shots, primaryPair: d.primaryPair ?? shots.slice(0, 2).map((s) => s.id!), evidenceRevision: d.evidenceRevision ?? 0 };
 }
 
+/**
+ * 기본 두 장을 앞에 두고 보완사진을 뒤에 둔다(판독 결과도 같은 순서로).
+ * main 화면은 첫 두 장을 기본 사진으로 읽으므로, 다른 순서로 저장된 기록도 열 때 이렇게 맞춘다.
+ */
+export function primaryFirst(d: DraftReport): DraftReport {
+  if (!d.primaryPair) return d;
+  const order = d.shots.map((s, i) => ({ s, i, rank: d.primaryPair!.indexOf(photoId(s, i)) }));
+  const sorted = [...order.filter((o) => o.rank >= 0).sort((a, b) => a.rank - b.rank), ...order.filter((o) => o.rank < 0)];
+  if (sorted.every((o, k) => o.i === k)) return d;
+  return { ...d, shots: sorted.map((o) => o.s), ...(d.reads ? { reads: sorted.map((o) => d.reads![o.i]) } : {}) };
+}
+
 export function primaryShots(d: DraftReport): Shot[] {
   if (!d.primaryPair) return d.shots.slice(0, 2);
   return d.primaryPair.map((id) => d.shots.find((s, i) => photoId(s, i) === id)).filter((s): s is Shot => Boolean(s));

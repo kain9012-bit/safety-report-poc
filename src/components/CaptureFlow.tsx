@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ArrowLeft, Camera, Check, Loader2, MapPin, RotateCcw, Scale, TriangleAlert, X } from 'lucide-react';
-import { captureFrame, startCamera, stopCamera } from '../lib/camera';
+import { captureEvidenceFrame, startCamera, stopCamera } from '../lib/camera';
+import { createLocationTracker } from '../lib/locationQuality';
+import { snapshotHeading, startHeadingTracking } from '../lib/heading';
+import type { HeadingSample } from '../lib/heading';
 import { isValidPlate, IS_TEST_INTERVAL, MIN_INTERVAL_SEC, PLATE_CONFIDENCE_FLOOR } from '../lib/rules';
 import { distanceMeters } from '../lib/geo';
 import { loadNearby } from '../lib/facilities';
@@ -86,6 +89,20 @@ export default function CaptureFlow(p: Props) {
   const mountedAt = useRef(Date.now());
   const [now, setNow] = useState(Date.now());
 
+  // 화면에는 보이지 않는 기록 — GPS 최신성·오차 이력, 이미 받을 수 있는 카메라 방향(권한 창은 띄우지 않는다)
+  const locationTracker = useRef(createLocationTracker());
+  const headingSamples = useRef<HeadingSample[]>([]);
+  useEffect(() => {
+    let stop: (() => void) | undefined;
+    let alive = true;
+    void startHeadingTracking({
+      facingMode: 'environment',
+      askPermission: false,
+      onSample: (s) => { headingSamples.current = [...headingSamples.current.filter((h) => s.receivedAt - h.receivedAt <= 1_000), s]; },
+    }).then((t) => { if (alive) stop = t.stop; else t.stop(); });
+    return () => { alive = false; stop?.(); };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     startCamera()
@@ -110,6 +127,7 @@ export default function CaptureFlow(p: Props) {
     const id = navigator.geolocation.watchPosition(
       (g) => {
         setPosErrCode(null);
+        locationTracker.current.ingest(g);
         setPos({ lat: g.coords.latitude, lng: g.coords.longitude, accuracy: g.coords.accuracy });
       },
       (e) => setPosErrCode(e.code),
@@ -184,13 +202,19 @@ export default function CaptureFlow(p: Props) {
     if (!video || video.readyState < 2) return;
     primeAlerts();
     const takenAt = Date.now();
+    // 판독은 촬영시각을 새기기 전 원본으로 한다. 신고서·화면에는 시각을 새긴 사진을 쓴다.
+    const frame = captureEvidenceFrame(video, { takenAt, lat: pos?.lat, lng: pos?.lng, accuracy: pos?.accuracy });
+    const issue = posErrCode === 1 ? 'denied' : posErrCode ? 'unavailable' : undefined;
     p.onShot({
       takenAt,
       lat: pos?.lat,
       lng: pos?.lng,
       accuracy: pos?.accuracy,
       locIssue: pos ? undefined : posErrCode === 1 ? 'denied' : 'unavailable',
-      dataUrl: captureFrame(video, { takenAt, lat: pos?.lat, lng: pos?.lng, accuracy: pos?.accuracy }),
+      dataUrl: frame.dataUrl,
+      originalDataUrl: frame.originalDataUrl,
+      location: locationTracker.current.snapshot(takenAt, issue),
+      heading: snapshotHeading(headingSamples.current, takenAt),
       source: 'camera',
     });
   }, [pos, posErrCode, p]);
