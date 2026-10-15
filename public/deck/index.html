@@ -332,6 +332,15 @@ video.full{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;b
 .goal .tgt{font-size:22px;color:var(--muted);margin-top:14px;font-weight:600}
 .goal .n.todo-n{color:transparent;-webkit-text-stroke:2.5px #C9C0B0}
 .goal .n.todo-n small{color:var(--muted);-webkit-text-stroke:0}
+/* 향후 발전 방향 */
+.next{position:absolute;left:0;right:0;top:380px;display:flex;justify-content:center;gap:56px}
+.nx{width:780px;background:var(--card);border:2px solid var(--line);border-radius:28px;padding:46px 54px 40px}
+.nx .k{font-size:24px;font-weight:700;letter-spacing:.06em;color:var(--amber)}
+.nx h3{font-family:var(--serif);font-size:48px;font-weight:700;line-height:1.35;margin-top:14px;letter-spacing:-.02em}
+.nx ul{list-style:none;margin-top:30px;border-top:2px solid var(--line)}
+.nx li{display:flex;gap:22px;align-items:baseline;padding:20px 0;border-bottom:1px dashed var(--line);font-size:27px;line-height:1.5}
+.nx li b{flex:none;width:118px;font-size:22px;font-weight:800;color:var(--t2)}
+.nx .src{margin-top:22px;font-size:20px;color:var(--muted);line-height:1.5}
 
 /* 영상 재생바 */
 .vbar{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);width:1240px;display:flex;align-items:center;gap:18px;padding:12px 22px;border-radius:999px;background:rgba(20,18,15,.78);color:#F4EFE6;font-size:18px;font-variant-numeric:tabular-nums;opacity:.28;transition:opacity .3s;z-index:4}
@@ -445,7 +454,7 @@ aside.notes{display:none}
       <div class="b" style="flex:16"><div class="mn">PART 1</div><div class="nm">문제<small>왜 망설이나</small></div></div>
       <div class="b free" style="flex:36"><div class="mn">PART 2</div><div class="nm">해결<small>사진부터 찍으면 앱이 쓰는 신고서</small></div></div>
       <div class="b" style="flex:26"><div class="mn">PART 3</div><div class="nm">현업 공무원<small>담당자 일이 어떻게 줄어드나</small></div></div>
-      <div class="b" style="flex:16"><div class="mn">PART 4</div><div class="nm">검증<small>숫자로 확인</small></div></div>
+      <div class="b" style="flex:16"><div class="mn">PART 4</div><div class="nm">검증<small>숫자로 확인 · 다음 단계</small></div></div>
     </div>
   </div>
   <div class="pg"></div>
@@ -940,6 +949,41 @@ aside.notes{display:none}
   <div class="pg"></div>
   <aside class="notes">
     본인과 팀원 차량 사진으로 채점했습니다. (채점 결과를 채운 뒤 읽기) 유형 정답률은 ○○%로 목표 95%에 …, 틀린 번호판은 ○건입니다.
+  </aside>
+</section>
+
+<!-- 19 향후 발전 방향 — 10. 9. 팀 회의: 규정은 그대로, 마지막에 '발전 방향'으로 언급 -->
+<section class="slide" data-title="향후 발전 방향" data-steps="2" id="next">
+  <div class="top-title">
+    <div class="eyebrow">향후 발전 방향</div>
+    <div class="title">규정은 그대로 두고, 다음은 이렇게 넓힙니다</div>
+  </div>
+  <div class="next">
+    <div class="nx f" data-step="1">
+      <div class="k">하나 · 같은 자리 증빙</div>
+      <h3>같은 자리에 있었음을<br>짧은 영상으로</h3>
+      <ul>
+        <li><b>라이브 포토</b><span>셔터 앞뒤 순간이 함께 저장되는 사진</span></li>
+        <li><b>연속 촬영</b><span>3~5초 촬영, 첫 장과 마지막 장 비교</span></li>
+      </ul>
+      <div class="src">출발점: 중간발표 질문 — 한순간만 찍어 올리는 신고 우려</div>
+    </div>
+    <div class="nx f" data-step="2">
+      <div class="k">둘 · 신고 탭 정리</div>
+      <h3>탭을 몰라도<br>사진이 갈래를 정함</h3>
+      <ul>
+        <li><b>먼저</b><span>다른 탭의 위반이 찍히면 맞는 탭으로 안내</span></li>
+        <li><b>다음</b><span>탭을 고르지 않고 사진으로 바로 판정</span></li>
+      </ul>
+      <div class="src">출발점: 현장 인터뷰 — 다른 탭으로 들어온 신고는 내용이 맞아도 처리 불가</div>
+    </div>
+  </div>
+  <div class="footnote">이번 제안은 지금 규정(사진 2장·1분 간격)과 신고 탭 그대로 · 위 두 가지는 그다음 단계</div>
+  <div class="pg"></div>
+  <aside class="notes">
+    마지막으로 향후 발전 방향입니다. 이번 제안은 지금 규정과 신고 탭을 그대로 두고 AI 자동화만 더했습니다. 그다음 단계로 두 가지를 생각하고 있습니다.
+    하나, 같은 자리 증빙입니다. 중간발표 때 한순간만 찍어 올리면 어떻게 하느냐는 질문이 있었습니다. 라이브 포토나 3~5초 연속 촬영이면 그 자리에 계속 있었다는 것을 보여 줄 수 있습니다.
+    둘, 신고 탭 정리입니다. 현장 인터뷰에서 다른 탭으로 들어온 신고는 내용이 맞아도 처리되지 않는다고 들었습니다. 먼저 다른 탭의 위반이 찍히면 맞는 탭으로 안내하고, 나아가 탭을 고르지 않아도 사진으로 갈래를 정하는 방향입니다.
   </aside>
 </section>
 

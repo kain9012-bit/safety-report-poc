@@ -80,7 +80,7 @@ export interface VisionResult {
   photos: (PhotoRead | null)[];
   /** 두 장을 맞대어 정한 번호판. agree=true 일 때만 앱이 채운다 */
   plate: { text: string; readable: boolean; confidence: number; agree: boolean | null; reads: string[] };
-  /** 두 장의 번호가 같으면 yes, 둘 다 읽혔는데 다르면 no */
+  /** 두 장 모두 형식·확신도 기준을 충족하고 번호가 같으면 yes, 다르면 no */
   sameVehicle: Tri;
   scene: Scene;
   /** 장면 항목에서 규칙으로 뽑은 유형(우선순위 순) */
@@ -317,10 +317,15 @@ export function mergeReads(reads: (PhotoRead | null)[], model: string): VisionRe
   if (ok.length === 0) return null;
   const [a, b] = reads;
 
-  // 번호판 — 두 장에서 따로 읽은 값이 같아야 확정
+  // 번호판 — 두 장 모두 형식과 확신도를 충족한 뒤 대조한다.
+  // Vercel 함수의 단독 번들을 위해 rules.ts 기준을 여기서도 적용하며 회귀시험으로 일치를 확인한다.
+  const trusted = (r: PhotoRead | null | undefined) => Boolean(
+    r?.plate.readable && /^(?:[가-힣]{2})?\d{2,3}[가-힣]\d{4}$/.test(r.plate.text.replace(/\s/g, ''))
+    && Number.isFinite(r.plate.confidence) && r.plate.confidence >= 0.8,
+  );
   const readable = ok.filter((r) => r.plate.readable);
-  const texts = readable.map((r) => r.plate.text);
-  const agree = a?.plate.readable && b?.plate.readable ? a.plate.text === b.plate.text : null;
+  const texts = readable.map((r) => r.plate.text.replace(/\s/g, ''));
+  const agree = trusted(a) && trusted(b) ? a!.plate.text.replace(/\s/g, '') === b!.plate.text.replace(/\s/g, '') : null;
   const plate = {
     text: agree ? texts[0] : texts.length === 1 ? texts[0] : '',
     readable: readable.length > 0,

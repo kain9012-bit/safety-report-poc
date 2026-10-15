@@ -52,7 +52,7 @@ const FUTURE_SLACK_SEC = 300;
 const at = (ms: number) => kstShort(ms);
 
 /** 사진 한 장 점검 */
-export function checkAlbumPhoto(m: PhotoMeta, now: number = Date.now(), n = 1): CheckResult[] {
+export function checkAlbumPhoto(m: PhotoMeta, now: number = Date.now(), n = 1, deadlineDays = 1): CheckResult[] {
   const out: CheckResult[] = [];
   const tag = `${n}장`;
 
@@ -65,12 +65,12 @@ export function checkAlbumPhoto(m: PhotoMeta, now: number = Date.now(), n = 1): 
     });
   } else if (m.takenAt > now + FUTURE_SLACK_SEC * 1000) {
     out.push({ id: `a${n}-time`, label: `${tag} 촬영시각`, status: 'fail', detail: `촬영시각(${at(m.takenAt)})이 지금보다 늦습니다.` });
-  } else if (now > submitDeadline(m.takenAt)) {
+  } else if (now > submitDeadline(m.takenAt, deadlineDays)) {
     out.push({
       id: `a${n}-time`,
       label: `${tag} 촬영시각`,
       status: 'fail',
-      detail: `${at(m.takenAt)}에 찍은 사진입니다. 촬영 익일이 지나 접수 기한을 넘겼습니다.`,
+      detail: `${at(m.takenAt)}에 찍은 사진입니다. 접수 기한(${at(submitDeadline(m.takenAt, deadlineDays))})을 넘겼습니다.`,
     });
   } else {
     out.push({
@@ -163,8 +163,8 @@ export function checkAlbumPair(a: PhotoMeta, b: PhotoMeta, minInterval: number =
 }
 
 /** 앨범 사진 전체 점검 — 촬영시각 순으로 넣는다 */
-export function checkAlbum(metas: PhotoMeta[], now: number = Date.now(), minInterval: number = INTERVAL_SEC): CheckResult[] {
-  const one = metas.flatMap((m, i) => checkAlbumPhoto(m, now, i + 1));
+export function checkAlbum(metas: PhotoMeta[], now: number = Date.now(), minInterval: number = INTERVAL_SEC, deadlineDays = 1): CheckResult[] {
+  const one = metas.flatMap((m, i) => checkAlbumPhoto(m, now, i + 1, deadlineDays));
   return metas.length >= 2 ? [...one, ...checkAlbumPair(metas[0], metas[1], minInterval)] : one;
 }
 

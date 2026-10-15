@@ -21,3 +21,13 @@ data/opendata/raw/
 
 # 기사 캡처 — 저작권이 언론사에 있어 공개 저장소에 올리지 않는다. 목록은 docs/news-clips/README.md
 docs/news-clips/*.png
+
+# 로컬 작업 자료 — 개인정보(번호판·목소리)·원자료·대용량이라 깃에 올리지 않는다
+/테스트사진/
+/회의내용 정리/
+/다른팀원자료/
+/data/*.csv
+/docs/*.mp4
+/docs/신고해도될까요_*.html
+/docs/중간발표_*.html
+/docs/회의내용_*.html

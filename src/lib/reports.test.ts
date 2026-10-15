@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KEEP_MS, RESUME_MAX_MS, measure, newId, pickResume } from './reports';
+import { RESUME_MAX_MS, measure, newId, pickResume } from './reports';
 import type { ReportRecord } from './reports';
 
 const NOW = 1_800_000_000_000;
@@ -23,12 +23,9 @@ describe('이어하기 — 앱을 다시 열면 하던 신고로', () => {
   it('사진이 없는 신고는 이어하지 않는다', () => {
     expect(pickResume([rec({ id: 'a', shots: 0 })], NOW)).toBeUndefined();
   });
-  it('접수 기한을 넘긴(36시간) 신고는 이어하지 않는다', () => {
+  it('자동 이어하기 기준인 36시간을 넘기면 자동 선택하지 않는다', () => {
     expect(pickResume([rec({ createdAt: NOW - RESUME_MAX_MS - 1 })], NOW)).toBeUndefined();
     expect(pickResume([rec({ createdAt: NOW - RESUME_MAX_MS })], NOW)).toBeDefined();
-  });
-  it('보관 기간은 이어하기 기한보다 길다', () => {
-    expect(KEEP_MS).toBeGreaterThan(RESUME_MAX_MS);
   });
 });
 

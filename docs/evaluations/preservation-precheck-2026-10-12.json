@@ -1,0 +1,28 @@
+{
+  "verification_date": "2026-10-12",
+  "record_updated": "2026-10-13",
+  "baseline": "92a0bf10e07705da918018aa2625dec3ab464d2f",
+  "implementation_commit": "685965ff9d01f8920a89e30842fcb00e10a69516",
+  "scope": "Local verification; not GitHub Actions, production deployment, or field validation",
+  "web": {
+    "lint": "passed",
+    "build": "passed",
+    "tests": 304,
+    "test_files": 24,
+    "timezone_runs": [
+      "Asia/Seoul",
+      "America/Los_Angeles"
+    ],
+    "ui": "Local browser: start screen and existing explanation dialog checked; camera/AI not exercised",
+    "flow_tests": "12 App integration + 4 time/rules UI + 8 plate feedback tests with synthetic data; 10 real IndexedDB regressions"
+  },
+  "ios_separate_local_project_not_in_this_repository": {
+    "unsigned_build": "passed",
+    "xctest": 20,
+    "simulator": "iPhone 18 Pro / iOS 27",
+    "physical_device_tested": false,
+    "new_model_or_gps_connection": false
+  },
+  "real_photos_used": false,
+  "rules_legally_revalidated": false
+}

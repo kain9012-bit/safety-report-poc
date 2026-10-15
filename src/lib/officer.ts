@@ -62,13 +62,19 @@ export function officerLines({ draft, precheck: pc, rules, minInterval }: Office
 }
 
 /**
- * 신고 내용 + 사전 점검 요약. 내용 칸 글자 수(900자)를 넘지 않게, 넘치면 요약을 뒤에서부터 줄인다.
+ * 신고 내용 + 사전 점검 요약. 내용 칸 글자 수(900자)를 넘지 않게, 넘치면 확인 필요 항목을 남기고 나머지 요약을 뒤에서부터 줄인다.
  * 신고인이 쓴 내용은 줄이지 않는다.
  */
 export function withOfficerSummary(body: string, lines: string[], max = BODY_MAX): string {
   const head = body.trimEnd();
   let block = [OFFICER_HEADER, ...lines];
   const join = (bl: string[]) => (head ? `${head}\n\n${bl.join('\n')}` : bl.join('\n'));
-  while (block.length > 1 && join(block).length > max) block = block.slice(0, -1);
+  const caution = (line: string) => line.startsWith('- 확인 필요:') && line !== '- 확인 필요: 없음';
+  while (block.length > 1 && join(block).length > max) {
+    const removable = block.map((line, i) => i > 0 && !caution(line)).lastIndexOf(true);
+    // 경고를 담을 공간조차 없으면 통과 항목만 붙여 오해하게 만들지 않는다.
+    if (removable < 0) return head;
+    block = block.filter((_, i) => i !== removable);
+  }
   return block.length > 1 ? join(block) : head;
 }

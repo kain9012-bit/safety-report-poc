@@ -90,7 +90,7 @@ describe('제출 전 점검', () => {
     address: '전북특별자치도 전주시 완산구 노송광장로 10',
     ...o,
   });
-  const vision = { sameVehicle: 'yes', plate: { reads: ['12가3456', '12가3456'] } } as never;
+  const vision = { sameVehicle: 'yes', plate: { text: '12가3456', readable: true, confidence: 0.95, agree: true, reads: ['12가3456', '12가3456'] } } as never;
 
   it('다 채워지고 사진 증거가 있으면 제출할 수 있다', () => {
     const r = precheck({ draft: draft(), body: '내용 다섯 자 이상', verdict: ok, vision, now: NOW });
@@ -139,5 +139,22 @@ describe('제출 전 점검', () => {
     expect(status(r.checks, 'album')).toBe('fail');
     expect(r.album.length).toBeGreaterThan(0);
     expect(r.blocked).toBe(true);
+  });
+});
+
+
+describe('앨범 기한은 적용 지역의 기한을 따른다', () => {
+  const later = kstTime(2026, 10, 4, 10);
+  it('기본 익일 기한은 지났어도 이틀 기한이면 같은 사진을 허용한다', () => {
+    expect(status(checkAlbumPhoto(meta(), later), 'time')).toBe('fail');
+    expect(status(checkAlbumPhoto(meta(), later, 1, 2), 'time')).toBe('pass');
+    expect(worst(checkAlbum([meta(), meta({ takenAt: T + 61_000, modifiedAt: T + 61_000, fileName: 'b' })], later, 60, 2))).toBe('pass');
+  });
+  it('앨범도 마지막 밀리초까지 허용하고 다음 밀리초부터 막는다', () => {
+    const end = kstTime(2026, 10, 4, 23, 59, 59, 999);
+    expect(status(checkAlbumPhoto(meta(), end, 1, 2), 'time')).toBe('pass');
+    const c = checkAlbumPhoto(meta(), end + 1, 1, 2).find((c) => c.id === 'a1-time')!;
+    expect(c.status).toBe('fail');
+    expect(c.detail).toContain('10/4 23:59');
   });
 });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ArrowLeft, Camera, Check, Loader2, MapPin, RotateCcw, Scale, TriangleAlert, X } from 'lucide-react';
 import { captureFrame, startCamera, stopCamera } from '../lib/camera';
-import { IS_TEST_INTERVAL, MIN_INTERVAL_SEC } from '../lib/rules';
+import { isValidPlate, IS_TEST_INTERVAL, MIN_INTERVAL_SEC, PLATE_CONFIDENCE_FLOOR } from '../lib/rules';
 import { distanceMeters } from '../lib/geo';
 import { loadNearby } from '../lib/facilities';
 import { recommend } from '../lib/recommend';
@@ -508,7 +508,9 @@ function SecondCheck(p: Props) {
 
   const same = vision?.sameVehicle;
   const reads = vision?.plate.reads ?? [];
-  const plateOk = same === 'yes';
+  const validReads = reads.length === 2 && reads.every(isValidPlate);
+  const confident = Number.isFinite(vision?.plate.confidence) && (vision?.plate.confidence ?? 0) >= PLATE_CONFIDENCE_FLOOR;
+  const plateOk = same === 'yes' && vision?.plate.agree === true && validReads && confident;
   const ovOk = Boolean(ov?.same);
   const done = !reading && !measuring;
 
@@ -518,9 +520,13 @@ function SecondCheck(p: Props) {
       ? READ_FAIL[st] ?? '판독 실패'
       : plateOk
         ? `${vision!.plate.text} — 두 장 일치`
-        : same === 'no'
-          ? `번호가 다릅니다(${reads.join(' / ')})`
-          : '한 장 이상에서 번호판이 읽히지 않았습니다';
+        : reads.length === 2 && !validReads
+          ? `읽은 번호가 번호판 형식과 다릅니다(${reads.join(' / ')})`
+          : reads.length === 2 && !confident
+            ? `번호판 판독 신뢰도가 기준(${Math.round(PLATE_CONFIDENCE_FLOOR * 100)}%)에 못 미치거나 확인되지 않습니다`
+            : same === 'no'
+              ? `번호가 다릅니다(${reads.join(' / ')})`
+              : '한 장 이상에서 번호판을 확실히 읽지 못했습니다';
   const ovText = measuring
     ? '재는 중…'
     : ov!.same
