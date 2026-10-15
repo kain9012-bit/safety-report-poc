@@ -231,6 +231,12 @@ struct ReportStepsScreen: View {
             draft.applyPhotoType(); persist()
         }
     }
+    /// 이미 받아 둔 판독으로도 유형을 맞춘다(다시 열었을 때·판독이 꺼져 있을 때)
+    private func syncPhotoType() {
+        let before = (draft.reportType, draft.typeSource)
+        draft.applyPhotoType()
+        if before.0 != draft.reportType || before.1 != draft.typeSource { persist() }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -274,7 +280,7 @@ struct ReportStepsScreen: View {
             }.padding(.horizontal, 16).padding(.vertical, 10).background(.white).overlay(alignment: .top) { ReportAppearance.border.frame(height: 1) }
         }
         .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("입력 완료") { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) } } }
-        .task { read() }
+        .task { syncPhotoType(); read() }
         .onChange(of: scenePhase) { _, value in if value != .active { persist() } }
         .onDisappear { reading.cancel() }
         .sheet(isPresented: $typeSheet) { typeChooser }

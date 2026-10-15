@@ -115,11 +115,19 @@ struct ReportIntro: View {
 
 struct ReportButtonStyle: ButtonStyle {
     var primary = false
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(.system(size: 15, weight: .semibold)).padding(.horizontal, 14)
-            .frame(minHeight: 50).foregroundStyle(primary ? .white : ReportAppearance.ink)
-            .background(primary ? ReportAppearance.blue : .white, in: RoundedRectangle(cornerRadius: 9))
-            .overlay(RoundedRectangle(cornerRadius: 9).stroke(primary ? .clear : ReportAppearance.border))
-            .opacity(configuration.isPressed ? 0.75 : 1)
+    func makeBody(configuration: Configuration) -> some View { StyledLabel(configuration: configuration, primary: primary) }
+
+    /// 누를 수 없는 버튼은 흐리게 — 카메라 준비 전 셔터·빨간불이 남은 제출 버튼이 눌리는 것처럼 보이지 않게
+    private struct StyledLabel: View {
+        let configuration: ButtonStyleConfiguration
+        let primary: Bool
+        @Environment(\.isEnabled) private var enabled
+        var body: some View {
+            configuration.label.font(.system(size: 15, weight: .semibold)).padding(.horizontal, 14)
+                .frame(minHeight: 50).foregroundStyle(primary ? .white : ReportAppearance.ink)
+                .background(primary ? ReportAppearance.blue : .white, in: RoundedRectangle(cornerRadius: 9))
+                .overlay(RoundedRectangle(cornerRadius: 9).stroke(primary ? .clear : ReportAppearance.border))
+                .opacity(configuration.isPressed ? 0.75 : enabled ? 1 : 0.45)
+        }
     }
 }
