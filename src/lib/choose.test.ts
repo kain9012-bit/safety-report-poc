@@ -17,34 +17,28 @@ describe('조사 — 받침에 맞게', () => {
   });
 });
 
-describe('추천 문장', () => {
-  it('하나뿐이면 그 유형으로 신고', () => {
-    const o = rankTypes(['crossing'], { takenAt: weekday10, rules: national });
-    expect(recommendLine(o)).toBe('횡단보도로 신고합니다.');
+describe('사진 근거 중심 후보 안내', () => {
+  it('하나뿐이어도 신고 적합성 확정 대신 후보로 표시', () => {
+    const options = rankTypes(['crossing'], { takenAt: weekday10, rules: national });
+    expect(recommendLine(options)).toContain('후보');
+    expect(recommendLine(options)).not.toContain('신고합니다');
   });
-  it('과태료가 더 큰 쪽을 추천한다는 이유를 댄다', () => {
-    const o = rankTypes(['hydrant', 'schoolzone'], { takenAt: weekday10, rules: national });
-    expect(o[0].type).toBe('schoolzone');
-    expect(o[0].recommended).toBe(true);
-    expect(recommendLine(o)).toContain('과태료가 더 큰');
+  it('큰 과태료·가까운 GPS 때문에 후보 순서를 바꾸지 않는다', () => {
+    const options = rankTypes(['hydrant', 'schoolzone'], { takenAt: weekday10, rules: national, candidates: [{ type: 'schoolzone', level: 'likely', distance: 1, reason: 'near' }] });
+    expect(options.map((o) => o.type)).toEqual(['hydrant', 'schoolzone']);
+    expect(options.every((o) => !o.recommended)).toBe(true);
+    expect(options.flatMap((o) => o.reasons).join()).not.toContain('과태료');
   });
-  it('단속 시간 밖인 유형은 뒤로 보내고 그 이유를 댄다', () => {
-    const o = rankTypes(['schoolzone', 'crossing'], { takenAt: saturday10, rules: national });
-    expect(o[0].type).toBe('crossing');
-    expect(o.find((x) => x.type === 'schoolzone')?.enforceable).toBe(false);
-    expect(recommendLine(o)).toContain('단속 시간이 아니어서');
+  it('시간 조건은 사진 관찰과 분리하고 후보를 삭제하지 않는다', () => {
+    const options = rankTypes(['schoolzone', 'crossing'], { takenAt: saturday10, rules: national });
+    expect(options.map((o) => o.type)).toEqual(['schoolzone', 'crossing']);
+    expect(options[0].enforceable).toBe(false);
+    expect(options[0].reasons.join()).toContain('시간 조건');
   });
-  it('모두 단속 시간 밖이면 추천하지 않는다', () => {
-    const o = rankTypes(['schoolzone'], { takenAt: saturday10, rules: national });
-    expect(o[0].recommended).toBe(false);
-    expect(recommendLine(o)).toBe('보이는 유형 모두 지금은 단속 시간이 아닙니다.');
+  it('전용구역은 기본 6개 규정 적용 없이 선택할 수 있다', () => {
+    expect(rankTypes(['evcharging', 'disabled'], { takenAt: weekday10, rules: national }).every((o) => o.reasons.join().includes('별도 확인'))).toBe(true);
   });
-  it('과태료가 같으면 사진 판독 규칙 순서', () => {
-    const o = rankTypes(['crossing', 'sidewalk'], { takenAt: weekday10, rules: national });
-    expect(o.map((x) => x.type)).toEqual(['crossing', 'sidewalk']);
-    expect(recommendLine(o)).toContain('사진 판독 규칙 순서');
-  });
-  it('같은 유형이 두 번 들어와도 한 번만', () => {
+  it('같은 유형은 중복하지 않는다', () => {
     expect(rankTypes(['crossing', 'crossing'], { takenAt: weekday10, rules: national })).toHaveLength(1);
   });
 });

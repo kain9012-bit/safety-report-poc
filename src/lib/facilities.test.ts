@@ -21,12 +21,12 @@ describe('시설 격자 — 수집 스크립트와 같은 규칙', () => {
     expect(n.schools[0].name).toBe('초교');
     expect(n.busstops[0].name).toBe('정류장');
   });
-  it('실시간 정류장과 파일 정류장이 3m 안이면 하나로(실시간 쪽을 남김)', () => {
+  it('맞은편·인접 정류소는 좌표가 가까워도 별개 후보를 보존한다', () => {
     const live = [{ id: 'L', lat: 35.8, lng: 127.1, name: '실시간' }];
     const file = [
       { id: 'F1', lat: 35.80001, lng: 127.1, name: '파일-같은 곳' },
       { id: 'F2', lat: 35.801, lng: 127.1, name: '파일-다른 곳' },
     ];
-    expect(mergeStops(live, file).map((s) => s.id)).toEqual(['L', 'F2']);
+    expect(mergeStops(live, file).map((s) => s.id)).toEqual(['L', 'F1', 'F2']);
   });
 });

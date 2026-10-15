@@ -60,7 +60,7 @@ const TYPE_WORDS: [RegExp, Truth][] = [
   [/^(sidewalk|인도|보도)/, 'sidewalk'],
   [/^(disabled|장애인)/, 'disabled'],
   [/^(firelane|소방차)/, 'firelane'],
-  [/^(evcharge|친환경|전기차|충전)/, 'evcharge'],
+  [/^(evcharging|evcharge|친환경|전기차|충전)/, 'evcharging'],
   [/^(none|위반\s*아님|아님|없음|정상)/, 'none'],
 ];
 
@@ -209,18 +209,7 @@ export interface Score {
   byTime: Record<string, Rate>;
 }
 
-export const TYPE_ORDER: Truth[] = [
-  'crossing',
-  'sidewalk',
-  'hydrant',
-  'busstop',
-  'corner',
-  'schoolzone',
-  'disabled',
-  'firelane',
-  'evcharge',
-  'none',
-];
+export const TYPE_ORDER: Truth[] = ['crossing', 'sidewalk', 'hydrant', 'busstop', 'corner', 'schoolzone', 'disabled', 'firelane', 'evcharging', 'none'];
 
 export function score(outs: Outcome[]): Score {
   const failed = outs.filter((o) => !o.ok).length;

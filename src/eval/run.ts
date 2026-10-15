@@ -49,7 +49,7 @@ async function callVision(image: string, onWait: (sec: number) => void): Promise
 export function decide(row: Row, r: VisionResult): Outcome {
   const verdict = crosscheck([], {}, r);
   // 사진에서 나온 유형만 채점한다('기타'는 사람이 고르는 유형이라 사진 판정에 나오지 않는다)
-  const auto = (verdict.type ?? 'none') as Truth;
+  const auto: Truth = verdict.type && verdict.type !== 'other' ? verdict.type : 'none';
   const opts = verdict.type
     ? rankTypes([verdict.type, ...verdict.alternatives], { takenAt: NEUTRAL_TIME, rules: rulesFor() })
     : [];

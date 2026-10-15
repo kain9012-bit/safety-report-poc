@@ -44,6 +44,12 @@ describe('담당 공무원용 사전 점검 요약', () => {
   it('없는 값은 지어내지 않는다 — 겹침을 못 쟀으면 그 줄을 뺀다', () => {
     expect(lines({ ...draft, overlap: undefined }).some((x) => x.startsWith('- 같은 자리'))).toBe(false);
   });
+  it('6대 밖 유형은 그 유형 기준(사진 2장·1분 간격)으로 적고 같은 항목을 잰다', () => {
+    const l = lines({ ...draft, type: 'disabled' }).join('\n');
+    expect(l).toContain('- 적용 기준: 장애인전용주차구역 기준(사진 2장·1분 간격)');
+    expect(l).toContain('- 간격: 61초(기준 60초) 충족');
+    expect(l).toContain('접수 기한 충족');
+  });
   it('내용 칸 900자를 넘지 않게 요약을 줄이고, 신고인 내용은 그대로 둔다', () => {
     const body = '가'.repeat(800);
     const out = withOfficerSummary(body, lines(draft));

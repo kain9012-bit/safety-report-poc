@@ -66,6 +66,16 @@ describe('보관함의 실제 트랜잭션과 자료 보존', () => {
     expect(await listReports(NOW + KEEP_MS * 100)).toEqual([oldDraft, oldSubmitted]);
   });
 
+  it('이전 유형 이름(evcharge·etc)으로 저장된 기록을 지금 이름으로 읽고 나머지는 그대로 둔다', async () => {
+    const ev = { ...record('ev'), updatedAt: NOW, draft: { ...record('ev').draft, type: 'evcharge' } } as unknown as ReportRecord;
+    const etc = { ...record('etc'), updatedAt: NOW - 1, draft: { ...record('etc').draft, type: 'etc' } } as unknown as ReportRecord;
+    const db = await seed([ev, etc]);
+    db.close();
+    const [a, b] = await listReports(NOW);
+    expect(a.draft).toEqual({ ...ev.draft, type: 'evcharging' });
+    expect(b.draft).toEqual({ ...etc.draft, type: 'other' });
+  });
+
   it('빠르게 연속 호출한 자동 저장·최종 저장·조회는 호출 순서대로 완료한다', async () => {
     const draft = record();
     const firstSave = saveReport(draft);

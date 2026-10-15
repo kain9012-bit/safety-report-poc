@@ -63,9 +63,9 @@ export const NATIONAL: Record<ViolationType, TypeRule> = {
   // 장애인전용구역: 사진 2장 이상, 앞유리에 표지 없음이 보이게(서울 스마트불편신고 안내). 간격 안내는 없어 1분을 둔다.
   disabled: { intervalSec: 60 },
   firelane: { intervalSec: 60 },
-  evcharge: { intervalSec: 60 },
+  evcharging: { intervalSec: 60 },
   // 기타도 같은 규정(사진 2장·1분 간격). 지역별 단속 시간은 주정차금지구역 참고 안내로만 보여 준다
-  etc: { intervalSec: 60 },
+  other: { intervalSec: 60 },
 };
 export const NATIONAL_SOURCE = 'https://www.korea.kr/multi/visualNewsView.do?newsId=148918697';
 
@@ -82,9 +82,9 @@ export const FINE_KRW: Record<ViolationType, number> = {
   // 소방기본법 — 공동주택 소방차 전용구역 주차 1차 50만 원(2차부터 100만 원). 2018. 8. 10. 이후 건축허가 건물만
   firelane: 500_000,
   // 친환경자동차법 — 일반차의 충전구역 주차 10만 원
-  evcharge: 100_000,
+  evcharging: 100_000,
   // 기타 — 도로교통법 일반 주정차 위반(승용 4만 원). 사진으로 고르는 유형이 아니라 추천 순서에는 쓰이지 않는다
-  etc: 40_000,
+  other: 40_000,
 };
 
 export const LOCAL_RULES: LocalRule[] = [

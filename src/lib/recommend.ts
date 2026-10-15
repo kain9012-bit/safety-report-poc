@@ -1,12 +1,5 @@
-/**
- * 위반유형 추천 — 사진 좌표와 주변 시설 거리로 후보를 고른다. AI 없이 규칙만 쓴다.
- *
- * 판정이 아니라 추천이다. GPS 오차(±m)가 기준 거리와 비슷해서 좌표만으로는
- * "10m 안"을 확정하지 못하는 경우가 많다(geo.test.ts). 그래서 후보마다
- * '유력'과 '가능'을 나누고, 근거(시설 이름·거리·오차)를 같이 돌려준다.
- */
-import { THRESHOLD_METERS } from './rules';
-import { isDecisive, nearest } from './geo';
+/** 주변 시설은 촬영 장소를 탐색하는 참고 후보다. 기기 좌표로 차량의 위반 거리를 확정하지 않는다. */
+import { nearest } from './geo';
 import type { LatLng } from './geo';
 import type { Nearby } from './facilities';
 import type { ViolationType } from '../types/report';
@@ -25,28 +18,23 @@ export interface Candidate {
 export const CROSSWALK_NEAR_M = 15;
 /** 어린이보호구역 자료는 대상시설(학교 등) 위치다. 구역은 보통 주출입문 반경 300m 안에서 지정된다. */
 export const SCHOOLZONE_NEAR_M = 300;
-/** 정확도를 모를 때 가정하는 오차 */
-const DEFAULT_ACC = 20;
+/** TAGO의 탐색 반경과 같은 초기값. 10m 위반 기준과 독립적이다. */
+export const BUSSTOP_DISCOVERY_M = 500;
 
 const ORDER: ViolationType[] = ['busstop', 'crossing', 'schoolzone'];
 
 export function recommend(p: LatLng & { accuracy?: number }, n: Nearby): Candidate[] {
-  const acc = p.accuracy ?? DEFAULT_ACC;
-  const accText = p.accuracy !== undefined ? `GPS 오차 ±${Math.round(p.accuracy)}m` : 'GPS 오차 모름';
+  const knownAccuracy = p.accuracy !== undefined && Number.isFinite(p.accuracy) && p.accuracy >= 0 ? p.accuracy : undefined;
+  const acc = knownAccuracy ?? 0; // unknown is a display state; no fabricated precision
+  const accText = knownAccuracy !== undefined ? `단말 보고 오차 약 ${Math.round(knownAccuracy)}m` : '단말 보고 오차 미확인';
   const out: Candidate[] = [];
 
-  // 버스정류소 10m
+  // The closest row summarizes discovery only; rankStopCandidates retains the complete candidate set.
   const bus = nearest(p, n.busstops);
-  const busTh = THRESHOLD_METERS.busstop!;
-  if (bus && bus.distance - acc <= busTh) {
-    const d = Math.round(bus.distance);
-    const sure = isDecisive(bus.distance, busTh, p.accuracy) && bus.distance + acc <= busTh;
+  if (bus && bus.distance <= BUSSTOP_DISCOVERY_M) {
     out.push({
-      type: 'busstop',
-      level: sure ? 'likely' : 'possible',
-      distance: bus.distance,
-      name: bus.facility.name,
-      reason: `${bus.facility.name || '버스정류장'}까지 약 ${d}m (기준 ${busTh}m, ${accText})`,
+      type: 'busstop', level: 'possible', distance: bus.distance, name: bus.facility.name,
+      reason: `기준 위치에서 ${bus.facility.name || '정류소 자료 좌표'}까지 지도상 약 ${Math.round(bus.distance)}m (${accText}) · 대상 정류소와 차량의 10m 이내 여부는 미확인`,
     });
   }
 
@@ -73,9 +61,9 @@ export function recommend(p: LatLng & { accuracy?: number }, n: Nearby): Candida
     });
   }
 
-  // 유력 먼저, 같은 등급이면 기준 거리에 견준 가까움 → 유형 순서
+  // 탐색 범위에 견준 가까움으로 표시 순서만 정한다. 위반 우선순위가 아니다.
   const scale = (c: Candidate) =>
-    c.distance / (c.type === 'busstop' ? busTh : c.type === 'crossing' ? CROSSWALK_NEAR_M : SCHOOLZONE_NEAR_M);
+    c.distance / (c.type === 'busstop' ? BUSSTOP_DISCOVERY_M : c.type === 'crossing' ? CROSSWALK_NEAR_M : SCHOOLZONE_NEAR_M);
   return out.sort(
     (a, b) =>
       (a.level === b.level ? 0 : a.level === 'likely' ? -1 : 1) ||

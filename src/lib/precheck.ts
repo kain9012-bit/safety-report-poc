@@ -15,6 +15,8 @@ import { OVERLAP_MIN } from './overlap';
 import { extraTypeCheck } from './extraTypes';
 import type { CheckResult } from './rules';
 import type { Verdict } from './crosscheck';
+import { primaryShots, reviewedReads, sameImportedPhoto } from './photoEvidence';
+import { summarizeEvidence } from './evidence';
 import { locatedShot } from '../types/report';
 import type { DraftReport } from '../types/report';
 import type { VisionResult } from '../../api/vision';
@@ -37,7 +39,7 @@ export interface Precheck {
 }
 
 export function precheck({ draft, body, verdict, vision, now = Date.now(), minInterval }: PrecheckInput): Precheck {
-  const shots = draft.shots;
+  const shots = primaryShots(draft);
   const rules = rulesFor(draft.address, now);
   minInterval ??= effectiveInterval(draft.type ? rules.types[draft.type].intervalSec : maxInterval(rules));
   const at = locatedShot(shots);
@@ -67,6 +69,7 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
   });
 
   const out: CheckResult[] = [...base];
+  if (shots.length === 2 && sameImportedPhoto(shots[0], shots[1])) out.push({ id: 'duplicate_photo', label: '서로 다른 촬영본', status: 'fail', detail: '같은 사진을 두 장으로 지정했습니다. 서로 다른 촬영본을 기본 사진으로 골라 주세요.' });
 
   // 위반유형 — 사진 증거가 있어야 한다
   // 사람이 고른 유형이라도 사진 판독에서 보인 유형 중 하나면 사진 증거가 있다
@@ -83,7 +86,7 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
         : '사진에서 위반 장소의 근거를 찾았습니다.',
   });
 
-  // 6대 밖 유형 — 표지 붙은 차·친환경차는 위반이 아니고, 소방차전용구역은 대상 건물이 정해져 있다
+  // 6대 밖 유형 — 표지 붙은 차·친환경차는 위반이 아닐 수 있고, 소방차전용구역은 대상 건물이 정해져 있다
   const extra = extraTypeCheck(draft.type, vision?.scene);
   if (extra) out.push(extra);
 
@@ -143,8 +146,9 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
 
   // 단속 시간 — 두 촬영 시각을 각각 검사한다(마감 시각·주말 경계를 넘은 두 번째 사진 포함).
   if (draft.type && shots.length) {
+    const rule = rules.types[draft.type];
     const times = shots.map((shot, i) => ({
-      ...inEnforcement(rules.types[draft.type!], shot.takenAt),
+      ...inEnforcement(rule, shot.takenAt),
       label: `${i + 1}장 ${kstShort(shot.takenAt)}`,
     }));
     if (times.some((e) => e.text !== '24시간 단속')) {
@@ -186,5 +190,15 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
     detail: body.trim().length >= BODY_MIN ? `${body.length}자` : `${BODY_MIN}자 이상 적어야 합니다.`,
   });
 
+  if (draft.schemaVersion === 2) {
+    const evidence = summarizeEvidence(reviewedReads(draft)).find((s) => s.type === draft.type);
+    const check = out.find((c) => c.id === 'evidence');
+    if (check && draft.type) {
+      check.status = evidence?.status === 'observed' ? 'pass' : 'warn';
+      check.detail = evidence?.status === 'observed' ? '사진에서 표시·대상 차량의 연결을 관찰했습니다. 위반·신고 적합성 확정은 아닙니다.' : '이 유형의 사진 연결 근거가 미확인 또는 상충합니다. 선택과 원본은 유지합니다.';
+    }
+    if (draft.type && ['hydrant', 'corner', 'busstop'].includes(draft.type)) out.push({ id: 'distance', label: '실제 거리', status: 'warn', detail: '사진 픽셀·휴대폰 GPS로 차량의 실제 거리를 확정하지 않습니다. 유형 이름의 거리 수치는 측정 결과가 아닙니다.' });
+    if (draft.type === 'schoolzone') out.push({ id: 'school_scope', label: '지정 구간·공휴일', status: 'warn', detail: '학교 근접·노면 색만으로 지정 구간을 확정하지 않습니다. 공식 구간·공휴일·관할 접수 조건은 별도 확인이 필요합니다.' });
+  }
   return { checks: out, album, blocked: out.some((c) => c.status === 'fail') };
 }

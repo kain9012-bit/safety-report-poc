@@ -411,6 +411,11 @@ export const BOX_STYLE: Record<BoxLabel, { color: string; text: string }> = {
   permit: { color: '#f59e0b', text: '장애인 표지' },
   firelane_mark: { color: '#16a34a', text: '소방차 전용구역' },
   ev_charger: { color: '#16a34a', text: '충전기·충전구역' },
+  // 새 판독(v2)이 나눠 주는 상자 — 표시만 한다
+  ev_mark: { color: '#16a34a', text: '충전·전용 표시' },
+  charger: { color: '#16a34a', text: '충전기' },
+  bay: { color: '#2563eb', text: '주차면' },
+  notice: { color: '#d97706', text: '운영 안내' },
 };
 
 export const SCENE_TEXT: Record<keyof Scene, string> = {

@@ -15,8 +15,8 @@ const NAME: Record<Truth, string> = {
   schoolzone: '어린이보호구역',
   disabled: '장애인전용구역',
   firelane: '소방차전용구역',
-  evcharge: '친환경차충전구역',
-  none: '위반 아님·비움',
+  evcharging: '충전·전용구역',
+  none: '사진 근거 미확인',
 };
 const SCENE_NAME: Record<keyof Scene, string> = {
   onCrosswalk: '횡단보도 위',

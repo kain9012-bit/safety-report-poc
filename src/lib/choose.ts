@@ -1,16 +1,8 @@
-/**
- * 첫 번째 사진에 위반 유형이 둘 이상 보일 때 — **사람이 고르고, 앱은 규칙으로 추천만 한다.**
- *
- * 추천 순서(규칙):
- *  1. 찍은 시각이 그 유형의 단속 시간 안인가 (밖이면 신고해도 불수용)
- *  2. 과태료가 큰 유형 먼저 — 법이 더 무겁게 보는 위반 (예: 어린이보호구역 12만 원 > 소화전 8만 원)
- *  3. 위치자료(공공데이터)도 같은 말을 하는가 — 참고
- *  4. 사진 판독 규칙 순서(횡단보도·인도 → 소화전·정류장·모퉁이 → 보호구역)
- */
-import { FINE_KRW, inEnforcement } from './localRules';
+/** 사진 근거가 연결된 후보만 표시한다. 금액·GPS 근접으로 순서를 바꾸지 않는다. */
+import { inEnforcement } from './localRules';
 import type { AppliedRules } from './localRules';
 import type { Candidate } from './recommend';
-import { VIOLATION_LABEL } from '../types/report';
+import { VIOLATION_LABEL, isBasicType } from '../types/report';
 import type { ViolationType } from '../types/report';
 
 export interface TypeOption {
@@ -24,7 +16,6 @@ export interface TypeOption {
   reasons: string[];
 }
 
-const won = (n: number) => `${n / 10_000}만 원`;
 
 /** 받침에 맞는 조사 — '어린이보호구역을', '소화전 5m 이내를' */
 export function josa(word: string, withFinal: string, withoutFinal: string): string {
@@ -39,42 +30,19 @@ export function rankTypes(
   opts: { takenAt: number; rules: AppliedRules; candidates?: Candidate[] },
 ): TypeOption[] {
   const uniq = [...new Set(photoTypes)];
-  const rows = uniq.map((type, order) => {
-    const enf = inEnforcement(opts.rules.types[type], opts.takenAt);
+  return uniq.map((type) => {
+    const enf = isBasicType(type) ? inEnforcement(opts.rules.types[type], opts.takenAt) : undefined;
     const coordAgrees = Boolean(opts.candidates?.some((c) => c.type === type));
-    return { type, order, enf, coordAgrees, fine: FINE_KRW[type] };
-  });
-  rows.sort(
-    (a, b) =>
-      Number(b.enf.ok) - Number(a.enf.ok) ||
-      b.fine - a.fine ||
-      Number(b.coordAgrees) - Number(a.coordAgrees) ||
-      a.order - b.order,
-  );
-  return rows.map((r, i) => {
-    const reasons: string[] = [];
-    if (!r.enf.ok) reasons.push(`지금은 단속 시간이 아닙니다(${r.enf.text})`);
-    reasons.push(`과태료 승용 ${won(r.fine)}`);
-    if (r.coordAgrees) reasons.push('위치자료도 근처라고 합니다');
-    return {
-      type: r.type,
-      recommended: i === 0 && r.enf.ok,
-      enforceable: r.enf.ok,
-      coordAgrees: r.coordAgrees,
-      reasons,
-    };
+    const reasons = ['사진 표시와 대상 차량의 연결을 확인한 후보'];
+    if (enf && !enf.ok) reasons.push(`지역 시간 조건 확인 필요: ${enf.text}`);
+    if (!enf) reasons.push('이 유형의 접수 요건은 별도 확인 필요');
+    if (coordAgrees) reasons.push('주변 위치자료 있음 · 실제 거리 증명 아님');
+    return { type, recommended: uniq.length === 1, enforceable: enf?.ok ?? true, coordAgrees, reasons };
   });
 }
 
-/** 추천 이유 한 문장 — 목록 위에 쓴다 */
 export function recommendLine(options: TypeOption[]): string {
-  const top = options.find((o) => o.recommended);
-  if (!top) return '보이는 유형 모두 지금은 단속 시간이 아닙니다.';
-  const second = options.find((o) => o !== top);
-  if (!second) return `${josa(L(top.type), '으로', '로')} 신고합니다.`;
-  const pick = josa(L(top.type), '을', '를');
-  if (!second.enforceable) return `${josa(L(second.type), '은', '는')} 지금 단속 시간이 아니어서 ${pick} 추천합니다.`;
-  if (FINE_KRW[top.type] > FINE_KRW[second.type]) return `과태료가 더 큰 ${pick} 추천합니다.`;
-  if (top.coordAgrees && !second.coordAgrees) return `위치자료와도 맞는 ${pick} 추천합니다.`;
-  return `사진 판독 규칙 순서로 ${pick} 추천합니다.`;
+  if (!options.length) return '사진 근거가 부족합니다. 유형을 직접 고르거나 미확인으로 보관할 수 있습니다.';
+  if (options.length === 1) return `${L(options[0].type)} 후보입니다. 사진 근거를 확인해 주세요.`;
+  return '여러 후보의 사진 근거를 비교하고 유형을 골라 주세요. 선택한 유형은 자동으로 바꾸지 않습니다.';
 }

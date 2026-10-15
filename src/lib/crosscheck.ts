@@ -12,7 +12,7 @@
  */
 import type { Candidate } from './recommend';
 import type { ViolationType } from '../types/report';
-import type { PhotoType, VisionResult } from '../../api/vision';
+import type { VisionResult } from '../../api/vision';
 
 export type VerdictSource = 'photo_confirmed' | 'photo' | 'none';
 
@@ -41,7 +41,7 @@ export function crosscheck(cands: Candidate[], coverage: Coverage, photo?: Visio
     photo && photo.typeGuess !== 'none' && photo.typeConfidence >= PHOTO_TYPE_FLOOR ? photo.typeGuess : undefined;
   const suspicions = cands.filter((c) => c.type !== evidenced);
   const alternatives = (photo?.ruleTypes ?? []).filter(
-    (t): t is Exclude<PhotoType, 'none'> => t !== 'none' && t !== evidenced,
+    (t): t is Exclude<ViolationType, 'other'> => t !== 'none' && t !== evidenced,
   );
 
   if (!evidenced) return { source: 'none', suspicions, alternatives };
@@ -73,11 +73,11 @@ export function crosscheck(cands: Candidate[], coverage: Coverage, photo?: Visio
 export const SHOW_IN_PHOTO: Partial<Record<ViolationType, string>> = {
   busstop: '정류장 표지판이나 승강장이',
   crossing: '횡단보도 흰 줄무늬와 차 바퀴가',
-  schoolzone: '빨간 노면이나 어린이보호구역 표지가',
+  schoolzone: '어린이보호구역 문구·표지가',
   corner: '교차로 모퉁이가',
   sidewalk: '보도 위에 올라선 바퀴가',
   hydrant: '소화전이나 소방용수 표시가',
   disabled: '장애인구역 표시와 차 앞유리(표지 자리)가',
   firelane: '소방차 전용구역 빗금이나 글씨가',
-  evcharge: '충전기·충전구역 표시와 번호판 색이',
+  evcharging: '충전기·충전구역 표시와 번호판 색이',
 };
