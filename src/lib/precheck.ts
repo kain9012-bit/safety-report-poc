@@ -83,15 +83,12 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
         : '사진에서 위반 장소의 근거를 찾았습니다.',
   });
 
-<<<<<<< HEAD
   // 6대 밖 유형 — 표지 붙은 차·친환경차는 위반이 아니고, 소방차전용구역은 대상 건물이 정해져 있다
   const extra = extraTypeCheck(draft.type, vision?.scene);
   if (extra) out.push(extra);
 
-  // 같은 차 — 두 장 모두에서 번호판이 읽히고, 따로 읽은 번호가 같아야 한다(회의 결정)
-=======
-  // 같은 차 — 판독 요약의 yes만 믿지 않고, 번호판 근거와 신고인이 입력한 최종 번호까지 대조한다.
->>>>>>> origin/codex/preserve-evidence-precheck
+  // 같은 차 — 두 장 모두에서 번호판이 읽히고 따로 읽은 번호가 같아야 한다(회의 결정).
+  // 판독 요약의 yes만 믿지 않고, 번호판 근거와 신고인이 입력한 최종 번호까지 대조한다.
   const same = vision?.sameVehicle;
   const plate = vision?.plate;
   const reads = (plate?.reads ?? []).map((text) => text.replace(/\s/g, ''));

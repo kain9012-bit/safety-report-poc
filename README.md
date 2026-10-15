@@ -126,11 +126,7 @@ iPhone 수정 코드는 공유 작업공간의 `ios-prototype/ParkingGuide/`에 
 
 ### 제출 전 점검 항목
 
-<<<<<<< HEAD
-`rules.ts`의 `runChecks`(기본 5개) 위에 `precheck.ts`가 7개를 더한다(6대 밖 유형이면 1개 더 — `extraTypes.ts`). **빨강(fail) 하나라도 있으면 제출 불가**, 노랑(warn)은 알리기만 한다.
-=======
-`rules.ts`의 `runChecks`(기본 5개) 위에 `precheck.ts`가 사진과 규정에 따라 최대 7개를 더한다. **빨강(fail) 하나라도 있으면 제출 불가**, 노랑(warn)은 알리기만 한다.
->>>>>>> origin/codex/preserve-evidence-precheck
+`rules.ts`의 `runChecks`(기본 5개) 위에 `precheck.ts`가 사진과 규정에 따라 최대 7개를 더한다(6대 밖 유형이면 1개 더 — `extraTypes.ts`). **빨강(fail) 하나라도 있으면 제출 불가**, 노랑(warn)은 알리기만 한다.
 
 | 항목 | 출처 | 막는 경우 |
 | --- | --- | --- |
@@ -142,17 +138,12 @@ iPhone 수정 코드는 공유 작업공간의 `ios-prototype/ParkingGuide/`에 
 | 위반유형 사진 증거 | precheck | 유형이 비어 있음(직접 고른 유형이 사진 판정과 다르면 경고) |
 | 두 장 번호판 일치 | precheck (`mergeReads` 결과 대조) | 한 장이라도 판독 누락·형식 오류·확신도 0.8 미만, 두 번호 불일치, 또는 최종 입력 번호가 판독 번호와 다름 |
 | 같은 자리 두 장 | precheck | 겹침 50% 미만 |
-<<<<<<< HEAD
-| 단속 시간 | precheck | 그 유형 단속 시간 밖(예: 어린이보호구역 주말) |
+| 단속 시간 | precheck | 두 사진 중 하나라도 그 유형 단속 시간 밖(예: 어린이보호구역 주말) |
 | 장애인자동차표지 | extraTypes | 장애인전용구역인데 앞유리에 표지가 보임(앞유리가 안 보이면 경고) |
 | 일반차 여부 | extraTypes | 친환경차충전구역인데 친환경차(하늘색 번호판)로 보임(번호판 색이 안 보이면 경고) |
 | 기타 유형 | extraTypes | 막지 않음 — 자동 판독 대상이 아니니 위반 내용을 적고 근거가 사진에 보이는지 확인하라고 경고 |
 | 소방차전용구역 대상 건물 | extraTypes | 막지 않음 — 2018. 8. 10. 이후 건축허가 100세대 이상 아파트·3층 이상 기숙사만 과태료 대상이라고 경고 |
-| 앨범 사진 진위 | precheck | 편집 흔적·촬영시각 없음 등 |
-=======
-| 단속 시간 | precheck | 두 사진 중 하나라도 그 유형 단속 시간 밖(예: 어린이보호구역 주말) |
 | 앨범 사진 진위 | precheck | 편집 흔적·촬영시각 없음·지역별 접수 기한 경과 등 |
->>>>>>> origin/codex/preserve-evidence-precheck
 | 발생지역 | precheck | 좌표도 주소도 없음(좌표만 있으면 경고) |
 | 내용 | precheck | 5자 미만 |
 
@@ -398,14 +389,9 @@ TZ=America/Los_Angeles npm test   # 같은 304개 시험을 미국 서부 시간
 | `compose.test.ts` | 내용 자동 작성, 없는 값은 빼기 |
 | `address.test.ts` · `tile.test.ts` | 서버 함수의 입력 검사·응답 해석 |
 | `eval/score.test.ts` | 정답표 해석, 채점, Wilson 범위 |
-<<<<<<< HEAD
-| `crosscheck.test.ts` | 장면 → 유형 규칙(`typesFromScene`), 두 장 번호 대조(`mergeReads`), 판독 응답 다듬기 |
-| `extraTypes.test.ts` | 표지 붙은 차·친환경차는 유형에서 뺌, 제출 전 추가 점검, 세 유형 1분·24시간·과태료, 채점 정답표 이름 |
-| `precheck.test.ts` | 제출 전 점검 12항목의 빨강·노랑 경계, 지역별 기한 |
-=======
 | `crosscheck.test.ts` | 장면 → 유형 규칙(`typesFromScene`), 두 장 번호의 형식·신뢰도·일치(`mergeReads`), 판독 응답 다듬기 |
+| `extraTypes.test.ts` | 표지 붙은 차·친환경차는 유형에서 뺌, 제출 전 추가 점검, 세 유형 1분·24시간·과태료, 채점 정답표 이름 |
 | `precheck.test.ts` | 제출 전 점검의 빨강·노랑 경계, 최종 입력 번호 대조, 지역별 기한, 두 사진의 단속 시간 |
->>>>>>> origin/codex/preserve-evidence-precheck
 | `choose.test.ts` | 추천 순서와 추천 문장, 조사 |
 | `reports.test.ts` | 자동 이어하기 기준, 걸린 시간·누른 횟수 |
 | `reports.storage.test.ts` | 트랜잭션 중단·열기/조회 오류·저장 순서·요청 시점 자료 복사·오래된 기록 보존(10개) |

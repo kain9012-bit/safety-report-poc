@@ -36,7 +36,7 @@ vi.mock('./components/ReportSteps', () => ({ default: (p: ComponentProps<typeof 
 </div> }));
 
 const NOW = kstTime(2026, 10, 7, 11);
-const read: PhotoRead = { plate: { text: '12가3456', readable: true, confidence: .95 }, scene: { onCrosswalk: 'yes', onSidewalk: 'no', busStopVisible: 'no', schoolZoneMarking: 'no', intersectionCorner: 'no', fireHydrantNear: 'no' }, typeGuess: 'crossing', typeConfidence: .9, evidence: 'synthetic', boxes: [] };
+const read: PhotoRead = { plate: { text: '12가3456', readable: true, confidence: .95 }, scene: { onCrosswalk: 'yes', onSidewalk: 'no', busStopVisible: 'no', schoolZoneMarking: 'no', intersectionCorner: 'no', fireHydrantNear: 'no', disabledSpace: 'no', disabledPermit: 'unclear', fireLane: 'no', evChargingSpace: 'no', evVehicle: 'unclear' }, typeGuess: 'crossing', typeConfidence: .9, evidence: 'synthetic', boxes: [] };
 const initial = (): ReportRecord => ({
   id: 'r1', phase: 'form', step: 0, createdAt: NOW - 120_000, updatedAt: NOW,
   draft: { shots: [0, 61_000].map((delta, i) => ({ takenAt: NOW - 120_000 + delta, dataUrl: `data:,original${i}`, lat: 35, lng: 127, source: 'camera' })),
