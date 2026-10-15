@@ -12,9 +12,9 @@ describe('위반유형 추천', () => {
     expect(recommend({ ...BASE, accuracy: 5 }, empty)).toEqual([]);
   });
 
-  it('정류장 3m, 오차 5m라도 촬영자의 탐색 후보일 뿐 위반 유력이 아니다', () => {
+  it('정류장 3m, 오차 5m → 유력', () => {
     const c = recommend({ ...BASE, accuracy: 5 }, { ...empty, busstops: [{ id: '1', name: '전주시청', ...north(3) }] });
-    expect(c[0]).toMatchObject({ type: 'busstop', level: 'possible', name: '전주시청' });
+    expect(c[0]).toMatchObject({ type: 'busstop', level: 'likely', name: '전주시청' });
     expect(c[0].reason).toContain('약 3m');
   });
 
@@ -23,9 +23,8 @@ describe('위반유형 추천', () => {
     expect(c[0]).toMatchObject({ type: 'busstop', level: 'possible' });
   });
 
-  it('정류장 40m도 탐색에 남고 500m 밖은 이 탐색 요약에서 제외한다', () => {
-    expect(recommend({ ...BASE, accuracy: 8 }, { ...empty, busstops: [{ id: '1', ...north(40) }] })[0]).toMatchObject({ level: 'possible', type: 'busstop' });
-    expect(recommend({ ...BASE, accuracy: 8 }, { ...empty, busstops: [{ id: '1', ...north(600) }] })).toEqual([]);
+  it('정류장 40m, 오차 8m → 후보 아님', () => {
+    expect(recommend({ ...BASE, accuracy: 8 }, { ...empty, busstops: [{ id: '1', ...north(40) }] })).toEqual([]);
   });
 
   it('횡단보도는 가까워도 가능까지만 — 위에 섰는지는 사진으로', () => {
@@ -39,7 +38,7 @@ describe('위반유형 추천', () => {
     expect(recommend({ ...BASE, accuracy: 5 }, { ...empty, schools: [{ id: 's', ...north(400) }] })).toEqual([]);
   });
 
-  it('모두 참고 후보이며 각 탐색 범위 대비 가까움으로만 나열한다', () => {
+  it('유력이 가능보다 앞에 온다', () => {
     const c = recommend(
       { ...BASE, accuracy: 3 },
       {

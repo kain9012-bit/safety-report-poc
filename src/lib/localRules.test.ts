@@ -53,27 +53,27 @@ describe('단속 시간', () => {
 
 describe('유형이 둘 이상 보일 때 추천(규칙)', () => {
   const rules = rulesFor();
-  it('과태료가 크더라도 사진 후보 순서는 유지', () => {
+  it('과태료가 큰 유형을 추천 — 어린이보호구역(12만) > 소화전(8만)', () => {
     const o = rankTypes(['hydrant', 'schoolzone'], { takenAt: FRI_10, rules });
-    expect(o[0]).toMatchObject({ type: 'hydrant', recommended: false });
+    expect(o[0]).toMatchObject({ type: 'schoolzone', recommended: true });
     expect(o[1].recommended).toBe(false);
     expect(FINE_KRW.schoolzone).toBeGreaterThan(FINE_KRW.hydrant);
-    expect(recommendLine(o)).toContain('사진 근거');
+    expect(recommendLine(o)).toContain('과태료가 더 큰');
   });
-  it('시간 조건은 따로 안내하며 유형 순서는 유지', () => {
+  it('단속 시간 밖인 유형은 추천하지 않는다 — 밤 10시엔 소화전', () => {
     const o = rankTypes(['schoolzone', 'hydrant'], { takenAt: FRI_22, rules });
-    expect(o[0].type).toBe('schoolzone');
+    expect(o[0].type).toBe('hydrant');
     expect(o.find((x) => x.type === 'schoolzone')!.enforceable).toBe(false);
-    expect(o[0].reasons.join()).toContain('시간 조건');
+    expect(recommendLine(o)).toContain('단속 시간이 아니어서');
   });
-  it('위치자료만으로 후보를 앞세우지 않음', () => {
+  it('과태료가 같으면 위치자료가 맞는 쪽', () => {
     const o = rankTypes(['crossing', 'busstop'], {
       takenAt: FRI_10,
       rules,
       candidates: [{ type: 'busstop', level: 'likely', distance: 4, reason: '' }],
     });
-    expect(o[0].type).toBe('crossing');
-    expect(o[1].coordAgrees).toBe(true);
+    expect(o[0].type).toBe('busstop');
+    expect(o[0].coordAgrees).toBe(true);
   });
   it('그것도 같으면 사진 판독 규칙 순서', () => {
     const o = rankTypes(['crossing', 'busstop'], { takenAt: FRI_10, rules });
