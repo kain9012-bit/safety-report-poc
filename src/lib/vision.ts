@@ -1,7 +1,7 @@
 /** Whole scene first, then at most two bounded crops from the preserved original. */
 import { mergeReads } from '../../api/vision';
 import type { PhotoRead, VisionResult } from '../../api/vision';
-import { constrainSupplementalRead, normalizeDetailRequests, normalizeObservations } from './evidence';
+import { constrainSupplementalRead, isEvidenceType, normalizeDetailRequests, normalizeObservations, summarizeEvidence } from './evidence';
 import type { DetailRequest, EvidenceBox, EvidenceObservation } from '../types/evidence';
 
 export type VisionState = 'idle' | 'loading' | 'ok' | 'no_key' | 'rate_limited' | 'busy' | 'error';
@@ -136,6 +136,50 @@ export function mergeDetailRead(first: PhotoRead, second: PhotoRead | null, requ
   return { ...first, observations, detailReview: 'completed', detailRegions: [...requests], detailRequests: [] };
 }
 
+export const LEGACY_VISION_NOTE = '기본 분석만 받았습니다. 서버가 구형 응답을 보내 시설 식별·차량 관계·부분 확대 확인은 제공하지 않았습니다. 위반 없음이나 상세 확인 완료를 뜻하지 않습니다.';
+
+/** Keep historical scene claims separate from v2 evidence; reject stale or unbound responses. */
+export function compatibleVisionResult(value: unknown, count: number, options: ReadOptions): VisionResult | null {
+  const raw = value as Record<string, any> | null;
+  const j = (raw?.result ?? raw) as VisionResult | null;
+  if (!j || raw?.error || !j.plate || !Array.isArray(j.photos) || j.photos.length !== count || !j.photos.some(Boolean)) return null;
+  if (j.analysisVersion !== undefined && j.analysisVersion !== 2) return null;
+  const version = options.inputVersion === undefined ? undefined : String(options.inputVersion);
+  if (version !== undefined && j.inputVersion !== undefined && j.inputVersion !== version) return null;
+  const modern = j.analysisVersion === 2 || j.photos.some((r) => r && (r.analysisVersion !== undefined || r.observations !== undefined));
+  const keys = ['onCrosswalk', 'onSidewalk', 'busStopVisible', 'schoolZoneMarking', 'intersectionCorner', 'fireHydrantNear', 'disabledSpace', 'fireLane', 'evChargingSpace'];
+  for (const [index, read] of j.photos.entries()) {
+    if (read === null) continue;
+    if (!read || typeof read !== 'object' || Array.isArray(read)) return null;
+    const id = options.photoIds?.[index];
+    if (read.analysisVersion !== undefined && read.analysisVersion !== 2) return null;
+    if (id !== undefined && ((modern && !read.photoId) || (read.photoId !== undefined && read.photoId !== id))) return null;
+    if (version !== undefined && read.inputVersion !== undefined && read.inputVersion !== version) return null;
+    if (modern) {
+      if (!Array.isArray(read.observations)) return null;
+      for (const o of read.observations) {
+        if (!o || typeof o !== 'object' || (id !== undefined && o.photoId !== id) || (version !== undefined && o.inputVersion !== undefined && o.inputVersion !== version)) return null;
+      }
+    } else {
+      if (typeof read.evidence !== 'string' || (read.typeGuess !== 'none' && !isEvidenceType(read.typeGuess)) || !read.scene || !keys.some((key) => ['yes', 'no', 'unclear'].includes((read.scene as unknown as Record<string, string>)[key]))) return null;
+    }
+  }
+  let photos = j.photos.map((read, index) => read ? {
+    ...read,
+    responseFormat: modern ? 'evidence_v2' as const : 'legacy' as const,
+    compatibilityNotes: modern ? [] : [LEGACY_VISION_NOTE],
+    photoId: options.photoIds?.[index] ?? read.photoId,
+    inputVersion: version ?? read.inputVersion,
+    ...(modern ? { observations: normalizeObservations(read.observations, { photoId: options.photoIds?.[index] ?? read.photoId, inputVersion: version ?? read.inputVersion }) } : {}),
+  } : null);
+  if (options.reference) photos = photos.map((read) => read ? constrainSupplementalRead(read, options.reference!.photoId) : read);
+  const notes = [...(!modern ? [LEGACY_VISION_NOTE] : []), ...(photos.includes(null) ? ['일부 사진의 분석 응답이 없습니다. 해당 사진의 판단은 미확인으로 남깁니다.'] : [])];
+  const review = summarizeEvidence(photos);
+  return { ...j, ...(!modern ? { ruleTypes: [], typeGuess: 'none' as const, typeConfidence: 0 } : {}), photos, evidenceReview: review, candidateTypes: modern ? review.filter((s) => s.status !== 'not_observed' && s.status !== 'legacy').map((s) => s.type) : [],
+    responseFormat: modern ? 'evidence_v2' : 'legacy', compatibilityNotes: notes,
+    evidence: [...notes, typeof j.evidence === 'string' ? j.evidence : photos.filter(Boolean).map((r) => r!.evidence).join('\n')].join('\n') };
+}
+
 async function requestRead(images: string[], options: ReadOptions, detailImages?: { imageIndex: number; dataUrl: string; box: EvidenceBox; type: string }[]): Promise<{ state: VisionState; result?: VisionResult }> {
   const res = await fetch('/api/vision', {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -143,15 +187,9 @@ async function requestRead(images: string[], options: ReadOptions, detailImages?
     signal: options.signal ?? AbortSignal.timeout(55_000),
   });
   const j = await res.json().catch(() => ({})) as VisionResult & { error?: string };
-  if (res.ok && j.plate && Array.isArray(j.photos)) {
-    j.photos = j.photos.map((read, index) => read ? {
-      ...read,
-      photoId: options.photoIds?.[index] ?? read.photoId,
-      inputVersion: options.inputVersion === undefined ? read.inputVersion : String(options.inputVersion),
-      ...(read.observations ? { observations: normalizeObservations(read.observations, { photoId: options.photoIds?.[index] ?? read.photoId, inputVersion: options.inputVersion === undefined ? read.inputVersion : String(options.inputVersion) }) } : {}),
-    } : null);
-    if (options.reference) j.photos = j.photos.map((read) => read ? constrainSupplementalRead(read, options.reference!.photoId) : read);
-    return { state: 'ok', result: j };
+  if (res.ok) {
+    const result = compatibleVisionResult(j, images.length, options);
+    return result ? { state: 'ok', result } : { state: 'error' };
   }
   if (j.error === 'no_key') return { state: 'no_key' };
   if (j.error === 'rate_limited') return { state: 'rate_limited' };
@@ -167,7 +205,7 @@ export async function readPhotos(dataUrls: string[], options: ReadOptions = {}):
       options = { ...options, reference: { ...options.reference, dataUrl: await shrink(options.reference.dataUrl) } };
     }
     const first = await requestRead(images, options);
-    if (!first.result || options.detailReview === false || options.signal?.aborted) return first;
+    if (!first.result || first.result.responseFormat === 'legacy' || options.detailReview === false || options.signal?.aborted) return first;
     const dimensions = await Promise.all(originals.map(async (original): Promise<[number, number]> => { try { const image = await decode(original); return [image.naturalWidth, image.naturalHeight]; } catch { return [0, 0]; } }));
     const hinted = options.regionHints?.slice(0, MAX_DETAIL_CROPS).flatMap((hint) => normalizeDetailRequests([{ ...hint, reason: 'user_region' }]).map((request) => ({ imageIndex: 0, request }))) ?? [];
     const plan = fallbackDetailPlan(first.result.photos, dimensions, [...hinted, ...detailPlan(first.result.photos)]);
@@ -185,7 +223,7 @@ export async function readPhotos(dataUrls: string[], options: ReadOptions = {}):
       const second = await requestRead(indices.map((index) => images[index]), { ...options, photoIds: options.photoIds ? indices.map((index) => options.photoIds![index]) : undefined }, details.map((detail) => ({ ...detail, imageIndex: indices.indexOf(detail.imageIndex) })));
       const reads = first.result.photos.map((read, index) => {
         const requests = plan.filter((p) => p.imageIndex === index && details.some((d) => d.imageIndex === index && d.type === p.request.type && d.box.join(',') === p.request.box.join(','))).map((p) => p.request);
-        return read && requests.length ? mergeDetailRead(read, second.result?.photos[indices.indexOf(index)] ?? null, requests) : read;
+        return read && requests.length ? mergeDetailRead(read, second.result?.responseFormat === 'legacy' ? null : second.result?.photos[indices.indexOf(index)] ?? null, requests) : read;
       });
       return { state: 'ok', result: mergeReads(reads, first.result.model) ?? first.result };
     } catch {

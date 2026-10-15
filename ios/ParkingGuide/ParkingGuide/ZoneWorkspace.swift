@@ -5,34 +5,34 @@ private let zoneAccent = ReportAppearance.blue
 
 struct ZoneLibrary: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var store = ZoneStore()
+    @ObservedObject var store: ZoneStore
+    @State private var startWithCapture = false
     @State private var selected: ZoneCase?
     @State private var deleting: ZoneCase?
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 ReportPrototypeNotice()
-                ReportPageHeader(title: "사진 근거·유형 확인", onBack: { dismiss() })
+                ReportPageHeader(title: "보관한 초안", onBack: { dismiss() })
                 ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    ReportIntro(step: 0)
-                    ZoneCard("구역 확인 초안", subtitle: "새로 시작하거나 보관한 내용을 이어서 확인하세요.") {
+                    ZoneCard("사진으로 시작하기") {
                         Button {
                             var value = ZoneCase(); value.version = 2; value.evidenceReview = EvidenceReview()
-                            do { try store.save(value); selected = value }
+                            do { try store.save(value); startWithCapture = true; selected = value }
                             catch { store.error = "초안을 만들지 못했습니다. 다시 시도해 주세요." }
-                        } label: { Label("새 구역 확인 시작", systemImage: "plus").frame(maxWidth: .infinity).frame(minHeight: 44) }
+                        } label: { Label("사진부터 찍기", systemImage: "plus").frame(maxWidth: .infinity).frame(minHeight: 44) }
                             .buttonStyle(ReportButtonStyle(primary: true))
-                        Text("사진 없이 시작 가능 · 기기에 초안 저장").font(.caption).foregroundStyle(.secondary)
+                        Text("사진과 작성 내용은 기기에 보관됩니다.").font(.caption).foregroundStyle(.secondary)
                     }
-                    Text("이어할 구역 초안 \(store.cases.count)건").font(.headline)
-                    if store.cases.isEmpty { Text("아직 초안이 없어요. 표시 확인부터 시작해 보세요.").foregroundStyle(.secondary) }
+                    Text("보관한 초안 \(store.cases.count)건").font(.headline)
+                    if store.cases.isEmpty { Text("아직 초안이 없어요.").foregroundStyle(.secondary) }
                     ForEach(store.cases) { item in
                         ZoneCard(item.facility.isEmpty ? "사진 근거·유형 확인" : item.facility) {
-                            Text(item.finding).font(.subheadline)
+                            Text(item.review.selectedType.label).font(.subheadline)
                             Text(item.address.isEmpty ? "주소 미입력 · 자료 \(item.evidence.count)장" : "\(item.address) · 자료 \(item.evidence.count)장").font(.caption).foregroundStyle(.secondary)
                             HStack {
-                                Button("이어서 확인") { selected = item }.buttonStyle(ReportButtonStyle()).frame(minHeight: 44)
+                                Button("이어서 확인") { startWithCapture = false; selected = item }.buttonStyle(ReportButtonStyle()).frame(minHeight: 44)
                                 Spacer()
                                 Button("삭제", role: .destructive) { deleting = item }.frame(minHeight: 44)
                             }
@@ -42,7 +42,7 @@ struct ZoneLibrary: View {
                 }.padding(20)
                 }.background(ReportAppearance.canvas)
             }.toolbar(.hidden, for: .navigationBar)
-                .fullScreenCover(item: $selected) { value in ZoneWorkspace(initial: value, store: store) }
+                .fullScreenCover(item: $selected) { value in ZoneWorkspace(initial: value, store: store, startWithCapture: startWithCapture) }
                 .confirmationDialog("이 초안과 자료를 삭제할까요?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
                     Button("초안과 자료 삭제", role: .destructive) {
                         if let deleting { do { try store.delete(deleting) } catch { store.error = "삭제하지 못했습니다. 기존 자료를 유지합니다." } }
@@ -58,6 +58,8 @@ struct ZoneWorkspace: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var store: ZoneStore
     @State private var draft: ZoneCase
+    let startWithCapture: Bool
+    @State private var openedInitialCamera = false
     @State private var saveState = ZoneDraftSaveState()
     @State private var reviewer = false
     @State private var cameraOpen = false
@@ -75,7 +77,12 @@ struct ZoneWorkspace: View {
     @State private var jumpTarget: String?
     @Environment(\.scenePhase) private var scenePhase
 
-    init(initial: ZoneCase, store: ZoneStore) { self.store = store; _draft = State(initialValue: initial) }
+    init(initial: ZoneCase, store: ZoneStore, startWithCapture: Bool = false) {
+        self.store = store; self.startWithCapture = startWithCapture; _draft = State(initialValue: initial)
+    }
+    private func preparePhoto() {
+        role = .incident; slot = draft.nextCaptureSlot; replacing = nil
+    }
     private func persist() {
         saveState.persist(draft, in: store)
     }
@@ -101,11 +108,11 @@ struct ZoneWorkspace: View {
             VStack(spacing: 0) {
                 ReportPrototypeNotice()
                 ReportPageHeader(title: "주정차 신고 도우미", status: saveState.status, disabled: busy || pendingData != nil, onBack: close)
-                ReportStepStrip(labels: ["촬영 전 안내", "구역·사진 확인", "초안·검토 요약"], current: draft.step, disabled: busy || pendingData != nil, onSelect: go)
+                ReportStepStrip(labels: ["사진 촬영", "촬영본 확인", "기기에 보관"], current: draft.step, disabled: busy || pendingData != nil, onSelect: go)
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 18) {
-                            ReportIntro(step: min(2, max(0, draft.step))).id("top")
+                            Color.clear.frame(height: 0).id("top")
                             if let error = saveState.error { ZoneCard("저장·자료 확인") { Text(error).font(.subheadline).foregroundStyle(.red); if pendingData == nil { Button("다시 저장") { persist() }.buttonStyle(ReportButtonStyle()) } } }
                             if pendingData != nil {
                                 ZoneCard("새 사진 저장 대기") {
@@ -115,12 +122,14 @@ struct ZoneWorkspace: View {
                                 }
                             }
                             Group {
-                                if draft.step == 0 { introduction }
+                                if draft.step == 0 { primaryPhotos }
                                 if draft.step == 1 { observation }
                                 if draft.step == 2 { summary }
-                                if draft.step != 0 && !draft.evidence.isEmpty { evidenceList }
+                                if !draft.evidence.isEmpty {
+                                    DisclosureGroup("사진 관리 · 원본 보기·교체") { evidenceList }.padding(.vertical, 6)
+                                }
                             }.disabled(busy || pendingData != nil)
-                            Text("확인이 어려운 항목은 그대로 두어도 저장됩니다. 이 초안은 기기에만 보관하며, 직접 삭제하기 전까지 자동 정리하지 않습니다.").font(.caption).foregroundStyle(.secondary)
+                            Text("모르는 항목은 비워 두어도 저장할 수 있어요.").font(.caption).foregroundStyle(.secondary)
                         }.padding(20)
                     }.background(ReportAppearance.canvas)
                         .onChange(of: draft.step) { _, _ in proxy.scrollTo("top", anchor: .top) }
@@ -134,10 +143,17 @@ struct ZoneWorkspace: View {
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 12) {
                     if draft.step > 0 { Button("이전") { go(draft.step - 1) }.buttonStyle(ReportButtonStyle()).frame(minHeight: 48) }
-                    Button { if draft.step < 2 { go(draft.step + 1) } else { close() } } label: { Text(draft.step == 0 ? "구역 확인 시작" : draft.step == 1 ? "초안·검토 요약 보기" : "초안 저장하고 닫기").frame(maxWidth: .infinity).frame(minHeight: 42) }.buttonStyle(ReportButtonStyle(primary: true))
+                    Button { if draft.step < 2 { go(draft.step + 1) } else { close() } } label: { Text(draft.step < 2 ? "다음" : "기기에 저장하고 닫기").frame(maxWidth: .infinity).frame(minHeight: 42) }.buttonStyle(ReportButtonStyle(primary: true))
                 }.padding(.horizontal, 16).padding(.vertical, 12).background(.white).overlay(alignment: .top) { ReportAppearance.border.frame(height: 1) }.disabled(busy || pendingData != nil)
             }
             .interactiveDismissDisabled()
+            .task {
+                guard startWithCapture, !openedInitialCamera else { return }
+                openedInitialCamera = true
+                preparePhoto()
+                await Task.yield()
+                cameraOpen = true
+            }
             .photosPicker(isPresented: $pickerOpen, selection: $photoItem, matching: .images)
             .onChange(of: photoItem) { _, item in
                 guard let item else { return }; busy = true
@@ -150,7 +166,7 @@ struct ZoneWorkspace: View {
                 }
             }
             .fullScreenCover(isPresented: $cameraOpen) {
-                CaptureScreen(replacing: replacing != nil, photosOnlyMode: true, guidance: draft.review.selectedType.guidance + " " + role.tip, onUseLocated: { data, date, location in
+                CaptureScreen(replacing: replacing != nil, photosOnlyMode: true, guidance: draft.review.selectedType == .other ? "차량번호와 주변이 함께 보이게 찍어 주세요." : draft.review.selectedType.guidance, onUseLocated: { data, date, location in
                     draft = try store.add(data: data, source: .prototypeCamera, role: role, date: date, to: draft, replacing: replacing, slot: slot, location: location)
                     saveState.saved()
                 }, onUse: { _, _ in }, onUseClip: { _ in throw CocoaError(.featureUnsupported) })
@@ -192,66 +208,60 @@ struct ZoneWorkspace: View {
         }
     }
     private var observation: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 18) {
             NativeEvidenceReviewView(draft: $draft, store: store, save: persist)
-            if draft.review.selectedType == .evcharging && draft.evidenceReview == nil {
-            ZoneCard("이 주차면의 표시를 확인해 주세요", subtitle: "공용 충전소라는 이름만으로 일반차 겸용이라고 판단하지 않아요.") {
-                question("전용·충전 표시가 보이나요?", keyPath: \.dedicatedSign)
-                question("일반차량 가능·겸용 안내가 있나요?", keyPath: \.sharedSign)
-                question("그 표시가 차량이 있는 칸에 적용되나요?", keyPath: \.appliesToBay, applies: true)
-                VStack(alignment: .leading, spacing: 6) { Text(draft.finding).font(.subheadline.weight(.medium)); Text("직접 확인한 표시입니다. 위반 여부나 주차 허용을 확정하지 않습니다.").font(.caption) }.padding(12).frame(maxWidth: .infinity, alignment: .leading).background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
-            }.id("zone")
-            }
-            primaryPhotos
-            ZoneCard("현장을 찾을 수 있게 알려주세요", subtitle: "확인할 수 있는 항목만 입력해도 저장할 수 있어요.") {
-                entry("주소", keyPath: \.address, hint: "예: 서울 ○○구 ○○로 10")
-                entry("시설·건물 이름", keyPath: \.facility, hint: "예: ○○아파트 101동")
-                entry("층", keyPath: \.level, hint: "예: 지하 2층")
-                entry("기둥·주차면 번호", keyPath: \.bay, hint: "예: A-17 옆")
-                entry("현장 설명", keyPath: \.body, hint: "직접 본 상황과 추가로 확인이 필요한 점을 적어 주세요.", multiline: true)
-            }.id("location")
-            ZoneCard("필요한 사진만 보완해 주세요", subtitle: "한 사진이 여러 역할을 할 수 있어요. 역할을 함께 선택하면 중복 촬영을 줄일 수 있습니다.") {
-                ForEach(ZoneRole.allCases, id: \.self) { item in
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack { Text(item.label).font(.subheadline.weight(.medium)); Spacer(); Text("\(draft.evidence.filter { $0.roles.contains(item) }.count)장").font(.caption).foregroundStyle(.secondary) }
-                        Text(item.tip).font(.caption).foregroundStyle(.secondary)
-                        HStack {
-                            Button { role = item; slot = .supplemental; replacing = nil; cameraOpen = true } label: { Label("촬영", systemImage: "camera").frame(maxWidth: .infinity).frame(minHeight: 40) }.buttonStyle(ReportButtonStyle())
-                            Button { role = item; slot = .supplemental; replacing = nil; pickerOpen = true } label: { Label("사진 선택", systemImage: "photo.badge.plus").frame(maxWidth: .infinity).frame(minHeight: 40) }.buttonStyle(ReportButtonStyle())
-                        }
-                        Divider()
-                    }.id(item.rawValue)
+            ZoneCard("발생 장소와 내용") {
+                entry("주소", keyPath: \.address, hint: "주소를 입력해 주세요")
+                entry("내용", keyPath: \.body, hint: "직접 본 상황을 적어 주세요.", multiline: true)
+                DisclosureGroup("상세 위치 · 선택") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        entry("시설·건물 이름", keyPath: \.facility, hint: "예: ○○아파트 101동")
+                        entry("층", keyPath: \.level, hint: "예: 지하 2층")
+                        entry("기둥·주차면 번호", keyPath: \.bay, hint: "예: A-17 옆")
+                    }.padding(.top, 12)
                 }
-                if draft.evidence.isEmpty { Text("아직 사진이 없어요. 사진 없이도 초안을 보관할 수 있습니다.").font(.caption).foregroundStyle(.secondary) }
+            }.id("location")
+            Menu {
+                Button("사진 찍기") { preparePhoto(); cameraOpen = true }
+                Button("사진에서 선택") { preparePhoto(); pickerOpen = true }
+            } label: { Label("사진 추가 · 선택", systemImage: "plus").frame(minHeight: 44) }
+            DisclosureGroup("신고 경로·이전 입력·예시") {
+                VStack(alignment: .leading, spacing: 16) {
+                    introduction
+                    if draft.evidenceReview == nil {
+                        ZoneCard("이전에 입력한 구역 확인") {
+                            question("전용·충전 표시가 보이나요?", keyPath: \.dedicatedSign)
+                            question("일반차량 가능·겸용 안내가 있나요?", keyPath: \.sharedSign)
+                            question("그 표시가 차량이 있는 칸에 적용되나요?", keyPath: \.appliesToBay, applies: true)
+                        }
+                    }
+                }.padding(.top, 12)
             }
         }
     }
     private var summary: some View {
         Group {
-            Picker("요약 보기", selection: $reviewer) { Text("신고자 안내").tag(false); Text("검토 요약").tag(true) }.pickerStyle(.segmented)
-            ZoneCard(reviewer ? "같은 자료로 검토하기" : "확인한 내용과 남은 항목") {
+            ZoneCard("저장할 내용") {
                 Text(draft.review.selectedType.label + " · 근거·신고 요건은 별도 확인").font(.subheadline.weight(.medium)).foregroundStyle(zoneAccent)
-                summaryLine("신고 경로", draft.situation.route)
                 summaryLine("주소", draft.address)
                 summaryLine("상세 위치", [draft.facility, draft.level, draft.bay].filter { !$0.isEmpty }.joined(separator: " · "))
                 summaryLine("현장 설명", draft.body)
                 summaryLine("기본 사진", draft.primaryPairSummary)
                 if draft.review.selectedType == .evcharging { summaryLine("일반차 병행주차 안내", draft.review.shared.finding(signature: draft.reviewSignature)) }
-                summaryLine("이전 전용·충전 표시", draft.dedicatedSign.label)
-                summaryLine("겸용 안내", draft.sharedSign.label)
-                summaryLine("해당 면 적용", draft.appliesToBay.appliesLabel)
-                Text("사용자 입력을 정리한 요약입니다. 같은 기기의 초안이며 실제 기관 접수·이송·기기 간 동기화는 하지 않습니다.").font(.caption).foregroundStyle(.secondary)
+                Text("이 기기에 보관합니다. 실제 신고 접수는 하지 않습니다.").font(.caption).foregroundStyle(.secondary)
             }
-            NativeEvidenceReviewView(draft: $draft, store: store, save: persist)
+            DisclosureGroup("추가 확인·검토 메모 · 선택") {
+            VStack(alignment: .leading, spacing: 16) {
             ZoneCard("추가 확인 \(draft.issues.count)개", subtitle: "자료 입력 완료와 신고 요건 충족은 다릅니다. 부족한 항목을 직접 보완할 수 있어요.") {
                 ForEach(draft.issues) { issue in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(issue.title).font(.subheadline.weight(.medium))
                         Text(issue.detail).font(.caption).foregroundStyle(.secondary)
-                        Button("확인하러 가기 →") { go(issue.target == "route" ? 0 : 1); jumpTarget = issue.target }.font(.subheadline).frame(minHeight: 44)
+                        Button("확인 화면으로 →") { go(1) }.font(.subheadline).frame(minHeight: 44)
                     }
                 }
             }
+            Toggle("검토 메모 작성", isOn: $reviewer)
             if reviewer {
                 ZoneCard("보완 안내와 검토 메모", subtitle: "초안 작성용입니다. 저장해도 신고자나 기관에 발송되지 않습니다.") {
                     Text("보완 안내문").font(.subheadline.weight(.medium))
@@ -259,6 +269,8 @@ struct ZoneWorkspace: View {
                     Button("현재 자료로 문구 다시 만들기") { if draft.supplementEdited { resetSupplement = true } else { draft.supplement = ""; persist() } }.font(.subheadline).frame(minHeight: 44)
                     entry("검토 메모", keyPath: \.reviewerNote, hint: "확인한 근거와 남은 확인 사항을 적어 주세요.", multiline: true)
                 }
+            }
+            }.padding(.top, 12)
             }
         }
     }
@@ -314,18 +326,33 @@ struct ZoneWorkspace: View {
         }
     }
     private var primaryPhotos: some View {
-        ZoneCard("기본 사진 두 장", subtitle: "보완사진과 별도로 정합니다. 한 사진을 두 칸에 동시에 넣을 수 없어요. 바꾼 뒤에는 시각 차이를 다시 확인합니다.") {
-            Text(draft.primaryPairSummary).font(.caption)
-            ForEach([PrimarySlot.first, .second], id: \.self) { target in
-                let existing = draft.evidence.first { $0.primarySlot == target }
-                VStack(alignment: .leading) {
-                    Text(target.label + (existing == nil ? " · 없음" : " · 보관됨")).font(.subheadline.weight(.medium))
-                    HStack {
-                        Button(existing == nil ? "촬영" : "다시 촬영") { role = .incident; slot = target; replacing = existing?.id; cameraOpen = true }.buttonStyle(ReportButtonStyle())
-                        Button("사진 선택") { role = .incident; slot = target; replacing = existing?.id; pickerOpen = true }.buttonStyle(ReportButtonStyle())
-                    }
+        ZoneCard("사진 촬영", subtitle: "차량번호와 주변이 함께 보이게 찍어 주세요.") {
+            HStack(alignment: .top, spacing: 12) {
+                ForEach([PrimarySlot.first, .second], id: \.self) { target in
+                    let existing = draft.evidence.first { $0.primarySlot == target }
+                    VStack(spacing: 8) {
+                        Button {
+                            if let existing { viewing = existing }
+                            else { role = .incident; slot = target; replacing = nil; cameraOpen = true }
+                        } label: {
+                            Group {
+                                if let existing, let image = store.image(existing) {
+                                    Image(uiImage: image).resizable().scaledToFit()
+                                } else { Image(systemName: "camera").font(.title).foregroundStyle(.secondary) }
+                            }.frame(maxWidth: .infinity).frame(height: 120).background(ReportAppearance.canvas, in: RoundedRectangle(cornerRadius: 10))
+                        }.accessibilityLabel(target.label + (existing == nil ? " 촬영" : " 원본 보기"))
+                        Text(target.label).font(.caption)
+                    }.frame(maxWidth: .infinity)
                 }
             }
+            if !draft.primaryPair.isEmpty { Text(draft.primaryPairSummary).font(.caption).foregroundStyle(.secondary) }
+            Button {
+                preparePhoto(); cameraOpen = true
+            } label: {
+                Label(draft.nextCaptureSlot == .first ? "첫 번째 사진 찍기" : draft.nextCaptureSlot == .second ? "두 번째 사진 찍기" : "사진 추가로 찍기", systemImage: "camera")
+                    .frame(maxWidth: .infinity)
+            }.buttonStyle(ReportButtonStyle(primary: true))
+            Button("사진에서 선택") { preparePhoto(); pickerOpen = true }.frame(minHeight: 44)
         }
     }
     private func question(_ label: String, keyPath: WritableKeyPath<ZoneCase, ZoneAnswer>, applies: Bool = false) -> some View {

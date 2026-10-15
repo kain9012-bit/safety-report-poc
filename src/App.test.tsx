@@ -161,6 +161,37 @@ describe('실제 App의 보존·저장 화면 전환', () => {
 });
 
 
+describe('기본 신고 흐름에서 추가 확인은 선택 사항', () => {
+  it('세부 질문·사진 역할을 펼치지 않고 다음 단계로 진행하며 미확인을 그대로 유지한다', async () => {
+    await boot();
+    expect(screen.queryByRole('button', { name: '보여요' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: '주변 전경' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '기본 1로 지정' })).toBeNull();
+    click('next step');
+    expect(screen.getByTestId('step').textContent).toBe('1');
+    expect(draft().confirmations).toBeUndefined();
+    expect(draft().body).toBe(initial().draft.body);
+    expect(primaryShots(draft())).toHaveLength(2);
+  });
+  it('추가 확인을 열고 남긴 답은 닫았다가 열어도 유지한다', async () => {
+    await boot(); click('추가 확인 · 선택');
+    click('보여요');
+    expect(draft().confirmations?.crossing?.value).toBe('보여요');
+    click('추가 확인 닫기');
+    expect(screen.queryByRole('button', { name: '답 수정' })).toBeNull();
+    click('추가 확인 · 선택');
+    expect(screen.getByRole('button', { name: '답 수정' })).toBeTruthy();
+    expect(draft().confirmations?.crossing?.value).toBe('보여요');
+    expect(draft().manual?.type).toBe(true);
+  });
+  it('상세 질문을 열지 않고 사진 추가를 선택할 수 있다', async () => {
+    await boot(); click('사진 추가');
+    expect(screen.getByRole('button', { name: '보완사진 찍기' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '사진에서 추가' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '보여요' })).toBeNull();
+  });
+});
+
 describe('보완사진 비동기 추가의 화면 보존', () => {
   it('읽는 동안 단계 이동을 막아 보완 화면을 유지하고 완료 후에는 이동한다', async () => {
     const work = deferred<DraftReport['shots'][number]>(); mock.albumFile.mockReturnValue(work.promise);
@@ -210,6 +241,7 @@ describe('사진 ID에 따른 주소·겹침 재점검', () => {
     await waitFor(() => expect(draft().overlap?.same).toBe(true));
     expect(mock.overlap).toHaveBeenCalledTimes(1);
     expect(mock.geocode).not.toHaveBeenCalled();
+    click('추가 확인 · 선택');
     fireEvent.click(screen.getAllByRole('button', { name: '기본 1로 지정' })[2]);
     await waitFor(() => expect(mock.overlap).toHaveBeenCalledTimes(2));
     expect(mock.overlap).toHaveBeenLastCalledWith('data:,other-photo', 'data:,original1');
@@ -224,6 +256,7 @@ describe('사진 ID에 따른 주소·겹침 재점검', () => {
     stored.draft.overlap = undefined;
     mock.overlap.mockReturnValueOnce(comparison.promise);
     await boot();
+    click('추가 확인 · 선택');
     fireEvent.click(screen.getAllByRole('checkbox', { name: '주변 전경' })[0]);
     await act(async () => comparison.resolve({ ratio: .82, score: .91, same: true }));
     expect(draft().overlap).toEqual({ ratio: .82, score: .91, same: true });

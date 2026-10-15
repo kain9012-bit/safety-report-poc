@@ -118,6 +118,9 @@ struct NativeAIResult: Codable {
     var revision: Int; var photoIDs: [UUID]; var generatedAt: Date; var recommendedTypes: [EvidenceType]
     var observations: [NativeAIObservation]; var summary: String; var model: String
     var targetLinks: [String: NativeAITargetLink]?
+    var responseFormat: String? = nil
+    var compatibilityNotes: [String]? = nil
+    var legacyReads: [NativeLegacyPhotoRead]? = nil
 }
 /// A user-selected search rectangle. It is not an observation or a new photo.
 struct EvidenceRegion: Codable {
@@ -155,6 +158,12 @@ extension ZoneCase {
     var review: EvidenceReview { get { evidenceReview ?? EvidenceReview() } set { evidenceReview = newValue } }
     var reviewSignature: String {
         [String(review.revision), level, bay, evidence.map { "\($0.id)|\($0.takenAt?.timeIntervalSince1970.description ?? "unknown")|\($0.primarySlot?.rawValue ?? "unassigned")" }.joined(separator: ",")].joined(separator: "|")
+    }
+    /// Fill missing main slots first; additions after both exist remain supplemental.
+    var nextCaptureSlot: PrimarySlot {
+        if !evidence.contains(where: { $0.primarySlot == .first }) { return .first }
+        if !evidence.contains(where: { $0.primarySlot == .second }) { return .second }
+        return .supplemental
     }
     var primaryPair: [ZoneEvidence] { [PrimarySlot.first, .second].compactMap { slot in evidence.first { $0.primarySlot == slot } } }
     var primaryPairSummary: String {

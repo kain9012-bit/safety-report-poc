@@ -49,13 +49,21 @@ struct NativeEvidenceReviewView: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("사진 근거와 유형 확인").font(.headline)
-            Text("선택한 유형과 직접 작성한 주소·내용은 AI 결과가 와도 바뀌지 않아요. 모르는 항목을 남긴 채 저장할 수 있어요.").font(.caption).foregroundStyle(.secondary)
-            Picker("내가 선택한 유형", selection: reviewBinding(\.selectedType)) {
+            Text("유형 확인").font(.headline)
+            Picker("유형", selection: reviewBinding(\.selectedType)) {
                 ForEach(EvidenceType.allCases) { type in Text(type.label).tag(type) }
             }.pickerStyle(.menu)
+            if let result = draft.review.aiResult {
+                if result.revision != draft.review.revision {
+                    Text("사진이 바뀌어 이전 분석은 다시 확인해야 해요.").font(.caption).foregroundStyle(.secondary)
+                } else if !result.recommendedTypes.isEmpty {
+                    Text("사진에서 찾은 후보: " + result.recommendedTypes.map(\.label).joined(separator: ", ")).font(.subheadline)
+                    Text("유형이 맞는지 확인해 주세요.").font(.caption).foregroundStyle(.secondary)
+                } else { Text("사진만으로 유형을 정하기 어려워요. 직접 선택할 수 있어요.").font(.caption).foregroundStyle(.secondary) }
+            } else { Text("유형을 직접 선택할 수 있어요. 사진 AI 분석은 추가 확인에서 선택할 수 있습니다.").font(.caption).foregroundStyle(.secondary) }
+            DisclosureGroup("추가 확인 · 선택") {
+            VStack(alignment: .leading, spacing: 18) {
             Text(draft.review.selectedType.guidance).font(.subheadline)
-            Text(draft.primaryPairSummary).font(.caption).foregroundStyle(.secondary)
             if !draft.manualCandidates.isEmpty {
                 Text("직접 연결한 사진 근거의 후보: " + draft.manualCandidates.map(\.label).joined(separator: ", ")).font(.subheadline)
             }
@@ -89,6 +97,8 @@ struct NativeEvidenceReviewView: View {
             if !status.isEmpty { Text(status).font(.caption).foregroundStyle(.secondary) }
             if let result = draft.review.aiResult {
                 resultView(result)
+            }
+            }.padding(.top, 12)
             }
         }.padding(16).background(.white, in: RoundedRectangle(cornerRadius: 14)).overlay(RoundedRectangle(cornerRadius: 14).stroke(ReportAppearance.border))
         .sheet(isPresented: $mapOpen) {

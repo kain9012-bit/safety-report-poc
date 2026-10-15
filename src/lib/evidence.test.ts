@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mergeReads, normalizeRead, POST, PROMPT } from '../../api/vision';
+import { mergeReads, normalizeRead, GET, POST, PROMPT } from '../../api/vision';
 import type { PhotoRead } from '../../api/vision';
 import { compareNoticeTime, constrainSupplementalRead, normalizeDetailRequests, normalizeObservations, reviewSharedParking, summarizeEvidence, supplementalNeeds } from './evidence';
-import { cropPixels, detailPlan, fallbackDetailPlan, mergeDetailRead, readPhotos } from './vision';
+import { compatibleVisionResult, LEGACY_VISION_NOTE, cropPixels, detailPlan, fallbackDetailPlan, mergeDetailRead, readPhotos } from './vision';
 import type { EvidenceObservation, EvidenceType } from '../types/evidence';
 
 const obs = (type: EvidenceType = 'hydrant', extra: Record<string, unknown> = {}): EvidenceObservation => normalizeObservations([{ type, identity: 'yes', markingToTarget: 'yes', vehicleRelation: 'yes', boundary: 'yes', identityDetail: 'synthetic visible cue', markingText: '', ...(type === 'evcharging' ? { zoneKind: 'charging', chargerToTarget: 'yes' } : {}), ...extra }], { photoId: 'a', inputVersion: '4' })[0];
@@ -151,6 +151,26 @@ describe('two-stage client transport using synthetic canvas and responses', () =
     expect(originals[0]).toBe('data:image/jpeg;base64,ORIGINALA');
   });
 
+  it('legacy server preserves its summary with an explicit limitation and receives no crop request', async () => {
+    setupCanvas();
+    const legacy = normalizeRead({ plate: { text: '', readable: false }, scene: { fireHydrantNear: 'yes' }, typeGuess: 'hydrant', evidence: '구형 설명' })!;
+    const send = vi.fn().mockResolvedValue(new Response(JSON.stringify(mergeReads([legacy], 'legacy'))));
+    vi.stubGlobal('fetch', send);
+    const result = await readPhotos(['data:image/jpeg;base64,ORIGINAL'], { photoIds: ['a'], inputVersion: '4', regionHints: [{ type: 'hydrant', box: [0, 0, 600, 600] }] });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(result.result?.responseFormat).toBe('legacy');
+    expect(result.result?.evidence).toContain(LEGACY_VISION_NOTE);
+    expect(result.result?.evidence).toContain('구형 설명');
+    expect(result.result?.photos[0]?.observations).toBeUndefined();
+    expect(result.result?.photos[0]?.photoId).toBe('a');
+    expect(result.result?.candidateTypes).toEqual([]);
+    const remerged = mergeReads(result.result!.photos, 'legacy')!;
+    expect(remerged.ruleTypes).toEqual([]);
+    expect(remerged.typeGuess).toBe('none');
+    expect(remerged.evidence).toContain(LEGACY_VISION_NOTE);
+    expect(result.result?.evidenceReview?.[0].status).toBe('legacy');
+  });
+
   it('second-stage network failure keeps saved first-stage readings and does not loop', async () => {
     setupCanvas();
     const first = mergeReads([candidate()], 'synthetic')!;
@@ -258,11 +278,29 @@ describe('EV shared-parking notice', () => {
 
 describe('vision endpoint defensive contract (mock provider only)', () => {
   const request = (body: unknown) => new Request('http://localhost/api/vision', { method: 'POST', body: JSON.stringify(body) });
-  const mockResponse = (observation = obs()) => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ plate: { text: '12가3456', readable: true, confidence: .95 }, observations: [observation], typeGuess: observation.type, typeConfidence: .9 }) }] } }] }));
+  const mockResponse = (observation = obs()) => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ plate: { text: '12가3456', readable: true, confidence: .95 }, observations: [observation], detailRequests: [], typeGuess: observation.type, typeConfidence: .9 }) }] } }] }));
   it.each([null, {}, { images: 'bad' }, { images: ['data:image/jpeg;base64,AAAA'], detailImages: 'bad' }])('rejects malformed body %j without contacting a provider', async (body) => {
     const provider = vi.fn(); vi.stubGlobal('fetch', provider);
     expect((await POST(request(body))).status).toBe(400);
     expect(provider).not.toHaveBeenCalled();
+  });
+  it('reports detailed analysis capabilities without sending a photo or exposing a key', async () => {
+    vi.stubEnv('VISION_API_KEY', 'synthetic-test-key'); const provider = vi.fn(); vi.stubGlobal('fetch', provider);
+    const response = GET(); const text = await response.text();
+    expect(JSON.parse(text)).toMatchObject({ analysisVersion: 2, release: 'vision-api-2026-10-15' });
+    expect(text).not.toContain('synthetic-test-key'); expect(provider).not.toHaveBeenCalled();
+  });
+  it.each([{ detailRequests: [] }, { observations: [] }])('rejects incomplete provider schema instead of inventing empty detail evidence: %j', async (fields) => {
+    vi.stubEnv('VISION_API_KEY', 'synthetic-test-key'); vi.stubEnv('VISION_PROVIDER', 'gemini');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ plate: { text: '', readable: false }, ...fields }) }] } }] }))));
+    const response = await POST(request({ images: ['data:image/jpeg;base64,AAAA'], photoIds: ['a'] }));
+    expect(response.status).toBe(502); expect(await response.json()).toEqual({ error: 'upstream' });
+  });
+  it('accepts a genuinely empty detailed observation array from the provider', async () => {
+    vi.stubEnv('VISION_API_KEY', 'synthetic-test-key'); vi.stubEnv('VISION_PROVIDER', 'gemini');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ plate: { text: '', readable: false }, observations: [], detailRequests: [] }) }] } }] }))));
+    const response = await POST(request({ images: ['data:image/jpeg;base64,AAAA'], photoIds: ['a'] }));
+    expect(response.status).toBe(200); expect((await response.json()).evidenceReview).toEqual([]);
   });
   it('binds photo IDs and input version from caller, never model output', async () => {
     vi.stubEnv('VISION_API_KEY', 'synthetic-test-key'); vi.stubEnv('VISION_PROVIDER', 'gemini');
@@ -314,5 +352,35 @@ describe('vision endpoint defensive contract (mock provider only)', () => {
   it('a reference cannot contaminate a pair of independent plate photos', async () => {
     const response = await POST(request({ images: ['data:image/jpeg;base64,AAAA', 'data:image/jpeg;base64,BBBB'], reference: { dataUrl: 'data:image/jpeg;base64,CCCC', photoId: 'primary' } }));
     expect(response.status).toBe(400);
+  });
+});
+
+
+describe('response contract validation', () => {
+  it('accepts bound modern results including a valid empty observation array', () => {
+    const raw = mergeReads([read()], 'test')!;
+    expect(compatibleVisionResult({ result: raw }, 1, { photoIds: ['a'], inputVersion: '4' })?.responseFormat).toBe('evidence_v2');
+    raw.photos[0]!.observations = [];
+    expect(compatibleVisionResult(raw, 1, { photoIds: ['a'], inputVersion: '4' })).not.toBeNull();
+  });
+  it('rejects stale, foreign, truncated, malformed and unknown-version data', () => {
+    const options = { photoIds: ['a'], inputVersion: '4' };
+    const raw = mergeReads([read()], 'test')!;
+    expect(compatibleVisionResult(raw, 2, options)).toBeNull();
+    expect(compatibleVisionResult(raw, 1, { ...options, inputVersion: '5' })).toBeNull();
+    expect(compatibleVisionResult(raw, 1, { ...options, photoIds: ['foreign'] })).toBeNull();
+    expect(compatibleVisionResult({ ...raw, photos: [null] }, 1, options)).toBeNull();
+    expect(compatibleVisionResult({ ...raw, photos: [{}] }, 1, options)).toBeNull();
+    expect(compatibleVisionResult({ ...raw, analysisVersion: 9 }, 1, options)).toBeNull();
+    expect(compatibleVisionResult({ ...raw, error: 'busy' }, 1, options)).toBeNull();
+    raw.photos[0]!.observations![0].photoId = 'foreign';
+    expect(compatibleVisionResult(raw, 1, options)).toBeNull();
+  });
+  it('retains null photo positions instead of binding the second result to the first photo', () => {
+    const raw = mergeReads([null, read(obs(), 'b')], 'test')!;
+    const result = compatibleVisionResult(raw, 2, { photoIds: ['a', 'b'], inputVersion: '4' });
+    expect(result?.photos[0]).toBeNull();
+    expect(result?.photos[1]?.photoId).toBe('b');
+    expect(result?.compatibilityNotes?.[0]).toContain('일부 사진');
   });
 });

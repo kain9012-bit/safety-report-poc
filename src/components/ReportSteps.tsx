@@ -132,7 +132,7 @@ export default function ReportSteps(p: Props) {
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-3 pb-6">
         {step === 0 && (
-          <Step title="위반 유형 확인" sub="사진에 보이는 근거와 미확인 내용을 나누어 확인합니다">
+          <Step title="위반 유형 확인" sub="유형이 맞는지 확인해 주세요">
             <div className="grid grid-cols-2 gap-2">
               {[first, second].map((s, i) => (
                 <button

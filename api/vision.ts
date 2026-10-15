@@ -48,6 +48,8 @@ export interface Box {
 
 /** 사진 한 장을 읽은 결과 */
 export interface PhotoRead {
+  responseFormat?: 'legacy' | 'evidence_v2';
+  compatibilityNotes?: string[];
   plate: { text: string; readable: boolean; confidence: number };
   scene: Scene;
   typeGuess: PhotoType;
@@ -66,6 +68,9 @@ export interface PhotoRead {
 }
 
 export interface VisionResult {
+  /** Client-side response compatibility; absent in older saved results. */
+  responseFormat?: 'legacy' | 'evidence_v2';
+  compatibilityNotes?: string[];
   /** 장마다 읽은 결과(0: 첫 번째 사진, 1: 두 번째 사진). 한 장이 실패하면 null */
   photos: (PhotoRead | null)[];
   /** 두 장을 맞대어 정한 번호판. agree=true 일 때만 앱이 채운다 */
@@ -293,7 +298,9 @@ export function mergeReads(reads: (PhotoRead | null)[], model: string): VisionRe
   const scene = Object.fromEntries(SCENE_KEYS.map((k) => [k, mergeTri(a?.scene[k], b?.scene[k])])) as unknown as Scene;
   const evidenceReview = summarizeEvidence(reads);
   const modern = ok.some((r) => r.analysisVersion === 2 || r.observations !== undefined);
-  const ruleTypes: PhotoType[] = modern ? evidenceReview.filter((s) => s.status === 'observed').map((s) => s.type) : typesFromScene(scene);
+  const legacyTransport = ok.some((r) => r.responseFormat === 'legacy');
+  const compatibilityNotes = [...new Set(ok.flatMap((r) => r.compatibilityNotes ?? []))];
+  const ruleTypes: PhotoType[] = modern || legacyTransport ? evidenceReview.filter((s) => s.status === 'observed').map((s) => s.type) : typesFromScene(scene);
   const guesses = ok.map((r) => r.typeGuess).filter((t) => t !== 'none');
   const top = ruleTypes[0] ?? 'none';
   const modelAgrees = top === 'none' ? guesses.length === 0 : guesses.includes(top);
@@ -311,11 +318,12 @@ export function mergeReads(reads: (PhotoRead | null)[], model: string): VisionRe
     // 규칙과 AI가 같은 답이면 AI 확신도를, 엇갈리면 낮춘 값을 쓴다
     typeConfidence: top === 'none' ? 0 : modelAgrees ? conf : DISAGREE_CONFIDENCE,
     modelAgrees,
-    evidence,
+    evidence: [...compatibilityNotes, evidence].join('\n'),
     model,
+    ...(legacyTransport || modern ? { responseFormat: legacyTransport ? 'legacy' as const : 'evidence_v2' as const, compatibilityNotes } : {}),
     ...(modern ? { analysisVersion: 2 as const } : {}),
     evidenceReview,
-    candidateTypes: evidenceReview.filter((s) => s.status !== 'not_observed').map((s) => s.type),
+    candidateTypes: evidenceReview.filter((s) => s.status !== 'not_observed' && (!legacyTransport || s.status !== 'legacy')).map((s) => s.type),
     ...(ok[0].inputVersion ? { inputVersion: ok[0].inputVersion } : {}),
   };
 }
@@ -364,7 +372,9 @@ async function readOne(img: { mime: string; data: string }, key: string, models:
     const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
     const text = j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
     try {
-      const normalized = normalizeRead(JSON.parse(text), { ...context, modern: true });
+      const parsed: unknown = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as Record<string, unknown>).observations) || !Array.isArray((parsed as Record<string, unknown>).detailRequests)) return 'upstream';
+      const normalized = normalizeRead(parsed, { ...context, modern: true });
       const read = normalized && context.referencePhotoId ? constrainSupplementalRead(normalized, context.referencePhotoId) : normalized;
       return read ? { read, model } : 'upstream';
     } catch {
@@ -372,6 +382,11 @@ async function readOne(img: { mime: string; data: string }, key: string, models:
     }
   }
   return 'busy';
+}
+
+/** 배포/로컬의 상세 분석 지원 여부만 확인한다. 비밀키나 사진은 반환하지 않는다. */
+export function GET(): Response {
+  return reply({ service: 'parking-photo-analysis', analysisVersion: 2, release: 'vision-api-2026-10-15', capabilities: ['photo_binding', 'structured_observations', 'original_regions'] });
 }
 
 export async function POST(request: Request): Promise<Response> {

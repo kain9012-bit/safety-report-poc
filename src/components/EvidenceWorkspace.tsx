@@ -35,6 +35,8 @@ export function EvidenceWorkspace({ draft, readStates, onChange, onRetry, onPend
   const needs = supplementalNeeds(reads, draft.type).slice(0, 3);
   const key = evidenceKey(draft);
   const shared = reviewSharedParking(summaries.flatMap((s) => s.observations));
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
   const [camera, setCamera] = useState(false);
@@ -59,9 +61,17 @@ export function EvidenceWorkspace({ draft, readStates, onChange, onRetry, onPend
   const answer = draft.type ? draft.confirmations?.[draft.type] : undefined;
   const answerCurrent = answer?.inputKey === key;
   return <section className="mt-5 space-y-3 border-t border-slate-200 pt-4" aria-label="사진 근거와 보완">
-    <h3 className="font-bold text-lg">확인된 내용과 부족한 내용</h3>
-    <p className="text-sm text-slate-600">사진 관찰을 돕는 시제품입니다. 거리·자격·주차 허용 여부와 실제 신고 요건은 따로 확인해야 합니다.</p>
-    {!summaries.length && <p className="text-sm">판독 결과가 없어도 유형을 직접 고르고 사진과 내용을 보관할 수 있어요.</p>}
+    {selected?.status === 'conflict' ? <p role="status" className="text-sm text-amber-900">사진마다 확인된 내용이 달라요. 유형을 한 번 더 확인해 주세요.</p>
+      : needs[0] ? <p className="text-sm text-amber-900">{needs[0].message}</p> : null}
+    {shared.notices.length > 0 && <p className="text-sm text-amber-900">주차 안내가 보입니다. 이 차량에도 적용되는지는 추가 확인에서 살펴볼 수 있어요.</p>}
+    <div className="flex flex-wrap gap-2">
+      <button className={button} aria-expanded={addOpen} onClick={() => setAddOpen(!addOpen)}>사진 추가{draft.shots.length > 2 ? ` · ${draft.shots.length - 2}장 추가됨` : ''}</button>
+      <button className={button} aria-expanded={detailsOpen} aria-controls="evidence-details" onClick={() => setDetailsOpen(!detailsOpen)}>{detailsOpen ? '추가 확인 닫기' : '추가 확인 · 선택'}</button>
+    </div>
+    {addOpen && <div className="flex gap-2"><button className={button} onClick={() => setCamera(true)} disabled={adding}>보완사진 찍기</button><button className={button} disabled={adding} onClick={() => fileRef.current?.click()}>사진에서 추가</button></div>}
+    <p className="text-xs text-slate-500">추가 확인 없이 다음 단계로 진행할 수 있어요.</p>
+    <div id="evidence-details" hidden={!detailsOpen} className="space-y-3 rounded border border-slate-200 p-3">
+    <p className="text-sm text-slate-600">필요한 항목만 확인하세요. 미확인 항목은 그대로 보관되며, 실제 신고 요건과 주차 허용 여부는 별도 확인이 필요해요.</p>
     {summaries.filter((s) => s.status !== 'not_observed' || s.type === draft.type).map((s) => <details key={s.type} className="rounded border p-3" open={s.type === draft.type}>
       <summary className="font-bold text-sm">{EVIDENCE_LABEL[s.type]} · {statusNames[s.status]}</summary>
       {s.photoIds.length > 0 && <p className="mt-2 text-xs text-slate-500">근거 사진: {s.photoIds.map((id) => draft.shots.findIndex((p, i) => photoId(p, i) === id) + 1).filter((n) => n > 0).join(', ')}</p>}
@@ -78,7 +88,6 @@ export function EvidenceWorkspace({ draft, readStates, onChange, onRetry, onPend
       <p className="text-xs text-slate-500">답은 사용자 확인으로 보관하며 AI 관찰이나 법적 판단으로 바꾸지 않아요.</p>
     </div>}
     {(draft.type === 'evcharging' || summaries.some((s) => s.type === 'evcharging' && s.status !== 'not_observed')) && <SharedParking draft={draft} onChange={onChange} inputKey={key} readMessage={shared.message} notices={shared.notices.map((n) => n.text).filter(Boolean)} />}
-    {needs.length > 0 && <div className="rounded bg-amber-50 p-3 text-sm space-y-1"><p className="font-bold">부족한 부분만 확인해 주세요</p>{needs.map((n) => <p key={n.id}>{n.message}</p>)}<p className="text-xs">같은 사진이 여러 내용을 보여줄 수 있어요. 실제 거리나 자격만 미확인이면 사진을 반복해서 찍을 필요는 없어요.</p></div>}
     <h3 className="font-bold">기본 사진과 보완사진</h3>
     <p className="text-xs text-slate-600">기본 1·2만 시간·번호판·겹침을 비교합니다. 기본 사진을 바꾸면 다시 점검해요. 보완사진은 원본을 유지한 채 추가합니다.</p>
     <div className="space-y-3">{draft.shots.map((shot, i) => {
@@ -89,7 +98,7 @@ export function EvidenceWorkspace({ draft, readStates, onChange, onRetry, onPend
         <div className="flex gap-2">{([0, 1] as const).map((n) => <button key={n} disabled={slot === n || pair[1 - n] === shot} className="text-xs underline disabled:text-slate-400" onClick={() => onChange((d) => choosePrimary(d, id, n))}>기본 {n + 1}로 지정</button>)}</div>
       </div>;
     })}</div>
-    <div className="flex gap-2"><button className={button} onClick={() => setCamera(true)} disabled={adding}>보완사진 찍기</button><button className={button} disabled={adding} onClick={() => fileRef.current?.click()}>사진에서 추가</button></div>
+    </div>
     <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void fromFile(e.target.files?.[0]); e.target.value = ''; }} />
     {adding && <div role="status">사진을 읽는 중… <button className="underline" onClick={() => { generation.current++; setAdding(false); onPendingChange?.(false); }}>추가 취소</button></div>}
     {error && <p role="alert" className="text-red-700 text-sm">{error}</p>}

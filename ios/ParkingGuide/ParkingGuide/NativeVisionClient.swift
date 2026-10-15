@@ -19,6 +19,7 @@ struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
         groups += draft.evidence.filter { !primaryIDs.contains($0.id) }.map { [$0] }
         guard !groups.isEmpty else { throw NativeVisionError(message: "보관한 사진이 없습니다.") }
         var observations: [NativeAIObservation] = []; var candidates: [EvidenceType] = []; var summaries: [String] = []; var models: [String] = []; var links: [String: NativeAITargetLink] = [:]
+        var formats: Set<String> = []; var legacyReads: [NativeLegacyPhotoRead] = []; var notes: [String] = []
         for group in groups {
             try Task.checkCancellation()
             let images = try group.map { photo -> String in
@@ -44,9 +45,12 @@ struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), data.count < 2_000_000 else { throw NativeVisionError(message: "분석 서버가 응답하지 못했습니다. 설정·통신을 확인해 다시 시도하세요. 기존 결과와 자료는 유지됩니다.") }
             guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw NativeVisionError(message: "분석 응답을 읽지 못했습니다.") }
-            var envelope = (object["result"] as? [String: Any]) ?? object
+            try Task.checkCancellation()
+            let decoded = try NativeVisionContract.decode(object, photoIDs: group.map(\.id), inputVersion: String(draft.review.revision))
+            formats.insert(decoded.format); legacyReads += decoded.legacyReads; notes += decoded.notes
+            var envelope = decoded.object
             let hints: [[String: Any]] = group.enumerated().flatMap { index, photo in (regionHints[photo.id] ?? []).map { ["imageIndex": index, "type": $0.type.rawValue, "box": $0.box, "reason": "user_region"] as [String: Any] } }
-            let details = try detailImages(envelope, originals: group.map { try store.data($0) }, regionHints: hints)
+            let details = decoded.supportsDetails ? try detailImages(envelope, originals: group.map { try store.data($0) }, regionHints: hints) : []
             if !details.isEmpty {
                 try Task.checkCancellation()
                 payload["detailImages"] = details
@@ -56,7 +60,10 @@ struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
                     let (detailData, detailResponse) = try await session.data(for: request)
                     guard let http = detailResponse as? HTTPURLResponse, (200..<300).contains(http.statusCode), detailData.count < 2_000_000,
                           let detailObject = try JSONSerialization.jsonObject(with: detailData) as? [String: Any] else { throw NativeVisionError(message: "부분 확인 응답 없음") }
-                    envelope = mergeDetailEnvelope(envelope, second: (detailObject["result"] as? [String: Any]) ?? detailObject, requests: details)
+                    let decodedDetail = try NativeVisionContract.decode(detailObject, photoIDs: group.map(\.id), inputVersion: String(draft.review.revision))
+                    guard decodedDetail.supportsDetails else { throw NativeVisionError(message: "부분 확인 응답 형식 불일치") }
+                    notes += decodedDetail.notes
+                    envelope = mergeDetailEnvelope(envelope, second: decodedDetail.object, requests: details)
                 } catch {
                     try Task.checkCancellation()
                     summaries.append("원본 부분 확인을 완료하지 못했습니다. 전체 사진 분석만 보관하고 불명확한 내용은 남깁니다.")
@@ -64,7 +71,7 @@ struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
             }
             let parsed = parse(envelope, allowedPhotoIDs: Set(group.map(\.id)))
             observations += parsed.observations
-            if group.count == 1, let reads = envelope["photos"] as? [[String: Any]], let link = reads.first?["targetLink"] as? [String: Any],
+            if decoded.supportsDetails, group.count == 1, let reads = envelope["photos"] as? [[String: Any]], let link = reads.first?["targetLink"] as? [String: Any],
                let referenceID = (link["referencePhotoId"] as? String).flatMap(UUID.init(uuidString:)), referenceID == draft.primaryPair.first?.id {
                 links[group[0].id.uuidString] = .init(referencePhotoID: referenceID, sameVehicle: link["sameVehicle"] as? String ?? "unclear", samePlace: link["samePlace"] as? String ?? "unclear", evidence: String((link["evidence"] as? String ?? "").prefix(1200)))
             }
@@ -72,8 +79,9 @@ struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
             if let summary = envelope["evidence"] as? String { summaries.append(String(summary.prefix(1200))) }
             if let model = envelope["model"] as? String { models.append(model) }
         }
+        let uniqueNotes = notes.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         let types = EvidenceType.allCases.filter { candidates.contains($0) }
-        return NativeAIResult(revision: draft.review.revision, photoIDs: draft.evidence.map(\.id), generatedAt: Date(), recommendedTypes: types, observations: observations, summary: summaries.joined(separator: "\n"), model: Array(Set(models)).sorted().joined(separator: ","), targetLinks: links)
+        return NativeAIResult(revision: draft.review.revision, photoIDs: draft.evidence.map(\.id), generatedAt: Date(), recommendedTypes: types, observations: observations, summary: (uniqueNotes + summaries).joined(separator: "\n"), model: Array(Set(models)).sorted().joined(separator: ","), targetLinks: links, responseFormat: formats.count == 1 ? formats.first : "mixed", compatibilityNotes: uniqueNotes, legacyReads: legacyReads)
     }
     static func detailImages(_ object: [String: Any], originals: [Data], regionHints: [[String: Any]] = []) throws -> [[String: Any]] {
         guard let photos = object["photos"] as? [Any] else { return [] }

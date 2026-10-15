@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var store = PhotoStore()
+    @StateObject private var zoneStore = ZoneStore()
+    @State private var newDraft: ZoneCase?
     @State private var cameraOpen = false
     @State private var replacingID: UUID?
     @State private var deleteTarget: TrialPhoto?
@@ -19,27 +21,27 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         VStack(spacing: 12) {
                             ReportStepStrip(labels: ["사진 촬영", "촬영본 확인", "기기에 보관"], current: 0)
-                            Button { zoneOpen = true } label: {
+                            Button { startPhotos() } label: {
                                 HStack(spacing: 16) {
                                     Image(systemName: "camera").font(.system(size: 31, weight: .medium))
                                         .frame(width: 64, height: 64).background(.white.opacity(0.2), in: Circle())
                                     VStack(alignment: .leading, spacing: 5) {
                                         Text("사진부터 찍기").font(.system(size: 24, weight: .bold))
-                                        Text("기본 사진 두 장과 필요한 보완사진을 보관하세요").font(.system(size: 15)).fixedSize(horizontal: false, vertical: true)
+                                        Text("차량과 주변이 함께 보이게 찍어 주세요").font(.system(size: 15)).fixedSize(horizontal: false, vertical: true)
                                     }
                                     Spacer(minLength: 0)
                                 }.padding(.horizontal, 20).padding(.vertical, 24).frame(maxWidth: .infinity, alignment: .leading)
                                     .foregroundStyle(.white).background(accent, in: RoundedRectangle(cornerRadius: 16))
                             }.buttonStyle(.plain)
-                            Text("사진 근거·유형 확인과 초안 저장을 지원합니다. AI는 분석 서버를 설정한 뒤 선택해 사용할 수 있어요.")
+                            Text("사진을 찍고, 유형과 내용을 확인한 뒤 보관하세요.")
                                 .font(.system(size: 13)).foregroundStyle(ReportAppearance.muted).frame(maxWidth: .infinity, alignment: .leading)
                         }
                         Button { zoneOpen = true } label: {
                             HStack(alignment: .center, spacing: 12) {
                                 Image(systemName: "checklist").font(.system(size: 22)).foregroundStyle(accent)
                                 VStack(alignment: .leading, spacing: 5) {
-                                    Text("사진 근거·유형 확인 이어하기").font(.system(size: 17, weight: .bold))
-                                    Text("기본 6종·전용구역 3종·기타와 일반차 병행주차 안내 확인").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
+                                    Text("보관한 초안 이어하기").font(.system(size: 17, weight: .bold))
+                                    Text("촬영한 사진과 작성한 내용을 이어서 확인해요").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
                                 }
                                 Spacer(minLength: 4)
                                 Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(ReportAppearance.muted)
@@ -105,7 +107,8 @@ struct ContentView: View {
             .background(.white)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $officialGuidesOpen) { DedicatedGuidesScreen() }
-            .fullScreenCover(isPresented: $zoneOpen) { ZoneLibrary() }
+            .fullScreenCover(isPresented: $zoneOpen) { ZoneLibrary(store: zoneStore) }
+            .fullScreenCover(item: $newDraft) { value in ZoneWorkspace(initial: value, store: zoneStore, startWithCapture: true) }
             .fullScreenCover(isPresented: $cameraOpen, onDismiss: { replacingID = nil }) {
                 CaptureScreen(replacing: replacingID != nil,
                               onUse: { data, date in try store.save(data: data, capturedAt: date) },
@@ -124,6 +127,11 @@ struct ContentView: View {
                 Button("확인") { store.error = nil }
             } message: { Text(store.error ?? "") }
         }.tint(accent).preferredColorScheme(.light)
+    }
+    private func startPhotos() {
+        var value = ZoneCase(); value.version = 2; value.evidenceReview = EvidenceReview()
+        do { try zoneStore.save(value); newDraft = value }
+        catch { store.error = "촬영 초안을 만들지 못했어요. 기존 자료는 그대로 있습니다. 다시 시도해 주세요." }
     }
     private func storedFrame(_ image: UIImage, label: String) -> some View {
         VStack(alignment: .leading) {

@@ -34,6 +34,29 @@ import UIKit
         XCTAssertGreaterThan(next.review.revision, revision); XCTAssertEqual(next.review.answer("hydrant.identity").photoIDs, [id])
         XCTAssertTrue(next.manualCandidates.isEmpty)
     }
+    func testSimpleCaptureFillsMainSlotsThenAddsWithoutReplacingOriginals() throws {
+        let store = try store()
+        var draft = ZoneCase(); draft.evidenceReview = EvidenceReview()
+        draft.address = "직접 쓴 주소"; draft.body = "직접 쓴 내용"
+        for expected in [PrimarySlot.first, .second, .supplemental] {
+            XCTAssertEqual(draft.nextCaptureSlot, expected)
+            draft = try store.add(data: image(), source: .album, role: .incident, date: nil, to: draft, slot: draft.nextCaptureSlot)
+        }
+        XCTAssertEqual(draft.evidence.count, 3)
+        XCTAssertEqual(draft.primaryPair.map(\.id), Array(draft.evidence.prefix(2)).map(\.id))
+        XCTAssertEqual(draft.address, "직접 쓴 주소"); XCTAssertEqual(draft.body, "직접 쓴 내용")
+        for photo in draft.evidence { XCTAssertNotNil(store.image(photo)) }
+        let remaining = try store.remove(draft.primaryPair[0], from: draft)
+        XCTAssertEqual(remaining.nextCaptureSlot, .first)
+        XCTAssertEqual(remaining.evidence.map(\.id), Array(draft.evidence.suffix(2)).map(\.id))
+    }
+    func testSimpleCaptureDoesNotPromoteLegacyPhotosOrChangeTheirContents() {
+        var draft = ZoneCase()
+        draft.evidence = [.init(id: UUID(), roles: [.overview], source: .album, filename: "original", addedAt: Date())]
+        XCTAssertEqual(draft.nextCaptureSlot, .first)
+        XCTAssertNil(draft.evidence[0].primarySlot)
+        XCTAssertEqual(draft.evidence[0].filename, "original")
+    }
     func testLegacyJSONOpensWithoutPromotingPhotosOrManualAnswers() throws {
         var c = ZoneCase(); c.sharedSign = .yes
         c.evidence = [.init(id: UUID(), roles: [.incident], source: .album, filename: "original", addedAt: Date())]
