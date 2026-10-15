@@ -66,6 +66,17 @@ struct ZoneCase: Codable, Identifiable {
     var supplement = ""
     var supplementEdited = false
     var evidenceReview: EvidenceReview?
+    // 웹 main과 같은 5단계 신고서(2026-10-15). 이전 초안과 호환되도록 모두 선택 항목이다.
+    /// 차량번호(직접 입력)
+    var plate: String?
+    /// 유형을 정한 출처 — nil: 아직 비어 있음, "photo": 사진 근거로 자동, "user": 직접 선택
+    var typeSource: String?
+    /// 내용을 직접 고쳤는지. 고치지 않았으면 자동 작성 문구를 보여 준다.
+    var bodyEdited: Bool?
+    /// 이미 한 번 보완 촬영을 요청한 부족 사유(같은 사유로 다시 묻지 않는다)
+    var supplementAsked: [String]?
+    /// '제출'한 시각 — 개선 제안용 화면이라 실제 접수는 하지 않고 기기에 보관만 한다
+    var submittedAt: Date?
 
     static let sourceNote = "시제품 사진과 휴대폰 사진은 공식 안전신문고 촬영본으로 확인되지 않습니다. 실제 신고는 공식 앱의 촬영 방법과 관할 기준을 확인해 주세요."
     var finding: String {

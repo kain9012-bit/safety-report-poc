@@ -1,15 +1,23 @@
 import SwiftUI
+import PhotosUI
+import ImageIO
 
+/// 처음 화면 — 웹 main 시작 화면과 같은 구성: 사진부터 찍기 · 앨범에서 2장 고르기 · 이어할 신고 · 제출한 신고.
+/// 이전 홈의 영상 촬영·촬영본 목록은 LegacyMediaHome 에 코드만 남겼다.
 struct ContentView: View {
-    @StateObject private var store = PhotoStore()
     @StateObject private var zoneStore = ZoneStore()
-    @State private var newDraft: ZoneCase?
-    @State private var cameraOpen = false
-    @State private var replacingID: UUID?
-    @State private var deleteTarget: TrialPhoto?
-    @State private var officialGuidesOpen = false
-    @State private var zoneOpen = false
+    @State private var opened: ZoneCase?
+    @State private var deleting: ZoneCase?
+    @State private var albumItems: [PhotosPickerItem] = []
+    @State private var albumBusy = false
+    @State private var albumError: String?
+    @State private var toast: String?
+    @State private var resumed = false
+    @State private var settingsOpen = false
     private let accent = ReportAppearance.blue
+
+    private var inProgress: [ZoneCase] { zoneStore.cases.filter { $0.submittedAt == nil && !$0.evidence.isEmpty } }
+    private var submitted: [ZoneCase] { zoneStore.cases.filter { $0.submittedAt != nil } }
 
     var body: some View {
         NavigationStack {
@@ -18,125 +26,162 @@ struct ContentView: View {
                 ReportHomeHeader()
                 ReportCategoryStrip()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        VStack(spacing: 12) {
-                            ReportStepStrip(labels: ["사진 촬영", "촬영본 확인", "기기에 보관"], current: 0)
-                            Button { startPhotos() } label: {
-                                HStack(spacing: 16) {
-                                    Image(systemName: "camera").font(.system(size: 31, weight: .medium))
-                                        .frame(width: 64, height: 64).background(.white.opacity(0.2), in: Circle())
-                                    VStack(alignment: .leading, spacing: 5) {
-                                        Text("사진부터 찍기").font(.system(size: 24, weight: .bold))
-                                        Text("차량과 주변이 함께 보이게 찍어 주세요").font(.system(size: 15)).fixedSize(horizontal: false, vertical: true)
-                                    }
-                                    Spacer(minLength: 0)
-                                }.padding(.horizontal, 20).padding(.vertical, 24).frame(maxWidth: .infinity, alignment: .leading)
-                                    .foregroundStyle(.white).background(accent, in: RoundedRectangle(cornerRadius: 16))
-                            }.buttonStyle(.plain)
-                            Text("사진을 찍고, 유형과 내용을 확인한 뒤 보관하세요.")
-                                .font(.system(size: 13)).foregroundStyle(ReportAppearance.muted).frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        Button { zoneOpen = true } label: {
-                            HStack(alignment: .center, spacing: 12) {
-                                Image(systemName: "checklist").font(.system(size: 22)).foregroundStyle(accent)
+                    VStack(alignment: .leading, spacing: 16) {
+                        Button { startNew() } label: {
+                            HStack(spacing: 16) {
+                                Image(systemName: "camera").font(.system(size: 31, weight: .medium))
+                                    .frame(width: 64, height: 64).background(.white.opacity(0.2), in: Circle())
                                 VStack(alignment: .leading, spacing: 5) {
-                                    Text("보관한 초안 이어하기").font(.system(size: 17, weight: .bold))
-                                    Text("촬영한 사진과 작성한 내용을 이어서 확인해요").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
+                                    Text("사진부터 찍기").font(.system(size: 24, weight: .bold))
+                                    Text("찍은 뒤 유형·발생지역·내용을 확인합니다").font(.system(size: 15)).fixedSize(horizontal: false, vertical: true)
                                 }
-                                Spacer(minLength: 4)
-                                Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(ReportAppearance.muted)
-                            }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                                .background(.white, in: RoundedRectangle(cornerRadius: 8))
-                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(ReportAppearance.border))
-                        }.buttonStyle(.plain)
-                        Button("기존 3~5초 영상·단일 사진 촬영") { replacingID = nil; cameraOpen = true }.buttonStyle(.bordered)
-                        Text("시제품 촬영·앨범 사진은 공식 안전신문고 촬영본으로 확인되지 않습니다. 실제 신고용 촬영은 공식 앱에서 먼저 확인해 주세요.")
-                            .font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
-                    HStack {
-                        Text("보관한 촬영본").font(.system(size: 17, weight: .bold))
-                        Spacer()
-                        Text("\(store.photos.count)건").foregroundStyle(.secondary)
-                    }
-                    if store.photos.isEmpty {
-                        Text("아직 촬영본이 없어요. 촬영 후 저장하면 여기에 보관돼요.").font(.system(size: 14)).foregroundStyle(ReportAppearance.muted)
-                    }
-                    ForEach(Array(store.photos.enumerated()), id: \.element.id) { index, photo in
-                        VStack(alignment: .leading, spacing: 10) {
-                            if let url = store.videoURL(for: photo) {
-                                ClipPlayer(url: url).id(url).frame(height: 240).clipShape(RoundedRectangle(cornerRadius: 12))
-                                HStack(alignment: .top) {
-                                    if let image = store.image(for: photo) { storedFrame(image, label: "시작 장면") }
-                                    if let image = store.lastImage(for: photo) { storedFrame(image, label: "끝 장면") }
-                                }
-                                Text("한 연속 영상 · \(photo.duration ?? 0, specifier: "%.2f")초 · 음성 없음").font(.subheadline.bold())
-                                Text("계속 정차와 기존 신고 시간 간격 요건은 자동 판정하지 않습니다.").font(.caption).foregroundStyle(.secondary)
-                                HStack {
-                                    Button("영상 재촬영") { replacingID = photo.id; cameraOpen = true }.buttonStyle(.bordered)
-                                    ShareLink(item: url) { Label("원본 공유", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered)
-                                }
-                            } else if photo.isVideo {
-                                Label("영상 원본을 읽을 수 없어요", systemImage: "exclamationmark.triangle")
-                            } else if let image = store.image(for: photo) {
-                                Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 340).frame(maxWidth: .infinity)
-                                    .background(.black.opacity(0.04)).clipShape(RoundedRectangle(cornerRadius: 16))
-                            } else {
-                                Label("사진 파일을 읽을 수 없어요", systemImage: "exclamationmark.triangle")
-                            }
-                            Text("\(photo.isVideo ? "연속 촬영" : "사진") \(index + 1)").font(.headline)
-                            Text(photo.capturedAt.formatted(date: .abbreviated, time: .standard)).font(.footnote)
-                            if index > 0 && !photo.isVideo && !store.photos[index - 1].isVideo {
-                                let seconds = Int(photo.capturedAt.timeIntervalSince(store.photos[index - 1].capturedAt))
-                                Text("앞 사진과 \(seconds)초 차이 · 접수 기준 적합 여부는 미판정").font(.caption).foregroundStyle(.secondary)
-                            }
-                            Label("자동인식 모델 미연결", systemImage: "hourglass").font(.subheadline).foregroundStyle(accent)
-                            Button(photo.isVideo ? "영상·장면 삭제" : "사진 삭제", role: .destructive) { deleteTarget = photo }.font(.subheadline)
-                        }.padding(16).background(.white, in: RoundedRectangle(cornerRadius: 14)).overlay(RoundedRectangle(cornerRadius: 14).stroke(ReportAppearance.border))
-                    }
-                    Button { officialGuidesOpen = true } label: {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("전용구역 3종 공식 안내").font(.system(size: 17, weight: .bold))
-                            Text("장애인 · 소방차 · 친환경차 충전구역").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
-                        }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
-                            .background(ReportAppearance.blueLight, in: RoundedRectangle(cornerRadius: 8))
-                    }.buttonStyle(.plain).foregroundStyle(accent)
-                    Text("촬영본은 기기에 보관됩니다. 사진 근거 확인 화면에서 위치 기록과 AI 전송을 선택할 수 있습니다. 실제 신고 제출은 하지 않습니다.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    }.padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 24)
+                                Spacer(minLength: 0)
+                            }.padding(.horizontal, 20).padding(.vertical, 24).frame(maxWidth: .infinity, alignment: .leading)
+                                .foregroundStyle(.white).background(accent, in: RoundedRectangle(cornerRadius: 16))
+                        }.buttonStyle(.plain).disabled(albumBusy)
+                        PhotosPicker(selection: $albumItems, maxSelectionCount: 2, matching: .images) {
+                            Label(albumBusy ? "앨범 사진 읽는 중…" : "앨범에서 2장 고르기", systemImage: "photo").font(.system(size: 17, weight: .bold))
+                                .frame(maxWidth: .infinity).frame(minHeight: 50)
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(white: 0.75), lineWidth: 2))
+                        }.foregroundStyle(ReportAppearance.ink).disabled(albumBusy)
+                        if let albumError { Text(albumError).font(.system(size: 14)).foregroundStyle(.red) }
+
+                        section("이어할 신고", inProgress.count)
+                        if inProgress.isEmpty {
+                            Text("하던 신고가 없습니다. 앱을 바꾸거나 꺼도 하던 신고는 여기 남습니다.").font(.system(size: 14)).foregroundStyle(ReportAppearance.muted)
+                        }
+                        ForEach(inProgress) { item in row(item, action: "이어하기") }
+
+                        if !submitted.isEmpty {
+                            section("제출한 신고", submitted.count)
+                            ForEach(submitted) { item in row(item, action: "열기") }
+                        }
+                        Button("사진 판독 설정") { settingsOpen = true }.font(.system(size: 14)).foregroundStyle(accent).frame(minHeight: 44)
+                    }.padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 24)
                 }.background(.white)
             }
             .background(.white)
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $officialGuidesOpen) { DedicatedGuidesScreen() }
-            .fullScreenCover(isPresented: $zoneOpen) { ZoneLibrary(store: zoneStore) }
-            .fullScreenCover(item: $newDraft) { value in ZoneWorkspace(initial: value, store: zoneStore, startWithCapture: true) }
-            .fullScreenCover(isPresented: $cameraOpen, onDismiss: { replacingID = nil }) {
-                CaptureScreen(replacing: replacingID != nil,
-                              onUse: { data, date in try store.save(data: data, capturedAt: date) },
-                              onUseClip: { clip in try store.save(clip: clip, replacing: replacingID) })
-            }
-            .confirmationDialog("촬영본을 삭제할까요?", isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } }), titleVisibility: .visible) {
-                Button("촬영본 전체 삭제", role: .destructive) {
-                    if let target = deleteTarget {
-                        do { try store.delete(target) }
-                        catch { store.error = "삭제하지 못했어요. 기존 촬영본을 유지합니다. \(error.localizedDescription)" }
-                    }
-                    deleteTarget = nil
+            .overlay(alignment: .bottom) {
+                if let toast {
+                    Text(toast).font(.system(size: 15, weight: .bold)).multilineTextAlignment(.center).foregroundStyle(.white)
+                        .padding(12).frame(maxWidth: .infinity).background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
+                        .padding(.horizontal, 24).padding(.bottom, 32).transition(.opacity)
                 }
-            } message: { Text("원본 영상과 추출 장면을 함께 삭제합니다.") }
-            .alert("사진 보관함 확인", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
-                Button("확인") { store.error = nil }
-            } message: { Text(store.error ?? "") }
+            }
+            .fullScreenCover(item: $opened, onDismiss: dropEmptyDrafts) { value in
+                ReportFlowScreen(initial: value, store: zoneStore) { show("개선 제안용 화면이라 접수되지 않습니다\n제출한 신고에 저장했습니다") }
+            }
+            .sheet(isPresented: $settingsOpen) { VisionSettingsSheet() }
+            .onChange(of: albumItems) { _, items in if !items.isEmpty { Task { await importAlbum(items) } } }
+            .task {
+                // 앱을 열면 — 하던 신고가 있으면 바로 그 자리로(웹 main 과 같다)
+                guard !resumed else { return }
+                resumed = true
+                if let recent = inProgress.first(where: { Date().timeIntervalSince($0.createdAt) <= ReportRules.resumeWindow }) { opened = recent }
+            }
+            .confirmationDialog("이 신고와 사진을 지울까요?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
+                Button("지우기", role: .destructive) {
+                    if let deleting { do { try zoneStore.delete(deleting) } catch { zoneStore.error = "지우지 못했습니다. 기존 자료를 유지했습니다." } }
+                    deleting = nil
+                }
+            }
+            .alert("보관함 확인", isPresented: Binding(get: { zoneStore.error != nil }, set: { if !$0 { zoneStore.error = nil } })) {
+                Button("확인") { zoneStore.error = nil }
+            } message: { Text(zoneStore.error ?? "") }
         }.tint(accent).preferredColorScheme(.light)
     }
-    private func startPhotos() {
-        var value = ZoneCase(); value.version = 2; value.evidenceReview = EvidenceReview()
-        do { try zoneStore.save(value); newDraft = value }
-        catch { store.error = "촬영 초안을 만들지 못했어요. 기존 자료는 그대로 있습니다. 다시 시도해 주세요." }
+
+    private func section(_ title: String, _ count: Int) -> some View {
+        HStack(spacing: 6) {
+            Text(title).font(.system(size: 17, weight: .bold))
+            Text("\(count)").font(.system(size: 17, weight: .bold)).foregroundStyle(accent)
+        }.padding(.top, 12)
     }
-    private func storedFrame(_ image: UIImage, label: String) -> some View {
-        VStack(alignment: .leading) {
-            Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 130)
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }.frame(maxWidth: .infinity)
+
+    private func row(_ item: ZoneCase, action: String) -> some View {
+        HStack(spacing: 12) {
+            Group {
+                if let photo = item.primaryPair.first ?? item.evidence.first, let image = zoneStore.image(photo) {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else { Color(white: 0.92) }
+            }.frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.reportType?.reportLabel ?? "유형 미정").font(.system(size: 15, weight: .bold))
+                Text(item.address.isEmpty ? "주소 미입력" : item.address).font(.system(size: 13)).foregroundStyle(ReportAppearance.muted).lineLimit(1)
+                Text(ReportRules.stamp(item.submittedAt ?? item.updatedAt)).font(.system(size: 12)).foregroundStyle(ReportAppearance.muted)
+            }
+            Spacer(minLength: 4)
+            VStack(spacing: 4) {
+                Button(action) { opened = item }.font(.system(size: 14, weight: .bold)).frame(minHeight: 36)
+                Button("지우기", role: .destructive) { deleting = item }.font(.system(size: 13)).frame(minHeight: 32)
+            }
+        }.padding(10).overlay(RoundedRectangle(cornerRadius: 10).stroke(ReportAppearance.border))
+    }
+
+    private func startNew() {
+        var value = ZoneCase(); value.version = 2; value.evidenceReview = EvidenceReview()
+        do { try zoneStore.save(value); opened = value }
+        catch { zoneStore.error = "새 신고를 만들지 못했습니다. 기존 자료는 그대로 있습니다. 다시 시도해 주세요." }
+    }
+
+    /// 사진 없이 닫은 새 신고는 남기지 않는다
+    private func dropEmptyDrafts() {
+        for item in zoneStore.cases where item.evidence.isEmpty && item.submittedAt == nil { try? zoneStore.delete(item) }
+    }
+
+    private func show(_ text: String) {
+        withAnimation { toast = text }
+        Task { try? await Task.sleep(for: .seconds(4)); withAnimation { toast = nil } }
+    }
+
+    /// 앨범 두 장 → 촬영시각 순으로 기본 사진 1·2. 촬영시각 기록이 없으면 시각을 지어내지 않는다.
+    private func importAlbum(_ items: [PhotosPickerItem]) async {
+        albumBusy = true; albumError = nil
+        defer { albumBusy = false; albumItems = [] }
+        do {
+            var photos: [(data: Data, meta: AlbumPhotoMeta)] = []
+            for item in items.prefix(2) {
+                guard let data = try await item.loadTransferable(type: Data.self), data.count <= 25 * 1024 * 1024, UIImage(data: data) != nil else { throw CocoaError(.fileReadCorruptFile) }
+                photos.append((data, AlbumPhotoMeta(data)))
+            }
+            photos.sort { ($0.meta.takenAt ?? .distantFuture) < ($1.meta.takenAt ?? .distantFuture) }
+            var draft = ZoneCase(); draft.version = 2; draft.evidenceReview = EvidenceReview()
+            try zoneStore.save(draft)
+            for (index, photo) in photos.enumerated() {
+                draft = try zoneStore.add(data: photo.data, source: .album, role: .incident, date: photo.meta.takenAt, to: draft, slot: index == 0 ? .first : .second, location: photo.meta.location)
+            }
+            opened = draft
+        } catch {
+            albumError = "앨범 사진을 읽지 못했습니다. 다른 사진을 골라 주세요."
+        }
+    }
+}
+
+/// 앨범 사진 파일에 남은 촬영시각·위치(EXIF). 기록이 없으면 nil 로 둔다.
+struct AlbumPhotoMeta {
+    var takenAt: Date?
+    var location: LocationRecord?
+    init(_ data: Data) {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else { return }
+        if let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any], let raw = exif[kCGImagePropertyExifDateTimeOriginal] as? String {
+            let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy:MM:dd HH:mm:ss"
+            // 시간대 기록이 없으면 한국 시각으로 읽는다(웹 앨범 읽기와 같다)
+            f.timeZone = (exif[kCGImagePropertyExifOffsetTimeOriginal] as? String).flatMap(Self.zone) ?? TimeZone(identifier: "Asia/Seoul")
+            takenAt = f.date(from: raw)
+        }
+        if let gps = props[kCGImagePropertyGPSDictionary] as? [CFString: Any],
+           let lat = gps[kCGImagePropertyGPSLatitude] as? Double, let lng = gps[kCGImagePropertyGPSLongitude] as? Double {
+            let latitude = (gps[kCGImagePropertyGPSLatitudeRef] as? String) == "S" ? -lat : lat
+            let longitude = (gps[kCGImagePropertyGPSLongitudeRef] as? String) == "W" ? -lng : lng
+            let error = gps[kCGImagePropertyGPSHPositioningError] as? Double
+            location = LocationRecord(latitude: latitude, longitude: longitude, accuracy: error ?? -1, measuredAt: takenAt ?? Date(), sampleCount: 1, spread: 0,
+                                      quality: error == nil ? "앨범 사진 위치 · 정확도 기록 없음" : "앨범 사진 위치", source: "album_exif")
+        }
+    }
+    private static func zone(_ offset: String) -> TimeZone? {
+        let parts = offset.split(separator: ":"); guard parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]) else { return nil }
+        return TimeZone(secondsFromGMT: h * 3600 + (h < 0 ? -m : m) * 60)
     }
 }

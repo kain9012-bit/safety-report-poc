@@ -155,7 +155,7 @@ struct ClipPlayer: View {
     }
 }
 
-private struct CameraPreview: UIViewRepresentable {
+struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -166,7 +166,7 @@ private struct CameraPreview: UIViewRepresentable {
     func updateUIView(_ view: PreviewView, context: Context) {}
 }
 
-private final class PreviewView: UIView {
+final class PreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
     override func layoutSubviews() {
