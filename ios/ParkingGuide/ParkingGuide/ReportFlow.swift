@@ -201,7 +201,10 @@ struct PlateStatus: Equatable {
         if trustedMatch && entered == reads[0] { return .init(kind: .match, entered: entered, reads: reads, confirmed: confirmed) }
         if sure && reads[0] != reads[1] { return .init(kind: .conflict, conflict: .reads, entered: entered, reads: reads, confirmed: confirmed) }
         if trustedMatch { return entered.isEmpty ? .init(kind: .empty, entered: entered, reads: reads, confirmed: confirmed) : .init(kind: .conflict, conflict: .entered, entered: entered, reads: reads, confirmed: confirmed) }
+        // 차가 여러 대라 대상이 애매한 사진은 서버가 번호를 비워 둔다 — 그 이유를 먼저 알린다(웹 plateCheck 와 같다)
+        let unsure = (photos ?? []).compactMap { $0?.targetNote }.first
         let reason = photos == nil ? "판독 결과 없음"
+            : unsure != nil ? unsure!
             : reads.isEmpty ? "번호판을 읽지 못함"
             : reads.count == 1 ? "한 장에서만 읽힘(\(reads[0]))"
             : !valid ? "읽은 값이 번호판 형식과 다름(\(reads.joined(separator: " / ")))"

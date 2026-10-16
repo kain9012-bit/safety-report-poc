@@ -95,6 +95,27 @@ import UIKit
         let json = String(decoding: try JSONEncoder().encode(old), as: UTF8.self)
         XCTAssertNil(try JSONDecoder().decode(NativeAIResult.self, from: Data(json.utf8)).plates)
     }
+    /// 차가 여러 대라 서버가 대상 차를 정하지 못한 사진 — 웹 PlateFeedback.test.tsx 와 같은 사례
+    func testCrowdedPhotoExplainsWhyNumberIsEmpty() throws {
+        let empty: [String: Any] = ["text": "", "readable": false, "confidence": 0]
+        XCTAssertEqual(NativePlateRead.normalize(empty, target: ["status": "ambiguous", "reason": "close_scores"])?.targetNote, "차가 여러 대라 신고할 차를 정하지 못함")
+        XCTAssertEqual(NativePlateRead.normalize(empty, target: ["status": "ambiguous", "reason": "multiple_plates"])?.targetNote, "번호판이 보이는 차가 여러 대라 신고할 차를 정하지 못함")
+        XCTAssertEqual(NativePlateRead.normalize(empty, target: ["status": "ambiguous", "reason": "other_plate_only"])?.targetNote, "가운데 차의 번호판은 안 보이고 다른 차 번호판만 보임")
+        XCTAssertEqual(NativePlateRead.normalize(empty, target: ["status": "none", "reason": "no_vehicle"])?.targetNote, "사진에서 신고할 차를 찾지 못함")
+        XCTAssertNil(NativePlateRead.normalize(empty, target: ["status": "clear", "reason": "linked"])?.targetNote)
+        XCTAssertNil(NativePlateRead.normalize(empty)?.targetNote)
+        // 이전에 저장한 판독(대상 정보 없음)도 그대로 읽힌다
+        let saved = try JSONDecoder().decode(NativePlateRead.self, from: Data(#"{"text":"12가3456","readable":true,"confidence":0.9}"#.utf8))
+        XCTAssertEqual(saved, .init(text: "12가3456", readable: true, confidence: 0.9))
+
+        var c = pair(plate: nil), r = c.review
+        let unsure = NativePlateRead(text: "", readable: false, confidence: 0, targetNote: "차가 여러 대라 신고할 차를 정하지 못함")
+        r.aiResult = NativeAIResult(revision: r.revision, photoIDs: c.evidence.map(\.id), generatedAt: start, recommendedTypes: [], observations: [], summary: "", model: "test", plates: Dictionary(uniqueKeysWithValues: c.primaryPair.map { ($0.id.uuidString, unsure) }))
+        c.evidenceReview = r
+        XCTAssertEqual(c.plateStatus.kind, .unreadable)
+        XCTAssertEqual(c.plateStatus.reason, "차가 여러 대라 신고할 차를 정하지 못함")
+        XCTAssertTrue(check(c).detail.contains("차가 여러 대라 신고할 차를 정하지 못함"))
+    }
     func testAnalyzerKeepsPlateFromServer() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }

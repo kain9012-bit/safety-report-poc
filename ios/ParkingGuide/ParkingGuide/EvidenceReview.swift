@@ -150,11 +150,23 @@ struct NativeGround: Codable, Equatable {
 /// 사진 한 장에서 AI 가 읽은 번호판(웹 PhotoRead.plate 와 같다)
 struct NativePlateRead: Codable, Equatable {
     var text: String; var readable: Bool; var confidence: Double
-    static func normalize(_ raw: Any?) -> NativePlateRead? {
+    /// 차가 여러 대라 서버가 대상 차를 정하지 못해 번호를 비운 이유(웹 targetNote 와 같은 말). 분명하거나 이전 판독이면 nil
+    var targetNote: String? = nil
+    static func normalize(_ raw: Any?, target: Any? = nil) -> NativePlateRead? {
         guard let r = raw as? [String: Any] else { return nil }
         let text = String((r["text"] as? String ?? "").filter { !$0.isWhitespace }.prefix(20))
         let confidence = (r["confidence"] as? NSNumber)?.doubleValue ?? 0
-        return NativePlateRead(text: text, readable: r["readable"] as? Bool == true && !text.isEmpty, confidence: confidence.isFinite ? min(1, max(0, confidence)) : 0)
+        return NativePlateRead(text: text, readable: r["readable"] as? Bool == true && !text.isEmpty, confidence: confidence.isFinite ? min(1, max(0, confidence)) : 0, targetNote: note(target))
+    }
+    /// 서버 응답의 target(대상 차) → 안내 문구. src/lib/target.ts targetNote 와 같게 둔다
+    static func note(_ target: Any?) -> String? {
+        guard let t = target as? [String: Any], let status = t["status"] as? String, status != "clear" else { return nil }
+        if status == "none" { return "사진에서 신고할 차를 찾지 못함" }
+        switch t["reason"] as? String {
+        case "multiple_plates": return "번호판이 보이는 차가 여러 대라 신고할 차를 정하지 못함"
+        case "other_plate_only": return "가운데 차의 번호판은 안 보이고 다른 차 번호판만 보임"
+        default: return "차가 여러 대라 신고할 차를 정하지 못함"
+        }
     }
 }
 struct NativeAIResult: Codable {

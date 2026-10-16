@@ -138,3 +138,37 @@ describe('촬영 직후 두 장 확인의 판독 설명', () => {
     expect(screen.queryByRole('button', { name: '신고서 확인으로' })).toBeNull();
   });
 });
+
+// 차가 여러 대라 대상이 애매한 사진 — 상자는 2026-10-16 실사진 판독의 차량 목록(번호는 가짜)
+const crowded = (plate = '12가3456'): PhotoRead => normalizeRead({
+  plate: { text: plate, confidence: 0.98, readable: true }, scene: {}, typeGuess: 'crossing', typeConfidence: 0.9, evidence: '', boxes: [],
+  observations: [], detailRequests: [], ground: { surface: 'roadway', wheels: [], crosswalkRelation: 'none', evidence: '' },
+  vehicles: [
+    { box_2d: [246, 478, 683, 1000], kind: 'truck', motion: 'parked', cutOff: 'partial', occluded: 'none', plate: { visible: true, readable: true, text: plate, confidence: 0.96, box_2d: [598, 650, 626, 801] }, note: '' },
+    { box_2d: [292, 0, 854, 561], kind: 'truck', motion: 'parked', cutOff: 'partial', occluded: 'none', plate: { visible: false, readable: false, text: '', confidence: 0, box_2d: [] }, note: '' },
+  ],
+}, { modern: true })!;
+
+describe('차가 여러 대라 신고할 차를 정하지 못한 사진', () => {
+  it('첫 사진 확인 — 번호판이 안 읽힌다고 하지 않고, 신고할 차를 가운데에 담으라고 안내한다', () => {
+    const p = captureProps(result(crowded(), null));
+    p.draft = { ...p.draft, shots: p.draft.shots.slice(0, 1), reads: [crowded()] };
+    p.readStates = ['ok'];
+    render(<CaptureFlow {...p} />);
+    expect(screen.getByText('신고할 차를 정하지 못했습니다')).toBeTruthy();
+    expect(screen.getByText(/신고할 차가 사진 가운데에 크게, 번호판까지 보이게 다시 찍어 주세요/)).toBeTruthy();
+    expect(screen.queryByText('번호판이 읽히지 않습니다')).toBeNull();
+  });
+
+  it('두 장 확인 — AI가 두 장 모두 같은 번호를 읽었어도 채우지 않고 이유를 알린다', () => {
+    render(<CaptureFlow {...captureProps(result(crowded(), crowded()))} />);
+    expect(screen.getByText('차가 여러 대라 신고할 차를 정하지 못함 — 번호를 채우지 않았습니다')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '신고서 확인으로' })).toBeNull();
+  });
+
+  it('차량번호 단계 — 직접 입력 안내에 이유를 함께 보여 준다', () => {
+    render(note(result(crowded(), crowded())));
+    expect(screen.getByText('사진에서 번호판을 확실히 읽지 못했어요')).toBeTruthy();
+    expect(screen.getByText(/차가 여러 대라 신고할 차를 정하지 못함/)).toBeTruthy();
+  });
+});

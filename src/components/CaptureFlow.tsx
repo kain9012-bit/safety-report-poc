@@ -22,6 +22,7 @@ import type { TypeOption } from '../lib/choose';
 import { OVERLAP_MIN } from '../lib/overlap';
 import { primeAlerts, ringReady, titleCountdown } from '../lib/alert';
 import { RETRYING_TEXT } from '../lib/vision';
+import { targetNote, targetRetake } from '../lib/target';
 import type { VisionState } from '../lib/vision';
 import type { VisionResult } from '../../api/vision';
 import { VIOLATION_LABEL } from '../types/report';
@@ -456,7 +457,10 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
         : '횡단보도·정류장 표지·소화전처럼 위반 장소가 차와 함께 나오게 찍어 주세요',
     });
   }
-  if (!read.plate.readable) {
+  // 차가 여러 대라 대상이 애매하면 번호판을 비워 둔다 — '가까이에서' 대신 신고할 차를 가운데에 담으라고 안내한다
+  const retake = targetRetake(read.target);
+  if (retake) reasons.push(retake);
+  else if (!read.plate.readable) {
     reasons.push({ title: '번호판이 읽히지 않습니다', fix: '번호판이 또렷하게 나오게 조금 더 가까이에서 찍어 주세요' });
   }
 
@@ -543,6 +547,7 @@ function SecondCheck(p: Props) {
   const plateOk = same === 'yes' && vision?.plate.agree === true && validReads && confident;
   const ovOk = Boolean(ov?.same);
   const done = !reading && !measuring;
+  const unsure = vision?.photos.map((r) => targetNote(r?.target)).find(Boolean);
 
   const plateText = reading
     ? '읽는 중…'
@@ -550,7 +555,9 @@ function SecondCheck(p: Props) {
       ? READ_FAIL[st] ?? '판독 실패'
       : plateOk
         ? `${vision!.plate.text} — 두 장 일치`
-        : reads.length === 2 && !validReads
+        : unsure
+          ? `${unsure} — 번호를 채우지 않았습니다`
+          : reads.length === 2 && !validReads
           ? `읽은 번호가 번호판 형식과 다릅니다(${reads.join(' / ')})`
           : reads.length === 2 && !confident
             ? `번호판 판독 신뢰도가 기준(${Math.round(PLATE_CONFIDENCE_FLOOR * 100)}%)에 못 미치거나 확인되지 않습니다`

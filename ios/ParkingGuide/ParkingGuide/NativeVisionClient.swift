@@ -83,7 +83,8 @@ struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
             // 번호판도 전체 장면 판독의 것만, 기본 사진 두 장에서만 쓴다(보완사진의 번호는 같은 차 대조에 쓰지 않는다)
             if group.map(\.id) == draft.primaryPair.map(\.id), let photos = decoded.object["photos"] as? [Any] {
                 for (index, raw) in photos.enumerated() where group.indices.contains(index) {
-                    if let plate = NativePlateRead.normalize((raw as? [String: Any])?["plate"]) { plates[group[index].id.uuidString] = plate }
+                    let photo = raw as? [String: Any]
+                    if let plate = NativePlateRead.normalize(photo?["plate"], target: photo?["target"]) { plates[group[index].id.uuidString] = plate }
                 }
             }
             if decoded.supportsDetails, group.count == 1, let reads = envelope["photos"] as? [[String: Any]], let link = reads.first?["targetLink"] as? [String: Any],

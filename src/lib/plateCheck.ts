@@ -9,6 +9,7 @@
 import type { VisionResult } from '../../api/vision';
 import type { DraftReport } from '../types/report';
 import { PLATE_CONFIDENCE_FLOOR, isValidPlate } from './rules';
+import { targetNote } from './target';
 
 export interface PlateStatus {
   /** match: 두 장 판독·입력 일치 · empty: 두 장에서 같은 번호를 읽었는데 입력이 비었음
@@ -40,9 +41,13 @@ export function plateStatus(draft: Pick<DraftReport, 'plate' | 'plateConfirmedFo
   if (trustedMatch && entered === reads[0]) return { kind: 'match', entered, reads, confirmed };
   if (sure && reads[0] !== reads[1]) return { kind: 'conflict', conflict: 'reads', entered, reads, confirmed };
   if (trustedMatch) return entered ? { kind: 'conflict', conflict: 'entered', entered, reads, confirmed } : { kind: 'empty', entered, reads, confirmed };
+  // 차가 여러 대라 대상이 애매한 사진은 번호를 비워 둔다 — 그 이유를 먼저 알린다
+  const unsure = vision?.photos?.map((p) => targetNote(p?.target)).find(Boolean);
   const reason = !vision
     ? '판독 결과 없음'
-    : reads.length === 0
+    : unsure
+      ? unsure
+      : reads.length === 0
       ? '번호판을 읽지 못함'
       : reads.length === 1
         ? `한 장에서만 읽힘(${reads[0]})`
