@@ -469,18 +469,28 @@ export default function App() {
       .finally(() => { busyRef.current = false; setBusy(false); });
   };
 
-  const onSubmit = () => {
+  /**
+   * acknowledged: 빨간불 사유와 불수용 안내 창에서 본 빨간불(점검 id). '그래도 제출하기'를 누르면 넘어온다.
+   * 누르는 순간 다시 점검해서, 창에서 보지 못한 빨간불이 새로 생겼으면(예: 그사이 기한이 지남) 내지 않는다.
+   */
+  const onSubmit = (acknowledged?: string[]) => {
     const snapshot = current.current;
     if (!snapshot || busyRef.current) return;
     const body = snapshot.draft.manual?.body ? snapshot.draft.body ?? '' : composeBody(snapshot.draft);
     const checked = precheck({ draft: snapshot.draft, body, verdict: validation.current.verdict, vision: validation.current.merged, now: Date.now() });
-    if (checked.blocked) {
+    const reds = checked.checks.filter((c) => c.status === 'fail');
+    if (reds.some((c) => !acknowledged?.includes(c.id))) {
       setToast('현재 시각으로 다시 점검했습니다. 빨간불 항목을 확인해 주세요.');
       setTimeout(() => setToast(null), 4000);
       setRec({ ...snapshot, step: 4 });
       return;
     }
-    const done: ReportRecord = { ...snapshot, phase: 'submitted', submittedAt: Date.now() };
+    const done: ReportRecord = {
+      ...snapshot,
+      draft: { ...snapshot.draft, submittedWithReds: reds.length ? reds.map((c) => c.label) : undefined },
+      phase: 'submitted',
+      submittedAt: Date.now(),
+    };
     void persist(done, () => {
       setRec(null);
       const m = measure(done);
@@ -488,7 +498,7 @@ export default function App() {
       setTimeout(() => setToast(null), 4000);
       setScreen('home');
       void refresh();
-    }, onSubmit);
+    }, () => onSubmit(acknowledged));
   };
 
   const remove = async (id: string) => {

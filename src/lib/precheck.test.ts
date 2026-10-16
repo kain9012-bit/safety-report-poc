@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { kstTime } from './kst';
-import { precheck } from './precheck';
+import { fixStep, precheck } from './precheck';
 import type { PrecheckInput } from './precheck';
 import type { DraftReport, Shot } from '../types/report';
 import type { VisionResult } from '../../api/vision';
@@ -174,7 +174,7 @@ describe('지역별 접수 기한', () => {
 
 
 describe('판독 근거와 최종 입력 번호의 일치', () => {
-  it('정상 형식이어도 사진과 다른 번호를 직접 입력하면 막는다', () => {
+  it('정상 형식이어도 사진과 다른 번호를 직접 입력하면 빨간불', () => {
     const r = precheck(input({ plate: '99나9999', manual: { plate: true } }));
     expect(status(r, 'plate')).toBe('pass');
     expect(status(r, 'vehicle')).toBe('fail');
@@ -249,5 +249,11 @@ describe('지역 기한과 앨범 점검의 일관성', () => {
     const r = precheck(input({ shots }, { now: kstTime(2026, 10, 9, 10) }));
     expect(status(r, 'deadline')).toBe('fail');
     expect(status(r, 'album')).toBe('fail');
+  });
+});
+
+describe('빨간불을 고치는 단계', () => {
+  it.each([['address', 1], ['location', 1], ['plate', 2], ['vehicle', 2], ['body', 3], ['interval', 0], ['deadline', 0], ['evidence', 0]] as const)('%s → %i단계', (id, step) => {
+    expect(fixStep(id)).toBe(step);
   });
 });

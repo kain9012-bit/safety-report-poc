@@ -41,7 +41,7 @@ function expectExpired() {
   const row = screen.getByText('접수 기한').closest('li')!;
   expect(within(row).getByLabelText('불가')).toBeTruthy();
   expect(row.textContent).toContain('접수 기한(10/8 23:59)을 넘겼습니다.');
-  expect((screen.getByRole('button', { name: '빨간불 1개' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: '제출 (빨간불 1개)' }) as HTMLButtonElement).disabled).toBe(false);
 }
 
 beforeEach(() => {
@@ -113,5 +113,46 @@ describe('횡단보도 바로 앞 — 유형으로 정하지 않고 한 줄로 �
     expect(screen.getByText(/횡단보도 바로 앞에 서 있는 것으로 보여요/)).toBeTruthy();
     rerender(<ReportSteps {...base} draft={{ ...base.draft, type: 'crossing' }} />);
     expect(screen.queryByText(/횡단보도 바로 앞에 서 있는 것으로 보여요/)).toBeNull();
+  });
+});
+
+describe('빨간불이 있어도 낼 수 있다 — 사유와 불수용 안내를 먼저 보여 준다', () => {
+  const twoReds = () => {
+    const p = props();
+    p.draft = { ...p.draft, plate: '99나9999', body: '짧음', manual: { ...p.draft.manual, plate: true, body: true } };
+    return p;
+  };
+
+  it('제출을 누르면 빨간불마다 사유와 불수용 안내를 담은 창이 뜨고, 그래도 제출하면 본 빨간불을 넘긴다', () => {
+    const p = twoReds();
+    render(<ReportSteps {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: '제출 (빨간불 2개)' }));
+    expect(p.onSubmit).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: '불수용될 수 있어요' });
+    expect(dialog.textContent).toContain('빨간불 2개가 남아 있어요');
+    expect(dialog.textContent).toContain('불수용할 수 있어요');
+    expect(dialog.textContent).toContain('두 장 번호판 일치');
+    expect(dialog.textContent).toContain('입력한 차량번호(99나9999)가 두 장에서 읽은 번호(12가3456)와 다릅니다');
+    expect(dialog.textContent).toContain('5자 이상');
+    fireEvent.click(within(dialog).getByRole('button', { name: '그래도 제출하기' }));
+    expect(p.onSubmit).toHaveBeenCalledWith(expect.arrayContaining(['vehicle', 'body']));
+  });
+
+  it('수정하기를 누르면 첫 빨간불을 고치는 단계로 간다', () => {
+    const p = twoReds();
+    render(<ReportSteps {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: '제출 (빨간불 2개)' }));
+    expect(screen.getByRole('dialog').querySelector('li p')!.textContent).toBe('두 장 번호판 일치');
+    fireEvent.click(screen.getByRole('button', { name: '수정하기' }));
+    expect(p.onStep).toHaveBeenCalledWith(2);
+    expect(p.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('빨간불이 없으면 창 없이 바로 제출한다', () => {
+    const p = props();
+    render(<ReportSteps {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: '제출' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(p.onSubmit).toHaveBeenCalledWith();
   });
 });

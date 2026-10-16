@@ -31,8 +31,8 @@ vi.mock('./components/CaptureFlow', () => ({ default: (p: ComponentProps<typeof 
 </div> }));
 vi.mock('./components/ReportSteps', () => ({ default: (p: ComponentProps<typeof import('./components/ReportSteps').default>) => <div data-testid="form">
   <output data-testid="draft">{JSON.stringify(p.draft)}</output>
-  <button onClick={p.onRetake}>retake</button><button onClick={p.onHome}>home</button><button onClick={p.onSubmit}>submit</button>
-  <button onClick={() => p.onEdit('body', '수정한 수동 내용')}>edit body</button>
+  <button onClick={p.onRetake}>retake</button><button onClick={p.onHome}>home</button><button onClick={() => p.onSubmit()}>submit</button><button onClick={() => p.onSubmit(['vehicle'])}>submit seen vehicle</button>
+  <button onClick={() => p.onEdit('body', '수정한 수동 내용')}>edit body</button><button onClick={() => p.onEdit('plate', '99나9999')}>edit plate</button>
   <button onClick={() => p.photos.onCamera(0)}>camera 0</button><button onClick={() => p.photos.onCamera(1)}>camera 1</button>
   <button onClick={() => p.photos.onAlbum(0, new File(['new'], 'new.jpg'))}>album 0</button><button onClick={() => p.photos.onAlbum(1, new File(['new'], 'new.jpg'))}>album 1</button>
   <button onClick={() => p.photos.onRemove(0)}>remove 0</button>
@@ -100,6 +100,20 @@ describe('실제 App의 보존·저장 화면 전환', () => {
     await act(() => new Promise((r) => setTimeout(r, 350)));
     expect(screen.getByRole('alert')).toBeTruthy();
     click('다시 시도'); await screen.findByTestId('home'); expect(stored.phase).toBe('submitted');
+  });
+
+  it('빨간불이 있으면 창에서 본 빨간불을 넘겨야 내고, 낸 빨간불을 기록한다', async () => {
+    await boot(); click('edit plate'); click('submit');
+    expect(mock.save).not.toHaveBeenCalled(); expect(screen.getByText(/현재 시각으로 다시 점검/)).toBeTruthy();
+    mock.save.mockRejectedValueOnce(new Error('quota')); click('submit seen vehicle');
+    await screen.findByRole('alert'); click('다시 시도'); await screen.findByTestId('home');
+    expect(stored.phase).toBe('submitted'); expect(stored.draft.submittedWithReds).toEqual(['두 장 번호판 일치']);
+    expect(stored.draft.plateConfirmedFor).toBeUndefined();
+  });
+
+  it('창을 연 사이 새 빨간불이 생기면(기한 지남) 내지 않는다', async () => {
+    await boot(); click('edit plate'); vi.mocked(Date.now).mockReturnValue(kstTime(2026, 10, 9, 0)); click('submit seen vehicle');
+    expect(mock.save).not.toHaveBeenCalled(); expect(screen.getByText(/현재 시각으로 다시 점검/)).toBeTruthy();
   });
 
   it('화면을 그대로 둔 채 기한이 지나면 클릭 시점 점검으로 제출을 차단한다', async () => {

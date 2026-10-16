@@ -422,7 +422,7 @@ export function PlateNote({
         <p className={`mt-1.5 text-[13px] ${ps.confirmed ? 'text-amber-800' : 'text-red-700'}`}>
           {ps.confirmed
             ? '확인한 번호로 냅니다. 담당자가 사진으로 번호를 한 번 더 확인해요.'
-            : '확인하기 전에는 점검에서 빨간불로 남아 낼 수 없어요.'}
+            : '확인하지 않으면 빨간불로 남고, 제출할 때 불수용 가능성 안내가 한 번 더 떠요.'}
         </p>
       </div>
     );

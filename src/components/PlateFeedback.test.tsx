@@ -84,7 +84,7 @@ describe('번호판 입력 단계의 판독 설명', () => {
     const onConfirm = vi.fn();
     render(note(result(read('12가3458'), read('12가3458')), draft('12가3456'), vi.fn(), onConfirm));
     expect(screen.getAllByText('12가3458 · 확신 95%')).toHaveLength(2);
-    expect(screen.getByText(/확인하기 전에는 점검에서 빨간불/)).toBeTruthy();
+    expect(screen.getByText(/확인하지 않으면 빨간불로 남고, 제출할 때 불수용 가능성 안내/)).toBeTruthy();
     fireEvent.click(screen.getByLabelText(/사진을 보고 다시 확인했어요 \(12가3456\)/));
     expect(onConfirm).toHaveBeenCalledWith('12가3456');
     expect(screen.getByRole('button', { name: '12가3458 쓰기' })).toBeTruthy();

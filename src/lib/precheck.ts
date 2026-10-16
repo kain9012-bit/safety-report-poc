@@ -34,7 +34,16 @@ export interface Precheck {
   checks: CheckResult[];
   /** 앨범 사진이 있으면 그 진위 점검 항목(장별·두 장 관계) */
   album: CheckResult[];
+  /** 빨간불이 있다 — 막지는 않고, 제출할 때 빨간불 사유와 불수용될 수 있다는 안내를 먼저 보여 준다 */
   blocked: boolean;
+}
+
+/** 빨간불 항목을 고치는 신고서 단계 — 0 유형(사진 칸 포함)·1 발생지역·2 차량번호·3 내용 */
+export function fixStep(id: string): number {
+  if (id === 'address' || id === 'location') return 1;
+  if (id === 'plate' || id === 'vehicle') return 2;
+  if (id === 'body') return 3;
+  return 0;
 }
 
 export function precheck({ draft, body, verdict, vision, now = Date.now(), minInterval }: PrecheckInput): Precheck {
@@ -104,7 +113,7 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
         : ps.kind === 'conflict'
           ? `${ps.conflict === 'reads'
             ? `두 장에서 읽은 번호가 다릅니다(${ps.reads.join(' / ')}).`
-            : `입력한 차량번호(${ps.entered})가 두 장에서 읽은 번호(${ps.reads[0]})와 다릅니다.`} ${ps.confirmed ? confirmedNote : '차량번호 단계에서 사진을 보고 확인해 주세요.'}`
+            : `입력한 차량번호(${ps.entered})가 두 장에서 읽은 번호(${ps.reads[0]})와 다릅니다.`} ${ps.confirmed ? confirmedNote : '사진을 보고 확인해 주세요. 확인하지 않고 내면 불수용될 가능성이 높습니다.'}`
           : !isValidPlate(ps.entered)
             ? `사진에서 번호판을 확실히 읽지 못했습니다(${ps.reason}). 사진을 보고 차량번호를 바르게 입력해 주세요.`
             : `사진에서 번호판을 확실히 읽지 못했습니다(${ps.reason}). 신고인이 입력한 번호로 내고, 담당자가 사진으로 번호를 한 번 더 확인합니다.`,
