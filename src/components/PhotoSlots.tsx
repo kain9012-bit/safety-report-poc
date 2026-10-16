@@ -110,11 +110,6 @@ export default function PhotoSlots(p: Props) {
           );
         })}
       </div>
-      {count < 2 && (
-        <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[14px] text-amber-900">
-          사진이 {count}장입니다. 같은 자리에서 {span(p.minInterval)} 이상 간격을 두고 찍은 사진을 {2 - count}장 더 넣어 주세요.{intervalNote(p.minInterval)}
-        </p>
-      )}
 
       {sheet?.kind === 'source' && (
         <Dialog title={sheet.more ? '사진 1장 더 넣기' : p.shots[sheet.slot] ? `${nth(sheet.slot)} 사진 바꾸기` : `${nth(sheet.slot)} 사진 넣기`} onClose={close}>

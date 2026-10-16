@@ -407,13 +407,6 @@ struct ReportStepsScreen: View {
                 if index < pair.count { filledSlot(pair[index], index: index) } else { emptySlot(index) }
             }
         }
-        if pair.count < 2 {
-            Text("사진이 \(pair.count)장입니다. 같은 자리에서 \(intervalText) 이상 간격을 두고 찍은 사진을 \(2 - pair.count)장 더 넣어 주세요.\(ReportRules.intervalNote)")
-                .font(.system(size: 14)).foregroundStyle(Color(red: 0.47, green: 0.27, blue: 0.0)).fixedSize(horizontal: false, vertical: true)
-                .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(red: 1, green: 0.98, blue: 0.92), in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(red: 0.99, green: 0.9, blue: 0.6))).padding(.top, 8)
-        }
     }
     private func filledSlot(_ photo: ZoneEvidence, index: Int) -> some View {
         VStack(spacing: 4) {

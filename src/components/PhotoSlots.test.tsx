@@ -58,10 +58,10 @@ describe('신고서 사진 칸', () => {
     expect(p.onRemove).toHaveBeenCalledWith(1);
   });
 
-  it('사진이 1장이면 빈 칸에 사진 넣기와 안내가 보이고, 마지막 한 장을 지우면 신고도 지운다고 알린다', () => {
+  it('사진이 1장이면 빈 칸에 사진 넣기가 보이고(따로 안내 줄은 두지 않는다), 마지막 한 장을 지우면 신고도 지운다고 알린다', () => {
     const p = props({ shots: [shot('data:,a', at), undefined], minInterval: 300 });
     render(<PhotoSlots {...p} />);
-    expect(screen.getByText(/사진이 1장입니다\. 같은 자리에서 5분 이상 간격/)).toBeTruthy();
+    expect(screen.queryByText(/사진이 1장입니다/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '2번째 사진 넣기' }));
     const add = screen.getByRole('dialog', { name: '2번째 사진 넣기' });
     expect(add.textContent).toContain('남은 사진 다음, 2번째 사진이 됩니다');
