@@ -6,12 +6,15 @@ import UIKit
 @MainActor final class PlateCheckTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 1_791_000_000)
 
+    /// 차량번호 말고는 빨간불이 없는 신고(위치·유형·발생지역을 갖춤)
     private func pair(plate: String? = "12가3456") -> ZoneCase {
         var c = ZoneCase(); c.version = 2; c.evidenceReview = EvidenceReview(); c.plate = plate
+        let at = LocationRecord(latitude: 35.8242, longitude: 127.148, accuracy: 6, measuredAt: start, sampleCount: 3, spread: 2, quality: "good", heading: nil, headingAccuracy: nil, headingMeasuredAt: nil, cameraDirection: nil)
         c.evidence = [
-            ZoneEvidence(id: UUID(), roles: [.incident], source: .album, filename: "a", takenAt: start, addedAt: start, primarySlot: .first),
-            ZoneEvidence(id: UUID(), roles: [.incident], source: .album, filename: "b", takenAt: start.addingTimeInterval(70), addedAt: start, primarySlot: .second),
+            ZoneEvidence(id: UUID(), roles: [.incident], source: .album, filename: "a", takenAt: start, addedAt: start, primarySlot: .first, location: at),
+            ZoneEvidence(id: UUID(), roles: [.incident], source: .album, filename: "b", takenAt: start.addingTimeInterval(70), addedAt: start, primarySlot: .second, location: at),
         ]
+        c.chooseType(.hydrant); c.address = "전북특별자치도 전주시 완산구 노송광장로 10"
         return c
     }
     /// 사진마다 읽은 번호 — nil 은 못 읽은 장
@@ -42,11 +45,20 @@ import UIKit
     }
     func testDifferentEntryIsRedUntilConfirmedThenOrange() {
         var c = pair(plate: "99나9999"); read(&c, [("12가3456", 0.95), ("12가3456", 0.95)])
-        XCTAssertEqual(check(c).status, .fail); XCTAssertTrue(c.reportBlocked)
+        XCTAssertEqual(check(c).status, .fail)
+        XCTAssertEqual(c.reportChecks.filter { $0.status == .fail }.map(\.id), ["vehicle"], "시험 신고는 차량번호 말고 빨간불이 없어야 한다")
+        XCTAssertFalse(c.reportBlocked, "번호 불일치만 있으면 불수용 고지 뒤 낼 수 있다"); XCTAssertEqual(c.reportNotice.map(\.id), ["vehicle"])
         c.plateConfirmedFor = "99 나 9999"
         XCTAssertEqual(check(c).status, .warn); XCTAssertTrue(check(c).detail.contains("신고인이 사진을 보고 확인했습니다"))
         c.plate = "99나9998"
         XCTAssertEqual(check(c).status, .fail, "확인한 뒤 번호를 바꾸면 확인이 풀린다")
+    }
+    func testOtherRedStillBlocksWithPlateNotice() {
+        var c = pair(plate: "99나9999"); read(&c, [("12가3456", 0.95), ("12가3456", 0.95)])
+        c.body = "짧음"; c.bodyEdited = true
+        XCTAssertTrue(c.reportBlocked); XCTAssertEqual(c.reportNotice.map(\.id), ["vehicle"])
+        var bad = pair(plate: "99나999"); read(&bad, [("12가3456", 0.95), ("12가3456", 0.95)])
+        XCTAssertTrue(bad.reportBlocked, "형식이 틀린 번호는 고지로 넘어가지 않는다")
     }
     func testDifferentReadsNeedConfirmation() {
         var c = pair(); read(&c, [("12가3456", 0.9), ("12가3457", 0.9)])

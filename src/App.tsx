@@ -519,13 +519,15 @@ export default function App() {
       .finally(() => { busyRef.current = false; setBusy(false); });
   };
 
-  const onSubmit = () => {
-    const snapshot = current.current;
-    if (!snapshot || busyRef.current) return;
+  /** confirmPlate: 차량번호가 AI 판독과 다르다는 안내를 보고 '그래도 제출하기'를 누른 번호 — 사진을 보고 확인한 것으로 함께 저장한다 */
+  const onSubmit = (confirmPlate?: string) => {
+    const latest = current.current;
+    if (!latest || busyRef.current) return;
+    const snapshot = confirmPlate ? { ...latest, draft: { ...latest.draft, plateConfirmedFor: confirmPlate } } : latest;
     const body = snapshot.draft.manual?.body ? snapshot.draft.body ?? '' : composeBody(snapshot.draft);
     const checked = precheck({ draft: snapshot.draft, body, verdict: validation.current.verdict, vision: validation.current.merged, now: Date.now() });
-    if (checked.blocked) {
-      setToast('현재 시각으로 다시 점검했습니다. 빨간불 항목을 확인해 주세요.');
+    if (checked.blocked || checked.notice.length > 0) {
+      setToast(checked.blocked ? '현재 시각으로 다시 점검했습니다. 빨간불 항목을 확인해 주세요.' : '차량번호가 사진 판독과 다릅니다. 안내를 확인해 주세요.');
       setTimeout(() => setToast(null), 4000);
       setRec({ ...snapshot, step: 4 });
       return;
@@ -538,7 +540,7 @@ export default function App() {
       setTimeout(() => setToast(null), 4000);
       setScreen('home');
       void refresh();
-    }, onSubmit);
+    }, () => onSubmit(confirmPlate));
   };
 
   const remove = async (id: string) => {

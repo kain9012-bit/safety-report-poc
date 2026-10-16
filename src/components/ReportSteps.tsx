@@ -34,7 +34,8 @@ import type { PickedAddress, TypeInfo } from './FormParts';
 import { CROSSWALK_ADJACENT_NOTE } from '../lib/evidence';
 import FollowUps from './FollowUps';
 import type { FollowUpProps } from './FollowUps';
-import PhotoSlots from './PhotoSlots';
+import PhotoSlots, { Dialog } from './PhotoSlots';
+import { plateStatus } from '../lib/plateCheck';
 import type { PhotoSlotActions } from './PhotoSlots';
 
 export const STEPS = ['유형', '발생지역', '차량번호', '내용', '점검·제출'] as const;
@@ -64,7 +65,8 @@ interface Props {
   askMore?: boolean;
   onAsked?: () => void;
   onHome: () => void;
-  onSubmit: () => void;
+  /** confirmPlate: 차량번호가 AI 판독과 다르다는 안내를 보고 그대로 낸 번호 */
+  onSubmit: (confirmPlate?: string) => void;
 }
 
 /**
@@ -74,7 +76,7 @@ interface Props {
  */
 export default function ReportSteps(p: Props) {
   const { draft, step, onStep, vision, verdict } = p;
-  const [sheet, setSheet] = useState<'type' | 'place' | 'evidence' | null>(null);
+  const [sheet, setSheet] = useState<'type' | 'place' | 'evidence' | 'notice' | null>(null);
   const [agree, setAgree] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -277,7 +279,10 @@ export default function ReportSteps(p: Props) {
         )}
 
         {step === last && (
-          <Step title="제출 전 점검" sub="빨간불은 고쳐야 제출할 수 있습니다">
+          <Step
+            title="제출 전 점검"
+            sub={pc.notice.length > 0 && !pc.blocked ? '차량번호가 사진 판독과 달라요. 제출할 때 안내를 한 번 더 보여 드려요' : '빨간불은 고쳐야 제출할 수 있습니다'}
+          >
             <ul className="rounded-lg border border-slate-200 divide-y divide-slate-100">
               <Summary label="유형" value={draft.type ? VIOLATION_LABEL[draft.type] : '비어 있음'} onFix={() => onStep(0)} />
               <Summary label="발생지역" value={draft.address ?? '비어 있음'} onFix={() => onStep(1)} />
@@ -348,7 +353,7 @@ export default function ReportSteps(p: Props) {
             </button>
           ) : (
             <button
-              onClick={p.onSubmit}
+              onClick={() => (pc.notice.length > 0 ? setSheet('notice') : p.onSubmit())}
               disabled={pc.blocked}
               className="h-14 rounded bg-[#3a8fdb] disabled:bg-slate-300 text-white text-[19px] font-bold flex items-center justify-center gap-1.5"
             >
@@ -364,6 +369,7 @@ export default function ReportSteps(p: Props) {
         </div>
       </div>
 
+      {sheet === 'notice' && <PlateNotice draft={draft} vision={vision.result} onFix={() => { setSheet(null); onStep(2); }} onSubmit={(plate) => { setSheet(null); p.onSubmit(plate); }} onClose={() => setSheet(null)} />}
       {sheet === 'evidence' && vision.result && (
         <EvidenceSheet shots={draft.shots} result={vision.result} onClose={() => setSheet(null)} />
       )}
@@ -392,6 +398,37 @@ export default function ReportSteps(p: Props) {
 }
 
 const rank = (s: CheckStatus) => ({ fail: 0, warn: 1, pass: 2 })[s];
+
+/**
+ * 차량번호가 AI 판독과 다른데 사진을 보고 확인하지 않은 채 제출할 때 — 불수용 가능성을 먼저 알린다.
+ * AI 가 잘못 읽었더라도 사람이 사진을 보고 정확히 입력했으면 그대로 낼 수 있다(사진을 보고 확인한 것으로 저장).
+ */
+function PlateNotice({ draft, vision, onFix, onSubmit, onClose }: {
+  draft: DraftReport;
+  vision?: VisionResult;
+  onFix: () => void;
+  onSubmit: (plate: string) => void;
+  onClose: () => void;
+}) {
+  const ps = plateStatus(draft, vision);
+  return (
+    <Dialog title="불수용될 가능성이 높아요" onClose={onClose}>
+      <p className="text-[16px] text-slate-900 leading-snug">
+        {ps.conflict === 'reads'
+          ? `AI가 두 사진에서 서로 다른 번호를 읽었어요(${ps.reads.join(' / ')}).`
+          : `입력한 차량번호(${ps.entered})가 AI가 두 사진에서 읽은 번호(${ps.reads[0]})와 달라요.`}
+        {' '}입력한 번호가 사진에 보이는 번호와 다르면 불수용될 가능성이 높아요.
+      </p>
+      <p className="text-[14px] text-slate-600 leading-snug">사진을 보고 정확히 입력했다면 그대로 낼 수 있어요. 담당자가 사진으로 번호를 한 번 더 확인해요.</p>
+      <button onClick={onFix} className="w-full h-14 bg-[#3a8fdb] text-white text-[19px] font-bold">
+        수정하기
+      </button>
+      <button onClick={() => onSubmit(ps.entered)} className="w-full h-14 border-2 border-slate-200 text-[19px] text-slate-800">
+        그래도 제출하기 ({ps.entered})
+      </button>
+    </Dialog>
+  );
+}
 
 function Step({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
   return (

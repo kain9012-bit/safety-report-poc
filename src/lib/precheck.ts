@@ -37,8 +37,17 @@ export interface Precheck {
   checks: CheckResult[];
   /** 앨범 사진이 있으면 그 진위 점검 항목(장별·두 장 관계) */
   album: CheckResult[];
+  /** 고쳐야 낼 수 있는 빨간불이 있다 */
   blocked: boolean;
+  /**
+   * 안내를 보고 그대로 낼 수 있는 빨간불 — 차량번호가 AI 판독과 다를 때만.
+   * AI 가 잘못 읽었더라도 사람이 사진을 보고 정확히 입력했으면 낼 수 있게 한다(불수용 가능성 고지 뒤).
+   */
+  notice: CheckResult[];
 }
+
+/** 안내를 보고 그대로 낼 수 있는 빨간불 */
+const OVERRIDABLE = new Set(['vehicle']);
 
 export function precheck({ draft, body, verdict, vision, now = Date.now(), minInterval }: PrecheckInput): Precheck {
   const shots = primaryShots(draft);
@@ -108,7 +117,7 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
         : ps.kind === 'conflict'
           ? `${ps.conflict === 'reads'
             ? `두 장에서 읽은 번호가 다릅니다(${ps.reads.join(' / ')}).`
-            : `입력한 차량번호(${ps.entered})가 두 장에서 읽은 번호(${ps.reads[0]})와 다릅니다.`} ${ps.confirmed ? confirmedNote : '차량번호 단계에서 사진을 보고 확인해 주세요.'}`
+            : `입력한 차량번호(${ps.entered})가 두 장에서 읽은 번호(${ps.reads[0]})와 다릅니다.`} ${ps.confirmed ? confirmedNote : '사진을 보고 확인해 주세요. 확인하지 않고 내면 불수용될 가능성이 높습니다.'}`
           : !isValidPlate(ps.entered)
             ? `사진에서 번호판을 확실히 읽지 못했습니다(${ps.reason}). 사진을 보고 차량번호를 바르게 입력해 주세요.`
             : `사진에서 번호판을 확실히 읽지 못했습니다(${ps.reason}). 신고인이 입력한 번호로 내고, 담당자가 사진으로 번호를 한 번 더 확인합니다.`,
@@ -206,5 +215,6 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
       out.push({ id: 'busstop_number', label: '정류소 표지', status: 'warn', detail: `사진에서 서로 다른 정류소 번호가 읽혔습니다(${stops.join(' / ')}). 차 옆 정류소 표지가 사진에 보이는지 확인해 주세요.` });
     }
   }
-  return { checks: out, album, blocked: out.some((c) => c.status === 'fail') };
+  const fails = out.filter((c) => c.status === 'fail');
+  return { checks: out, album, blocked: fails.some((c) => !OVERRIDABLE.has(c.id)), notice: fails.filter((c) => OVERRIDABLE.has(c.id)) };
 }

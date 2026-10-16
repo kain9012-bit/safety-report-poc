@@ -16,6 +16,8 @@ enum ReportRules {
     /// 하던 신고를 앱을 열 때 이어서 여는 기간(웹 RESUME_MAX_MS)
     static let resumeWindow: TimeInterval = 36 * 60 * 60
     static let steps = ["유형", "발생지역", "차량번호", "내용", "점검·제출"]
+    /// 안내를 보고 그대로 낼 수 있는 빨간불(웹 precheck OVERRIDABLE)
+    static let overridableChecks: Set<String> = ["vehicle"]
 
     static func isValidPlate(_ raw: String) -> Bool {
         let plate = raw.filter { !$0.isWhitespace }
@@ -285,7 +287,7 @@ extension ZoneCase {
     }
     var reportBody: String { bodyEdited == true ? body : composedBody }
 
-    /// 웹 제출 전 점검 중 iPhone에서 잴 수 있는 항목. 빨간불이 하나라도 있으면 제출하지 않는다.
+    /// 웹 제출 전 점검 중 iPhone에서 잴 수 있는 항목. 빨간불이 있으면 제출하지 않는다(차량번호 불일치만 안내를 보고 제출).
     /// 접수 기한·촬영시각 표시·지역 규정·두 사진 겹침은 아직 iPhone에 연결하지 않았다.
     var reportChecks: [ReportCheck] {
         var out: [ReportCheck] = []
@@ -333,7 +335,11 @@ extension ZoneCase {
                          detail: body.count >= ReportRules.bodyMin ? "\(reportBody.count)자" : "\(ReportRules.bodyMin)자 이상 적어야 합니다."))
         return out
     }
-    var reportBlocked: Bool { reportChecks.contains { $0.status == .fail } }
+    /// 고쳐야 낼 수 있는 빨간불이 있다(웹 precheck blocked)
+    var reportBlocked: Bool { reportChecks.contains { $0.status == .fail && !ReportRules.overridableChecks.contains($0.id) } }
+    /// 안내를 보고 그대로 낼 수 있는 빨간불 — 차량번호가 AI 판독과 다를 때만(웹 precheck notice).
+    /// AI 가 잘못 읽었더라도 사람이 사진을 보고 정확히 입력했으면 불수용 가능성 고지 뒤 낼 수 있다.
+    var reportNotice: [ReportCheck] { reportChecks.filter { $0.status == .fail && ReportRules.overridableChecks.contains($0.id) } }
 
     /// 같은 차 — 웹 precheck 'vehicle' 과 같은 세 단계(초록·주황·빨강)와 문구
     var vehicleCheck: ReportCheck {
@@ -345,7 +351,7 @@ extension ZoneCase {
         case .empty: detail = "차량번호가 비어 있습니다. 두 장에서 읽은 번호는 \(ps.reads[0])입니다. 사진을 보고 입력해 주세요."
         case .conflict:
             detail = (ps.conflict == .reads ? "두 장에서 읽은 번호가 다릅니다(\(ps.reads.joined(separator: " / ")))." : "입력한 차량번호(\(ps.entered))가 두 장에서 읽은 번호(\(ps.reads[0]))와 다릅니다.")
-                + " " + (ps.confirmed ? confirmedNote : "차량번호 단계에서 사진을 보고 확인해 주세요.")
+                + " " + (ps.confirmed ? confirmedNote : "사진을 보고 확인해 주세요. 확인하지 않고 내면 불수용될 가능성이 높습니다.")
         case .unreadable:
             detail = ReportRules.isValidPlate(ps.entered)
                 ? "사진에서 번호판을 확실히 읽지 못했습니다(\(ps.reason ?? "")). 신고인이 입력한 번호로 내고, 담당자가 사진으로 번호를 한 번 더 확인합니다."

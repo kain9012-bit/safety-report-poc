@@ -115,3 +115,43 @@ describe('횡단보도 바로 앞 — 유형으로 정하지 않고 한 줄로 �
     expect(screen.queryByText(/횡단보도 바로 앞에 서 있는 것으로 보여요/)).toBeNull();
   });
 });
+
+describe('차량번호가 AI 판독과 다를 때 — 불수용 가능성을 알리고 그래도 제출할 수 있다', () => {
+  const conflict = () => { const p = props(); p.draft = { ...p.draft, plate: '99나9999', manual: { ...p.draft.manual, plate: true } }; return p; };
+
+  it('빨간불이어도 제출을 누르면 안내 창이 뜨고, 그래도 제출하면 그 번호를 넘긴다', () => {
+    const p = conflict();
+    render(<ReportSteps {...p} />);
+    expect(screen.getByText('두 장 번호판 일치').closest('li')!.textContent).toContain('불수용될 가능성이 높습니다');
+    fireEvent.click(screen.getByRole('button', { name: '제출' }));
+    expect(p.onSubmit).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: '불수용될 가능성이 높아요' });
+    expect(dialog.textContent).toContain('입력한 차량번호(99나9999)가 AI가 두 사진에서 읽은 번호(12가3456)와 달라요');
+    fireEvent.click(within(dialog).getByRole('button', { name: '그래도 제출하기 (99나9999)' }));
+    expect(p.onSubmit).toHaveBeenCalledWith('99나9999');
+  });
+
+  it('수정하기를 누르면 차량번호 단계로 간다', () => {
+    const p = conflict();
+    render(<ReportSteps {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: '제출' }));
+    fireEvent.click(screen.getByRole('button', { name: '수정하기' }));
+    expect(p.onStep).toHaveBeenCalledWith(2);
+    expect(p.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('다른 빨간불이 함께 있으면 지금처럼 제출할 수 없다', () => {
+    const p = conflict();
+    p.draft = { ...p.draft, body: '짧음', manual: { ...p.draft.manual, body: true } };
+    render(<ReportSteps {...p} />);
+    expect((screen.getByRole('button', { name: '빨간불 2개' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('번호가 일치하면 안내 없이 바로 제출한다', () => {
+    const p = props();
+    render(<ReportSteps {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: '제출' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(p.onSubmit).toHaveBeenCalledWith();
+  });
+});

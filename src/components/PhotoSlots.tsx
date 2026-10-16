@@ -182,7 +182,8 @@ export default function PhotoSlots(p: Props) {
   );
 }
 
-function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+/** 가운데 뜨는 창 — 신고서 화면에서 같이 쓴다 */
+export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="absolute inset-0 z-30 bg-slate-900/50 flex items-center justify-center px-6">
       <div role="dialog" aria-modal="true" aria-label={title} className="w-full bg-white shadow-xl max-h-full flex flex-col">
