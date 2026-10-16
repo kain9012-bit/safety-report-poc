@@ -403,11 +403,15 @@ struct ReportStepsScreen: View {
             Button("보내지 않기", role: .cancel) { UserDefaults.standard.set("no", forKey: ReportReading.consentKey); read() }
         } message: { Text("사진 축소본을 설정한 서버로 보내 유형을 확인할까요? 위치·주소·작성 내용은 보내지 않습니다. 이 선택은 판독 서버 설정에서 바꿀 수 있습니다.") }
         .alert("제출 전 점검", isPresented: Binding(get: { submitBlocked != nil }, set: { if !$0 { submitBlocked = nil } })) { Button("확인") { submitBlocked = nil } } message: { Text(submitBlocked ?? "") }
-        .alert("불수용될 수 있어요", isPresented: Binding(get: { !redNotice.isEmpty }, set: { if !$0 { redNotice = [] } })) {
-            let shown = redNotice
-            Button("수정하기", role: .cancel) { go(ReportRules.fixStep(shown.first?.id ?? "")) }
-            Button("그래도 제출하기") { submit(acknowledged: shown.map(\.id)) }
-        } message: { Text(redNoticeText) }
+        .overlay {
+            if !redNotice.isEmpty {
+                let shown = redNotice
+                RedNoticeDialog(reds: shown,
+                                onFix: { redNotice = []; go(ReportRules.fixStep(shown.first?.id ?? "")) },
+                                onSubmit: { redNotice = []; submit(acknowledged: shown.map(\.id)) },
+                                onClose: { redNotice = [] })
+            }
+        }
         .confirmationDialog("직접 고친 내용을 자동 작성으로 되돌릴까요?", isPresented: $resetBody, titleVisibility: .visible) {
             Button("자동 작성으로 되돌리기") { draft.bodyEdited = false; draft.body = ""; persist() }
         }
@@ -778,11 +782,6 @@ struct ReportStepsScreen: View {
             if !last { Divider() }
         }
     }
-    /// 웹 RedNotice 와 같은 문구 — 빨간불마다 이름과 사유
-    private var redNoticeText: String {
-        let items = redNotice.map { "• \($0.label) — \($0.detail)" }.joined(separator: "\n")
-        return "빨간불 \(redNotice.count)개가 남아 있어요. 이대로 내면 담당자가 불수용할 수 있어요.\n\n\(items)\n\n고칠 수 있으면 고친 뒤 내 주세요. 그래도 내면 빨간불 항목을 알고 냈다는 것이 담당자에게 함께 갑니다."
-    }
     /// acknowledged: 빨간불 사유와 불수용 안내 창에서 본 빨간불(점검 id). 누르는 순간 다시 점검해서
     /// 창에서 보지 못한 빨간불이 새로 생겼으면 내지 않는다(웹 onSubmit).
     private func submit(acknowledged: [String] = []) {
@@ -799,6 +798,79 @@ struct ReportStepsScreen: View {
 }
 
 extension ReportEvidence.Supplement: Identifiable {}
+
+/// 빨간불이 있는 채 제출할 때의 창 — 웹 RedNotice(가운데 창·파란 제목 줄)와 같은 모양과 문구.
+/// 빨간불마다 이름과 사유, 불수용될 수 있다는 안내. 항목이 많으면 창 안에서 스크롤한다.
+struct RedNoticeDialog: View {
+    let reds: [ReportCheck]
+    let onFix: () -> Void
+    let onSubmit: () -> Void
+    let onClose: () -> Void
+
+    // 웹 Tailwind 색과 같게
+    private static let bar = Color(red: 58 / 255, green: 143 / 255, blue: 219 / 255)       // #3a8fdb
+    private static let dim = Color(red: 15 / 255, green: 23 / 255, blue: 42 / 255)         // slate-900
+    private static let red = Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255)        // red-600
+    private static let redBox = Color(red: 254 / 255, green: 242 / 255, blue: 242 / 255)   // red-50
+    private static let redEdge = Color(red: 254 / 255, green: 202 / 255, blue: 202 / 255)  // red-200
+    private static let redLine = Color(red: 254 / 255, green: 226 / 255, blue: 226 / 255)  // red-100
+    private static let ink = Color(red: 15 / 255, green: 23 / 255, blue: 42 / 255)         // slate-900
+    private static let detail = Color(red: 51 / 255, green: 65 / 255, blue: 85 / 255)      // slate-700
+    private static let note = Color(red: 71 / 255, green: 85 / 255, blue: 105 / 255)       // slate-600
+    private static let edge = Color(red: 226 / 255, green: 232 / 255, blue: 240 / 255)     // slate-200
+    private static let label = Color(red: 30 / 255, green: 41 / 255, blue: 59 / 255)       // slate-800
+
+    var body: some View {
+        ZStack {
+            Self.dim.opacity(0.5).ignoresSafeArea()
+            VStack(spacing: 0) {
+                HStack {
+                    Text("불수용될 수 있어요").font(.system(size: 21, weight: .bold))
+                    Spacer()
+                    Button(action: onClose) { Image(systemName: "xmark").font(.system(size: 24, weight: .heavy)).frame(width: 44, height: 44) }
+                        .accessibilityLabel("닫기")
+                }
+                .foregroundStyle(.white).padding(.leading, 16).padding(.trailing, 8).frame(height: 56).background(Self.bar)
+                ViewThatFits(in: .vertical) {
+                    content
+                    ScrollView { content }
+                }
+            }
+            .background(.white).shadow(color: .black.opacity(0.25), radius: 16, y: 6)
+            .padding(.horizontal, 24).padding(.vertical, 24)
+            .accessibilityElement(children: .contain).accessibilityAddTraits(.isModal)
+        }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("빨간불 \(reds.count)개가 남아 있어요. 이대로 내면 담당자가 \(Text("불수용할 수 있어요").bold()).")
+                .font(.system(size: 16)).foregroundStyle(Self.ink).fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 0) {
+                ForEach(Array(reds.enumerated()), id: \.element.id) { index, check in
+                    if index > 0 { Self.redLine.frame(height: 1) }
+                    HStack(alignment: .top, spacing: 8) {
+                        Circle().fill(Self.red).frame(width: 12, height: 12).padding(.top, 5).accessibilityLabel("불가")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(check.label).font(.system(size: 15, weight: .bold)).foregroundStyle(Self.ink)
+                            Text(check.detail).font(.system(size: 13)).foregroundStyle(Self.detail).fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                    }.padding(.horizontal, 12).padding(.vertical, 8)
+                }
+            }
+            .background(Self.redBox, in: RoundedRectangle(cornerRadius: 4)).overlay(RoundedRectangle(cornerRadius: 4).stroke(Self.redEdge))
+            Text("고칠 수 있으면 고친 뒤 내 주세요. 그래도 내면 빨간불 항목을 알고 냈다는 것이 담당자에게 함께 갑니다.")
+                .font(.system(size: 14)).foregroundStyle(Self.note).fixedSize(horizontal: false, vertical: true)
+            Button(action: onFix) {
+                Text("수정하기").font(.system(size: 19, weight: .bold)).foregroundStyle(.white).frame(maxWidth: .infinity, minHeight: 56).background(Self.bar)
+            }.buttonStyle(.plain)
+            Button(action: onSubmit) {
+                Text("그래도 제출하기").font(.system(size: 19)).foregroundStyle(Self.label).frame(maxWidth: .infinity, minHeight: 56).overlay(Rectangle().stroke(Self.edge, lineWidth: 2))
+            }.buttonStyle(.plain)
+        }.padding(16)
+    }
+}
 
 /// 웹 ReportProgress — 다섯 칸 막대와 이름
 struct ReportProgress: View {
