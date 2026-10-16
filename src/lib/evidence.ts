@@ -1,5 +1,5 @@
 import { EVIDENCE_TYPES } from '../types/evidence';
-import type { DetailRequest, EvidenceBox, EvidenceObservation, EvidenceRead, EvidenceSummary, EvidenceTri, EvidenceType, SharedParkingNotice, SupplementalNeed } from '../types/evidence';
+import type { CrosswalkRelation, DetailRequest, EvidenceBox, EvidenceObservation, EvidenceRead, EvidenceSummary, EvidenceTri, EvidenceType, GroundRead, GroundSurface, SharedParkingNotice, SupplementalNeed, WheelSurface } from '../types/evidence';
 
 const tri = (value: unknown): EvidenceTri => value === 'yes' || value === 'no' ? value : 'unclear';
 const text = (value: unknown, length = 300) => typeof value === 'string' ? value.slice(0, length) : '';
@@ -41,7 +41,67 @@ export function normalizeDetailRequests(value: unknown): DetailRequest[] {
   }).slice(0, 2);
 }
 
-const legacyFlags: Partial<Record<EvidenceType, string>> = { crossing: 'onCrosswalk', sidewalk: 'onSidewalk', hydrant: 'fireHydrantNear', busstop: 'busStopVisible', corner: 'intersectionCorner', schoolzone: 'schoolZoneMarking' };
+const WHEEL_SURFACES: WheelSurface[] = ['roadway', 'crosswalk_stripe', 'sidewalk_block', 'curb', 'unclear'];
+const GROUND_SURFACES: GroundSurface[] = ['roadway', 'crosswalk', 'sidewalk', 'both', 'unclear'];
+const CROSSWALK_RELATIONS: CrosswalkRelation[] = ['on', 'adjacent', 'apart', 'none', 'unclear'];
+
+/**
+ * '바퀴가 닿은 바닥' 응답을 다듬는다. 바퀴별 답과 차 전체 답이 서로 맞지 않으면 전체 답을 'unclear'로 둔다
+ * (예: 바퀴는 모두 차도인데 전체 답이 횡단보도). 바퀴 답이 없거나 연석·모름뿐이면 전체 답을 그대로 쓴다.
+ */
+export function normalizeGround(value: unknown): GroundRead | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  const r = record(value);
+  const wheels = (Array.isArray(r.wheels) ? r.wheels : []).slice(0, 8).flatMap((raw) => {
+    const w = record(raw);
+    return WHEEL_SURFACES.includes(w.surface as WheelSurface) ? [{ wheel: text(w.wheel, 40), surface: w.surface as WheelSurface }] : [];
+  });
+  let surface: GroundSurface = GROUND_SURFACES.includes(r.surface as GroundSurface) ? r.surface as GroundSurface : 'unclear';
+  const cross = wheels.some((w) => w.surface === 'crosswalk_stripe'), side = wheels.some((w) => w.surface === 'sidewalk_block');
+  const fromWheels: GroundSurface = cross && side ? 'both' : cross ? 'crosswalk' : side ? 'sidewalk' : wheels.length && wheels.every((w) => w.surface === 'roadway') ? 'roadway' : 'unclear';
+  if (fromWheels !== 'unclear' && fromWheels !== surface) surface = 'unclear';
+  const relation = CROSSWALK_RELATIONS.includes(r.crosswalkRelation as CrosswalkRelation) ? r.crosswalkRelation as CrosswalkRelation : 'unclear';
+  return { surface, wheels, crosswalkRelation: relation, evidence: text(r.evidence, 300) };
+}
+
+/** 횡단보도·인도 '위' — 바닥 답으로만 정한다. 바닥 답이 없거나 모름이면 unclear. */
+export function groundOn(type: 'crossing' | 'sidewalk', ground?: GroundRead): EvidenceTri {
+  if (!ground || ground.surface === 'unclear') return 'unclear';
+  return ground.surface === 'both' || ground.surface === (type === 'crossing' ? 'crosswalk' : 'sidewalk') ? 'yes' : 'no';
+}
+
+/** 횡단보도 바로 앞(바퀴는 횡단보도 밖)으로 읽힌 사진이 있는가 — 유형으로 정하지 않고 따로 알린다 */
+export function crosswalkAdjacent(reads: readonly (EvidenceRead | null | undefined)[]): boolean {
+  const grounds = reads.flatMap((r) => r?.ground ? [r.ground] : []);
+  return grounds.some((g) => g.crosswalkRelation === 'adjacent') && !grounds.some((g) => groundOn('crossing', g) === 'yes');
+}
+
+const GROUND_LABEL = { crossing: '횡단보도 흰 줄', sidewalk: '보도블록' } as const;
+
+/** 바닥 답을 화면에 보일 말 */
+export const GROUND_TEXT: Record<GroundSurface, string> = { roadway: '차도', crosswalk: '횡단보도 흰 줄', sidewalk: '보도블록', both: '흰 줄·보도블록', unclear: '모름' };
+
+/** 횡단보도 바로 앞으로 읽혔을 때 위반 유형 확인 단계에 한 줄로 알린다(웹·iPhone 같은 문구) */
+export const CROSSWALK_ADJACENT_NOTE = '차가 횡단보도 바로 앞에 서 있는 것으로 보여요(바퀴는 횡단보도 밖). 횡단보도로부터 10m 이내도 정차·주차 금지 장소지만, 거리는 사진으로 확인하지 않았어요.';
+
+/** 횡단보도·인도 요약 — 표시 관찰(observations)은 보여 주기만 하고, 상태는 바퀴가 닿은 바닥 답으로만 정한다. */
+function groundSummary(type: 'crossing' | 'sidewalk', valid: EvidenceRead[], obs: EvidenceObservation[], legacy: EvidenceRead[]): EvidenceSummary[] {
+  const grounded = valid.filter((r) => r.ground);
+  const answers = grounded.map((r) => groundOn(type, r.ground));
+  const yes = answers.includes('yes'), no = answers.includes('no');
+  if (!yes && obs.length === 0 && legacy.length === 0) return [];
+  const status: EvidenceSummary['status'] = yes && no ? 'conflict' : yes ? 'observed' : obs.length === 0 && grounded.length === 0 ? 'legacy' : no ? 'not_observed' : 'needs_context';
+  const missing = [
+    ...(status === 'conflict' ? ['사진 사이의 바닥 판독이 서로 다름'] : []),
+    ...(status === 'needs_context' || status === 'legacy' ? ['바퀴가 닿은 바닥 미확인'] : []),
+    ...(status === 'not_observed' ? [`바퀴가 ${GROUND_LABEL[type]} 위에 있지 않음`] : []),
+    '법적 적용·관할 접수 조건 별도 확인',
+  ];
+  const photoIds = [...obs.map((o) => o.photoId), ...grounded.filter((r) => groundOn(type, r.ground) !== 'unclear').map((r) => r.photoId), ...legacy.map((r) => r.photoId)];
+  return [{ type, status, photoIds: [...new Set(photoIds.filter((id): id is string => Boolean(id)))], observations: obs, missing, legalStatus: 'unverified', distance: 'unverified' }];
+}
+
+const legacyFlags: Partial<Record<EvidenceType, string>> ={ crossing: 'onCrosswalk', sidewalk: 'onSidewalk', hydrant: 'fireHydrantNear', busstop: 'busStopVisible', corner: 'intersectionCorner', schoolzone: 'schoolZoneMarking' };
 const requiredFields = ['identity', 'markingToTarget', 'vehicleRelation'] as const;
 const boundaryTypes = new Set<EvidenceType>(['crossing', 'sidewalk', 'corner', 'disabled', 'firelane', 'evcharging']);
 
@@ -51,6 +111,7 @@ export function summarizeEvidence(reads: readonly (EvidenceRead | null | undefin
   return EVIDENCE_TYPES.flatMap((type): EvidenceSummary[] => {
     const obs = valid.flatMap((read) => (read.observations ?? []).filter((o) => o.type === type).map((o) => ({ ...o, photoId: read.photoId ?? o.photoId, inputVersion: read.inputVersion ?? o.inputVersion })));
     const legacy = valid.filter((r) => !r.observations && (record(r.scene)[legacyFlags[type] ?? ''] === 'yes' || r.typeGuess === type));
+    if (type === 'crossing' || type === 'sidewalk') return groundSummary(type, valid, obs, legacy);
     if (obs.length === 0 && legacy.length === 0) return [];
     const linkedObservations = obs.filter((o) => !o.unknownReasons.includes('기본 사진과 같은 대상·장소 연결 미확인'));
     const checks = [...requiredFields, ...(boundaryTypes.has(type) ? ['boundary' as const] : []), ...(type === 'evcharging' && linkedObservations.some((o) => o.zoneKind === 'charging') ? ['chargerToTarget' as const] : [])];
@@ -127,6 +188,8 @@ export function constrainSupplementalRead<T extends EvidenceRead & { targetLink?
   if (linked) return read;
   return {
     ...read,
+    // 대상·장소 연결이 확인되지 않은 보완사진의 바닥 답은 쓰지 않는다
+    ...(read.ground ? { ground: { ...read.ground, surface: 'unclear' as const, crosswalkRelation: 'unclear' as const } } : {}),
     observations: read.observations?.map((observation) => ({ ...observation, markingToTarget: 'unclear', vehicleRelation: 'unclear', chargerToTarget: 'unclear', unknownReasons: [...new Set([...observation.unknownReasons, '기본 사진과 같은 대상·장소 연결 미확인'])], ...(observation.sharedNotice ? { sharedNotice: { ...observation.sharedNotice, targetBayRelation: 'unclear' } } : {}) })),
   };
 }

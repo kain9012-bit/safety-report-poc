@@ -19,6 +19,7 @@ import type { AddressState } from '../lib/reverseGeocode';
 import type { LatLng } from './PickMap';
 import { EXTRA_TYPES, MANUAL_TYPES, SIX_TYPES, VIOLATION_LABEL, locatedShot } from '../types/report';
 import { OTHER_TYPES_NOTE } from '../lib/extraTypes';
+import { CROSSWALK_ADJACENT_NOTE, GROUND_TEXT } from '../lib/evidence';
 import type { DraftReport, Shot, ViolationType } from '../types/report';
 import { recommendLine } from '../lib/choose';
 import type { TypeOption } from '../lib/choose';
@@ -487,6 +488,12 @@ export function CheckSheet({ pc, onSubmit, onClose }: { pc: Precheck; onSubmit: 
 }
 
 /** 근거 보기 — 사진 위에 AI가 근거로 짚은 자리를 상자로, 아래에 장면 항목을 장별로 */
+/** 두 장의 바닥 답을 하나로 — 같으면 그 값, 서로 다르면 '엇갈림', 없으면 '모름' */
+function groundCombined(result: VisionResult): string {
+  const surfaces = [...new Set(result.photos.flatMap((r) => (r?.ground && r.ground.surface !== 'unclear' ? [r.ground.surface] : [])))];
+  return surfaces.length === 0 ? '모름' : surfaces.length > 1 ? '엇갈림' : GROUND_TEXT[surfaces[0]];
+}
+
 export function EvidenceSheet({ shots, result, onClose }: { shots: Shot[]; result: VisionResult; onClose: () => void }) {
   return (
     <div className="absolute inset-0 z-30 bg-white flex flex-col">
@@ -538,6 +545,15 @@ export function EvidenceSheet({ shots, result, onClose }: { shots: Shot[]; resul
             </tr>
           </thead>
           <tbody>
+            <tr className="border-t border-slate-100">
+              <td className="py-1.5 text-slate-800">바퀴가 닿은 바닥</td>
+              {[0, 1].map((i) => (
+                <td key={i} className="py-1.5 text-center text-slate-600">
+                  {result.photos[i]?.ground ? GROUND_TEXT[result.photos[i]!.ground!.surface] : '—'}
+                </td>
+              ))}
+              <td className="py-1.5 text-center font-bold text-slate-700">{groundCombined(result)}</td>
+            </tr>
             {(Object.keys(SCENE_TEXT) as (keyof Scene)[]).map((k) => (
               <tr key={k} className="border-t border-slate-100">
                 <td className="py-1.5 text-slate-800">{SCENE_TEXT[k]}</td>
@@ -559,6 +575,8 @@ export function EvidenceSheet({ shots, result, onClose }: { shots: Shot[]; resul
             <b className="text-slate-700">유형은 위 표에서 규칙으로 정합니다.</b> 두 장의 값이 엇갈리면(보임/아님) '모름'으로
             봅니다. 여러 개가 보이면 횡단보도·인도 → 소화전·정류장·모퉁이 → 보호구역 순으로 앞선 것을 고릅니다.
           </p>
+          <p>횡단보도·인도 '위'는 차 바퀴가 닿은 바닥 판독으로만 정합니다. 근처에 보이기만 하면 '위'로 보지 않습니다.</p>
+          {result.crosswalkAdjacent && <p className="text-slate-700">{CROSSWALK_ADJACENT_NOTE}</p>}
           {!result.modelAgrees && (
             <p className="text-amber-800">AI가 따로 낸 유형이 규칙 결과와 달라 확신을 낮췄습니다 — 직접 확인해 주세요.</p>
           )}

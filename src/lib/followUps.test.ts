@@ -105,7 +105,11 @@ describe('제출 전 점검 — 결과를 바꿀 만큼 중요한 미확인만 �
     }
   });
   it('근거가 확인된 유형은 통과, 확인하지 못한 유형은 main 문구로 노란불', () => {
-    expect(rows(draftWith([read([obs({ type: 'crossing' })]), read([])], { type: 'crossing' })).find((c) => c.id === 'evidence')?.status).toBe('pass');
+    // 횡단보도 '위'는 바퀴가 닿은 바닥 답으로만 확인한다
+    const onStripe = { ...read([obs({ type: 'crossing' })]), ground: { surface: 'crosswalk' as const, wheels: [{ wheel: '앞', surface: 'crosswalk_stripe' as const }], crosswalkRelation: 'on' as const, evidence: '' } };
+    expect(rows(draftWith([onStripe, read([])], { type: 'crossing' })).find((c) => c.id === 'evidence')?.status).toBe('pass');
+    // 표시 관찰이 모두 '예'여도 바닥 답이 없으면 확인되지 않은 것으로 본다
+    expect(rows(draftWith([read([obs({ type: 'crossing' })]), read([])], { type: 'crossing', manual: { type: true } })).find((c) => c.id === 'evidence')?.status).toBe('warn');
     const weak = rows(draftWith([read([]), read([])], { type: 'crossing', manual: { type: true } })).find((c) => c.id === 'evidence');
     expect(weak?.status).toBe('warn'); expect(weak?.detail).toContain('표지판·노면 표시');
   });

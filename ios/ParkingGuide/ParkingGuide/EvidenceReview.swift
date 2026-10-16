@@ -114,6 +114,39 @@ struct NativeAIObservation: Codable, Identifiable {
 struct NativeAITargetLink: Codable {
     var referencePhotoID: UUID; var sameVehicle: String; var samePlace: String; var evidence: String
 }
+/// 바퀴가 닿은 바닥(사진 한 장) — 웹 GroundRead 와 같다. 횡단보도·인도 '위'는 이 답으로만 정한다.
+struct NativeGround: Codable, Equatable {
+    struct Wheel: Codable, Equatable { var wheel: String; var surface: String }
+    /// roadway·crosswalk·sidewalk·both·unclear
+    var surface: String
+    var wheels: [Wheel]
+    /// on·adjacent·apart·none·unclear
+    var crosswalkRelation: String
+    var evidence: String
+
+    /// 웹 normalizeGround 와 같은 규칙 — 바퀴 답과 전체 답이 어긋나면 전체 답을 모름으로 둔다
+    static func normalize(_ raw: Any?) -> NativeGround? {
+        guard let r = raw as? [String: Any] else { return nil }
+        let wheelSurfaces = ["roadway", "crosswalk_stripe", "sidewalk_block", "curb", "unclear"]
+        let wheels: [Wheel] = (r["wheels"] as? [[String: Any]] ?? []).prefix(8).compactMap { w in
+            guard let s = w["surface"] as? String, wheelSurfaces.contains(s) else { return nil }
+            return Wheel(wheel: String((w["wheel"] as? String ?? "").prefix(40)), surface: s)
+        }
+        var surface = r["surface"] as? String ?? "unclear"
+        if !["roadway", "crosswalk", "sidewalk", "both", "unclear"].contains(surface) { surface = "unclear" }
+        let cross = wheels.contains { $0.surface == "crosswalk_stripe" }, side = wheels.contains { $0.surface == "sidewalk_block" }
+        let fromWheels = cross && side ? "both" : cross ? "crosswalk" : side ? "sidewalk" : (!wheels.isEmpty && wheels.allSatisfy { $0.surface == "roadway" }) ? "roadway" : "unclear"
+        if fromWheels != "unclear" && fromWheels != surface { surface = "unclear" }
+        var relation = r["crosswalkRelation"] as? String ?? "unclear"
+        if !["on", "adjacent", "apart", "none", "unclear"].contains(relation) { relation = "unclear" }
+        return NativeGround(surface: surface, wheels: wheels, crosswalkRelation: relation, evidence: String((r["evidence"] as? String ?? "").prefix(300)))
+    }
+    /// 횡단보도·인도 '위' — yes/no/unclear
+    func on(_ type: EvidenceType) -> String {
+        if surface == "unclear" { return "unclear" }
+        return surface == "both" || surface == (type == .crossing ? "crosswalk" : "sidewalk") ? "yes" : "no"
+    }
+}
 struct NativeAIResult: Codable {
     var revision: Int; var photoIDs: [UUID]; var generatedAt: Date; var recommendedTypes: [EvidenceType]
     var observations: [NativeAIObservation]; var summary: String; var model: String
@@ -121,6 +154,8 @@ struct NativeAIResult: Codable {
     var responseFormat: String? = nil
     var compatibilityNotes: [String]? = nil
     var legacyReads: [NativeLegacyPhotoRead]? = nil
+    /// 사진 ID → 바퀴가 닿은 바닥. 이전 판독에는 없다(그때는 횡단보도·인도 '위'를 확인하지 않은 것으로 본다).
+    var grounds: [String: NativeGround]? = nil
 }
 /// A user-selected search rectangle. It is not an observation or a new photo.
 struct EvidenceRegion: Codable {

@@ -72,10 +72,32 @@ enum ReportEvidence {
         }
         return true
     }
+    /// 지금 사진(같은 판독 버전)의 바닥 답 중, 기본 사진이거나 기본 사진과 연결이 확인된 사진의 것만 쓴다
+    static func grounds(_ draft: ZoneCase, primaryOnly: Bool = false) -> [NativeGround] {
+        guard let result = draft.review.aiResult, result.revision == draft.review.revision, let grounds = result.grounds else { return [] }
+        let photos = primaryOnly ? draft.primaryPair : draft.evidence.filter(draft.evidenceEligible)
+        return photos.compactMap { grounds[$0.id.uuidString] }
+    }
+    /// 웹 CROSSWALK_ADJACENT_NOTE 와 같은 문구
+    static let crosswalkAdjacentNote = "차가 횡단보도 바로 앞에 서 있는 것으로 보여요(바퀴는 횡단보도 밖). 횡단보도로부터 10m 이내도 정차·주차 금지 장소지만, 거리는 사진으로 확인하지 않았어요."
+    /// 횡단보도 바로 앞(바퀴는 횡단보도 밖)으로 읽힌 기본 사진이 있는가 — 유형으로 정하지 않고 따로 알린다(웹 crosswalkAdjacent)
+    static func crosswalkAdjacent(_ draft: ZoneCase) -> Bool {
+        let g = grounds(draft, primaryOnly: true)
+        return g.contains { $0.crosswalkRelation == "adjacent" } && !g.contains { $0.on(.crossing) == "yes" }
+    }
+    /// 횡단보도·인도 — 표시 관찰은 보여 주기만 하고, 상태는 바퀴가 닿은 바닥 답으로만 정한다(웹 groundSummary)
+    private static func groundSummary(_ type: EvidenceType, _ draft: ZoneCase, _ obs: [NativeAIObservation]) -> Summary? {
+        let answers = grounds(draft).map { $0.on(type) }
+        let yes = answers.contains("yes"), no = answers.contains("no")
+        if !yes && obs.isEmpty { return nil }
+        let status: Status = yes && no ? .conflict : yes ? .observed : no ? .notObserved : .needsContext
+        return Summary(type: type, status: status, observations: obs)
+    }
     static func summarize(_ draft: ZoneCase) -> [Summary] {
         let all = observations(draft)
         return EvidenceType.allCases.compactMap { type in
             let obs = all.filter { $0.type == type }
+            if type == .crossing || type == .sidewalk { return groundSummary(type, draft, obs) }
             guard !obs.isEmpty else { return nil }
             func values(_ key: KeyPath<NativeAIObservation, String?>) -> [String] { obs.compactMap { $0[keyPath: key] } }
             let fields: [[String]] = [obs.map(\.identity), obs.map(\.target), obs.map(\.relation)]

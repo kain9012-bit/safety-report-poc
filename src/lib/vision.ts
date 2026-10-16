@@ -1,7 +1,7 @@
 /** Whole scene first, then at most two bounded crops from the preserved original. */
 import { mergeReads } from '../../api/vision';
 import type { PhotoRead, VisionResult } from '../../api/vision';
-import { constrainSupplementalRead, isEvidenceType, normalizeDetailRequests, normalizeObservations, summarizeEvidence } from './evidence';
+import { constrainSupplementalRead, crosswalkAdjacent, groundOn, isEvidenceType, normalizeDetailRequests, normalizeGround, normalizeObservations, summarizeEvidence } from './evidence';
 import type { DetailRequest, EvidenceBox, EvidenceObservation } from '../types/evidence';
 
 export type VisionState = 'idle' | 'loading' | 'ok' | 'no_key' | 'rate_limited' | 'busy' | 'error';
@@ -136,6 +136,13 @@ export function mergeDetailRead(first: PhotoRead, second: PhotoRead | null, requ
   return { ...first, observations, detailReview: 'completed', detailRegions: [...requests], detailRequests: [] };
 }
 
+/** 바닥 답을 다시 다듬고, 호환용 장면 항목(횡단보도·인도 위)을 바닥 답과 맞춘다. 바닥 답이 없는 응답은 그대로 둔다. */
+function groundFields(read: PhotoRead): Partial<PhotoRead> {
+  const ground = normalizeGround(read.ground);
+  if (!ground) return { ground: undefined };
+  return { ground, scene: { ...read.scene, onCrosswalk: groundOn('crossing', ground), onSidewalk: groundOn('sidewalk', ground) } };
+}
+
 export const LEGACY_VISION_NOTE = '기본 분석만 받았습니다. 서버가 구형 응답을 보내 시설 식별·차량 관계·부분 확대 확인은 제공하지 않았습니다. 위반 없음이나 상세 확인 완료를 뜻하지 않습니다.';
 
 /** Keep historical scene claims separate from v2 evidence; reject stale or unbound responses. */
@@ -171,11 +178,12 @@ export function compatibleVisionResult(value: unknown, count: number, options: R
     photoId: options.photoIds?.[index] ?? read.photoId,
     inputVersion: version ?? read.inputVersion,
     ...(modern ? { observations: normalizeObservations(read.observations, { photoId: options.photoIds?.[index] ?? read.photoId, inputVersion: version ?? read.inputVersion }) } : {}),
+    ...(modern ? groundFields(read) : {}),
   } : null);
   if (options.reference) photos = photos.map((read) => read ? constrainSupplementalRead(read, options.reference!.photoId) : read);
   const notes = [...(!modern ? [LEGACY_VISION_NOTE] : []), ...(photos.includes(null) ? ['일부 사진의 분석 응답이 없습니다. 해당 사진의 판단은 미확인으로 남깁니다.'] : [])];
   const review = summarizeEvidence(photos);
-  return { ...j, ...(!modern ? { ruleTypes: [], typeGuess: 'none' as const, typeConfidence: 0 } : {}), photos, evidenceReview: review, candidateTypes: modern ? review.filter((s) => s.status !== 'not_observed' && s.status !== 'legacy').map((s) => s.type) : [],
+  return { ...j, ...(!modern ? { ruleTypes: [], typeGuess: 'none' as const, typeConfidence: 0 } : {}), photos, evidenceReview: review, crosswalkAdjacent: crosswalkAdjacent(photos) || undefined, candidateTypes: modern ? review.filter((s) => s.status !== 'not_observed' && s.status !== 'legacy').map((s) => s.type) : [],
     responseFormat: modern ? 'evidence_v2' : 'legacy', compatibilityNotes: notes,
     evidence: [...notes, typeof j.evidence === 'string' ? j.evidence : photos.filter(Boolean).map((r) => r!.evidence).join('\n')].join('\n') };
 }

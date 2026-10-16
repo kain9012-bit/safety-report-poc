@@ -396,6 +396,11 @@ struct ReportStepsScreen: View {
                 Button { typeSheet = true } label: { Label("유형선택", systemImage: "hand.point.up.left") }.buttonStyle(ReportButtonStyle())
             }.padding(.top, 20)
             typeValue
+            if ReportEvidence.crosswalkAdjacent(draft) && draft.reportType != .crossing {
+                Text(ReportEvidence.crosswalkAdjacentNote).font(.system(size: 14)).foregroundStyle(ReportAppearance.ink).fixedSize(horizontal: false, vertical: true)
+                    .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(ReportAppearance.border)).padding(.top, 14)
+            }
             followUps
         }
     }

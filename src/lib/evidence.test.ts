@@ -6,7 +6,12 @@ import { compatibleVisionResult, LEGACY_VISION_NOTE, cropPixels, detailPlan, fal
 import type { EvidenceObservation, EvidenceType } from '../types/evidence';
 
 const obs = (type: EvidenceType = 'hydrant', extra: Record<string, unknown> = {}): EvidenceObservation => normalizeObservations([{ type, identity: 'yes', markingToTarget: 'yes', vehicleRelation: 'yes', boundary: 'yes', identityDetail: 'synthetic visible cue', markingText: '', ...(type === 'evcharging' ? { zoneKind: 'charging', chargerToTarget: 'yes' } : {}), ...extra }], { photoId: 'a', inputVersion: '4' })[0];
-const read = (observation = obs(), photoId = 'a'): PhotoRead => normalizeRead({ plate: { text: '12가3456', readable: true, confidence: .95 }, typeGuess: observation.type, typeConfidence: .9, observations: [observation] }, { photoId, inputVersion: '4', modern: true })!;
+// 횡단보도·인도 '위'는 바퀴가 닿은 바닥 답으로만 정한다 — 그 두 유형의 시험 판독에는 바닥 답을 함께 넣는다
+const GROUND: Partial<Record<EvidenceType, unknown>> = {
+  crossing: { wheels: [{ wheel: '앞 왼쪽', surface: 'crosswalk_stripe' }], surface: 'crosswalk', crosswalkRelation: 'on', evidence: '합성' },
+  sidewalk: { wheels: [{ wheel: '앞 왼쪽', surface: 'sidewalk_block' }], surface: 'sidewalk', crosswalkRelation: 'none', evidence: '합성' },
+};
+const read = (observation = obs(), photoId = 'a'): PhotoRead => normalizeRead({ plate: { text: '12가3456', readable: true, confidence: .95 }, typeGuess: observation.type, typeConfidence: .9, observations: [observation], ...(GROUND[observation.type] ? { ground: GROUND[observation.type] } : {}) }, { photoId, inputVersion: '4', modern: true })!;
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
@@ -287,7 +292,8 @@ describe('vision endpoint defensive contract (mock provider only)', () => {
   it('reports detailed analysis capabilities without sending a photo or exposing a key', async () => {
     vi.stubEnv('VISION_API_KEY', 'synthetic-test-key'); const provider = vi.fn(); vi.stubGlobal('fetch', provider);
     const response = GET(); const text = await response.text();
-    expect(JSON.parse(text)).toMatchObject({ analysisVersion: 2, release: 'vision-api-2026-10-15' });
+    expect(JSON.parse(text)).toMatchObject({ analysisVersion: 2, release: 'vision-api-2026-10-16' });
+    expect(JSON.parse(text).capabilities).toContain('ground_surface');
     expect(text).not.toContain('synthetic-test-key'); expect(provider).not.toHaveBeenCalled();
   });
   it.each([{ detailRequests: [] }, { observations: [] }])('rejects incomplete provider schema instead of inventing empty detail evidence: %j', async (fields) => {

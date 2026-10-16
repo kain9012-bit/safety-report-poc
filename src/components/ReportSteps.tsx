@@ -31,6 +31,7 @@ import {
   VisionLine,
 } from './FormParts';
 import type { PickedAddress, TypeInfo } from './FormParts';
+import { CROSSWALK_ADJACENT_NOTE } from '../lib/evidence';
 import FollowUps from './FollowUps';
 import type { FollowUpProps } from './FollowUps';
 import PhotoSlots from './PhotoSlots';
@@ -175,6 +176,9 @@ export default function ReportSteps(p: Props) {
                 options={p.options}
               />
             </div>
+            {vision.result?.crosswalkAdjacent && draft.type !== 'crossing' && (
+              <p className="mt-3 rounded border border-slate-200 px-3 py-2 text-[14px] text-slate-700 leading-snug">{CROSSWALK_ADJACENT_NOTE}</p>
+            )}
             {p.followUps && <FollowUps {...p.followUps} />}
           </Step>
         )}
