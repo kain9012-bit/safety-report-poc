@@ -3,6 +3,8 @@ import UIKit
 
 struct NativeVisionError: LocalizedError {
     let message: String
+    /// 판독 서버가 한도 초과(429)로 답했다 — 잠시 뒤 한 번만 자동으로 다시 판독한다
+    var rateLimited = false
     var errorDescription: String? { message }
 }
 struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
@@ -43,6 +45,7 @@ struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
             }
             request.httpBody = try JSONSerialization.data(withJSONObject: payload)
             let (data, response) = try await session.data(for: request)
+            if (response as? HTTPURLResponse)?.statusCode == 429 { throw NativeVisionError(message: "사진 판독 한도에 걸렸습니다. 잠시 후 다시 시도해 주세요.", rateLimited: true) }
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), data.count < 2_000_000 else { throw NativeVisionError(message: "분석 서버가 응답하지 못했습니다. 설정·통신을 확인해 다시 시도하세요. 기존 결과와 자료는 유지됩니다.") }
             guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw NativeVisionError(message: "분석 응답을 읽지 못했습니다.") }
             try Task.checkCancellation()

@@ -4,7 +4,12 @@ import type { PhotoRead, VisionResult } from '../../api/vision';
 import { constrainSupplementalRead, crosswalkAdjacent, groundOn, isEvidenceType, normalizeDetailRequests, normalizeGround, normalizeObservations, summarizeEvidence } from './evidence';
 import type { DetailRequest, EvidenceBox, EvidenceObservation } from '../types/evidence';
 
-export type VisionState = 'idle' | 'loading' | 'ok' | 'no_key' | 'rate_limited' | 'busy' | 'error';
+/** retrying: 판독 한도에 걸려 잠시 뒤 한 번 더 자동으로 판독하는 중 */
+export type VisionState = 'idle' | 'loading' | 'ok' | 'no_key' | 'rate_limited' | 'retrying' | 'busy' | 'error';
+
+/** 판독 한도에 걸렸을 때 자동으로 다시 판독하기까지 기다리는 시간 — 한 번만, 분당 한도가 풀릴 만큼 천천히 */
+export const RATE_LIMIT_RETRY_MS = 40_000;
+export const RETRYING_TEXT = '사진 판독 한도에 걸려 잠시 뒤 한 번 더 자동으로 판독합니다';
 export const VISION_EDGE = 1280;
 export const MAX_DETAIL_CROPS = 2;
 export interface ReadOptions {

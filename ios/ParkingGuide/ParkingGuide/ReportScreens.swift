@@ -8,11 +8,22 @@ import PhotosUI
 
 /// 사진 판독 — 사용자가 설정한 HTTPS 서버로만 보내고, 사진 전송 동의는 한 번 받아 기억한다.
 @MainActor final class ReportReading: ObservableObject {
-    enum State: Equatable { case off, needsConsent, idle, loading, ok, failed(String) }
+    /// retrying: 판독 한도에 걸려 잠시 뒤 한 번 더 자동으로 판독하는 중 · limited: 다시 판독해도 한도에 걸림
+    enum State: Equatable { case off, needsConsent, idle, loading, retrying, limited, ok, failed(String) }
     static let endpointKey = "evidenceVisionEndpoint"
     static let consentKey = "evidenceVisionConsent"
+    /// 웹 RETRYING_TEXT 와 같은 문구
+    static let retryingText = "사진 판독 한도에 걸려 잠시 뒤 한 번 더 자동으로 판독합니다"
     @Published private(set) var state: State = .idle
     private var task: Task<Void, Never>?
+    /// 웹 RATE_LIMIT_RETRY_MS 와 같다 — 한 번만, 분당 한도가 풀릴 만큼 천천히
+    var retryDelay: Duration = .seconds(40)
+    /// 시험에서 바꿔 끼운다
+    var analyzer: (ZoneCase, ZoneStore, String) async throws -> NativeAIResult = { draft, store, endpoint in
+        try await NativeVisionClient.analyze(draft: draft, store: store, endpoint: endpoint, regionHints: draft.nativeRegionHints)
+    }
+    /// 같은 사진(판독 버전)은 한 번만 자동으로 다시 판독한다 — 사람이 '다시 판독'을 누르면 바로 한 번 부르기만 한다
+    private var autoRetriedRevision: Int?
 
     var endpoint: String { (UserDefaults.standard.string(forKey: Self.endpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines) }
     var consent: String { UserDefaults.standard.string(forKey: Self.consentKey) ?? "" }
@@ -27,12 +38,23 @@ import PhotosUI
         state = .loading
         let captured = draft, address = endpoint
         task = Task { @MainActor in
-            do {
-                let result = try await NativeVisionClient.analyze(draft: captured, store: store, endpoint: address, regionHints: captured.nativeRegionHints)
-                try Task.checkCancellation()
-                apply(result, captured); state = .ok
-            } catch {
-                if !Task.isCancelled { state = .failed(error.localizedDescription) }
+            while true {
+                do {
+                    let result = try await analyzer(captured, store, address)
+                    try Task.checkCancellation()
+                    apply(result, captured); state = .ok
+                } catch let error as NativeVisionError where error.rateLimited {
+                    guard !Task.isCancelled else { return }
+                    guard autoRetriedRevision != captured.review.revision else { state = .limited; return }
+                    autoRetriedRevision = captured.review.revision
+                    state = .retrying
+                    do { try await Task.sleep(for: retryDelay) } catch { return }
+                    state = .loading
+                    continue
+                } catch {
+                    if !Task.isCancelled { state = .failed(error.localizedDescription) }
+                }
+                return
             }
         }
     }
@@ -508,6 +530,8 @@ struct ReportStepsScreen: View {
         case .loading: Label("사진 판독 중…", systemImage: "hourglass").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
         case .ok: Text(draft.review.aiResult?.responseFormat == "legacy" ? "사진 판독 완료 · 기본 분석만 받았습니다" : "사진 판독 완료").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
         case .failed: HStack { Text("사진 판독에 실패했습니다").font(.system(size: 13)).foregroundStyle(.red); Button("다시 판독") { read(force: true) }.font(.system(size: 13, weight: .bold)) }
+        case .retrying: Label(ReportReading.retryingText, systemImage: "clock").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
+        case .limited: HStack { Text("사진 판독 한도에 걸렸습니다. 잠시 후 다시 시도해 주세요").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted); Button("다시 판독") { read(force: true) }.font(.system(size: 13, weight: .bold)) }
         case .off, .needsConsent: HStack { Text("사진 판독이 꺼져 있습니다").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted); Button("판독 서버 설정") { settingsOpen = true }.font(.system(size: 13, weight: .bold)) }
         case .idle: EmptyView()
         }

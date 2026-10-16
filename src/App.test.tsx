@@ -11,7 +11,7 @@ import { normalizeDraft } from './lib/photoEvidence';
 
 const mock = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), remove: vi.fn(), read: vi.fn(), album: vi.fn(), albumFile: vi.fn() }));
 vi.mock('./lib/reports', async (original) => ({ ...await original<object>(), listReports: mock.list, saveReport: mock.save, deleteReport: mock.remove }));
-vi.mock('./lib/vision', () => ({ readOne: mock.read }));
+vi.mock('./lib/vision', () => ({ readOne: mock.read, RATE_LIMIT_RETRY_MS: 30, RETRYING_TEXT: '자동 재판독 대기' }));
 vi.mock('./lib/album', () => ({ readAlbum: mock.album, readAlbumFile: mock.albumFile }));
 vi.mock('./lib/reverseGeocode', () => ({ reverseGeocode: vi.fn(async () => ({ state: 'error' })) }));
 vi.mock('./lib/facilities', () => ({ loadNearby: vi.fn(async () => ({ state: 'ok', busstops: [], crosswalks: [], schools: [], missing: [] })) }));
@@ -247,5 +247,30 @@ describe('신고서 사진 칸 — 바꾸기·지우기·1장 더 넣기', () =>
     click('album'); await screen.findByTestId('form');
     click('camera 1'); await screen.findByTestId('capture');
     expect(draft().shots.map((s) => s.dataUrl)).toEqual(['data:,one']);
+  });
+});
+
+describe('판독 한도(429) — 한 번만, 천천히 자동으로 다시 판독', () => {
+  it('한도에 걸린 사진은 잠시 뒤 한 번만 다시 부르고, 또 걸리면 더 부르지 않는다', async () => {
+    mock.list.mockResolvedValue([]); render(<App />); await screen.findByTestId('home');
+    mock.album.mockResolvedValueOnce([{ takenAt: NOW - 600_000, dataUrl: 'data:,one', source: 'album' }, { takenAt: NOW - 500_000, dataUrl: 'data:,two', source: 'album' }]);
+    mock.read.mockImplementation(async () => ({ state: 'rate_limited' }));
+    click('album'); await screen.findByTestId('form');
+    await act(() => new Promise((r) => setTimeout(r, 10)));
+    expect(mock.read).toHaveBeenCalledTimes(2);
+    await act(() => new Promise((r) => setTimeout(r, 120)));
+    expect(mock.read).toHaveBeenCalledTimes(4);
+    await act(() => new Promise((r) => setTimeout(r, 200)));
+    expect(mock.read).toHaveBeenCalledTimes(4);
+  });
+
+  it('다시 부른 판독이 성공하면 그 결과를 쓴다', async () => {
+    mock.list.mockResolvedValue([]); render(<App />); await screen.findByTestId('home');
+    mock.album.mockResolvedValueOnce([{ takenAt: NOW - 600_000, dataUrl: 'data:,one', source: 'album' }]);
+    mock.read.mockResolvedValueOnce({ state: 'rate_limited' }).mockResolvedValueOnce({ state: 'ok', read, model: 'gemini-3-flash-preview' });
+    click('album'); await screen.findByTestId('form');
+    await act(() => new Promise((r) => setTimeout(r, 120)));
+    expect(mock.read).toHaveBeenCalledTimes(2);
+    expect(draft().reads?.[0]).toMatchObject({ evidence: read.evidence });
   });
 });

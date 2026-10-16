@@ -10,6 +10,7 @@ import { loadNearby } from './lib/facilities';
 import { recommend } from './lib/recommend';
 import { crosscheck } from './lib/crosscheck';
 import { readOne } from './lib/vision';
+import { RATE_LIMIT_RETRY_MS } from './lib/vision';
 import type { VisionState } from './lib/vision';
 import { compareShots } from './lib/overlap';
 import { rulesFor } from './lib/localRules';
@@ -165,6 +166,8 @@ export default function App() {
   // 사진마다 판독 — 첫 번째 사진은 찍자마자, 두 번째 사진도 찍자마자. 한 장씩 따로 읽는다.
   // 시각을 새기기 전 원본으로 읽고, 보완사진은 기본 첫 사진과 같은 차·장소인지 함께 확인한다.
   const inflight = useRef(new Set<Shot>());
+  // 판독 한도에 걸린 사진은 한 번만, 천천히 자동으로 다시 판독한다(사람이 '다시 판독'을 연달아 눌러 한도를 더 쓰지 않게)
+  const autoRetried = useRef(new Set<Shot>());
   useEffect(() => {
     const primary = primaryShots(draft);
     draft.shots.forEach((s, i) => {
@@ -187,7 +190,20 @@ export default function App() {
           reads[i] = r.read ?? null;
           return { ...d, reads, model: r.model ?? d.model };
         });
-        setReadStates((st) => Object.assign([...st], { [i]: r.state }));
+        const retry = r.state === 'rate_limited' && !autoRetried.current.has(s);
+        setReadStates((st) => Object.assign([...st], { [i]: retry ? 'retrying' : r.state }));
+        if (!retry) return;
+        autoRetried.current.add(s);
+        // 두 장이 함께 걸렸으면 조금씩 어긋나게 다시 부른다
+        setTimeout(() => {
+          if (current.current?.draft.shots[i] !== s || current.current.draft.reads?.[i] !== null) return;
+          setDraft((d) => {
+            if (d.shots[i] !== s) return d;
+            const reads = [...(d.reads ?? [])];
+            reads[i] = undefined as never;
+            return { ...d, reads };
+          });
+        }, RATE_LIMIT_RETRY_MS * (1 + i / 8));
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -306,7 +322,9 @@ export default function App() {
 
   const visionState: VisionState = readStates.some((s) => s === 'loading')
     ? 'loading'
-    : merged
+    : readStates.some((s) => s === 'retrying')
+      ? 'retrying'
+      : merged
       ? 'ok'
       : (readStates.find((s) => s && s !== 'ok') ?? 'idle');
 
