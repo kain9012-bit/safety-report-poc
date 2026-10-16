@@ -73,6 +73,8 @@ export function officerLines({ draft, precheck: pc, rules, minInterval, vision }
   lines.push(`- 적용 기준: ${base}${hours ? ` · 단속 시간 ${hours === 'pass' ? '안' : '밖'}` : ''}${deadline ? ` · 접수 기한 ${mark(deadline)}` : ''}`);
   const need = pc.checks.filter((c) => c.status !== 'pass' && !['body'].includes(c.id)).map((c) => c.label);
   lines.push(`- 확인 필요: ${need.length ? need.join(', ') : '없음'}`);
+  // 빨간불 사유와 불수용 안내를 보고도 그대로 냈으면 그대로 적는다
+  if (draft.submittedWithReds?.length) lines.push(`- 고지 후 제출: 빨간불(${draft.submittedWithReds.join(', ')})과 불수용될 수 있다는 안내를 보고 신고인이 그대로 제출`);
   return lines;
 }
 
@@ -84,8 +86,8 @@ export function withOfficerSummary(body: string, lines: string[], max = BODY_MAX
   const head = body.trimEnd();
   let block = [OFFICER_HEADER, ...lines];
   const join = (bl: string[]) => (head ? `${head}\n\n${bl.join('\n')}` : bl.join('\n'));
-  // 확인 필요 목록과 사람이 넣은 차량번호 줄은 끝까지 남긴다
-  const caution = (line: string) => (line.startsWith('- 확인 필요:') && line !== '- 확인 필요: 없음') || line.startsWith('- 차량번호:');
+  // 확인 필요 목록, 사람이 넣은 차량번호 줄, 고지 후 제출 줄은 끝까지 남긴다
+  const caution = (line: string) => (line.startsWith('- 확인 필요:') && line !== '- 확인 필요: 없음') || line.startsWith('- 차량번호:') || line.startsWith('- 고지 후 제출:');
   while (block.length > 1 && join(block).length > max) {
     const removable = block.map((line, i) => i > 0 && !caution(line)).lastIndexOf(true);
     // 경고를 담을 공간조차 없으면 통과 항목만 붙여 오해하게 만들지 않는다.

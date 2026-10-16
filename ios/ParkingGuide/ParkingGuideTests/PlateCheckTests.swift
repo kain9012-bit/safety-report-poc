@@ -46,19 +46,20 @@ import UIKit
     func testDifferentEntryIsRedUntilConfirmedThenOrange() {
         var c = pair(plate: "99나9999"); read(&c, [("12가3456", 0.95), ("12가3456", 0.95)])
         XCTAssertEqual(check(c).status, .fail)
-        XCTAssertEqual(c.reportChecks.filter { $0.status == .fail }.map(\.id), ["vehicle"], "시험 신고는 차량번호 말고 빨간불이 없어야 한다")
-        XCTAssertFalse(c.reportBlocked, "번호 불일치만 있으면 불수용 고지 뒤 낼 수 있다"); XCTAssertEqual(c.reportNotice.map(\.id), ["vehicle"])
+        XCTAssertEqual(c.reportReds.map(\.id), ["vehicle"], "시험 신고는 차량번호 말고 빨간불이 없어야 한다")
         c.plateConfirmedFor = "99 나 9999"
         XCTAssertEqual(check(c).status, .warn); XCTAssertTrue(check(c).detail.contains("신고인이 사진을 보고 확인했습니다"))
         c.plate = "99나9998"
         XCTAssertEqual(check(c).status, .fail, "확인한 뒤 번호를 바꾸면 확인이 풀린다")
     }
-    func testOtherRedStillBlocksWithPlateNotice() {
+    func testEveryRedIsListedForNoticeAndRecordedWhenSubmittedAnyway() {
         var c = pair(plate: "99나9999"); read(&c, [("12가3456", 0.95), ("12가3456", 0.95)])
         c.body = "짧음"; c.bodyEdited = true
-        XCTAssertTrue(c.reportBlocked); XCTAssertEqual(c.reportNotice.map(\.id), ["vehicle"])
-        var bad = pair(plate: "99나999"); read(&bad, [("12가3456", 0.95), ("12가3456", 0.95)])
-        XCTAssertTrue(bad.reportBlocked, "형식이 틀린 번호는 고지로 넘어가지 않는다")
+        XCTAssertTrue(c.reportBlocked); XCTAssertEqual(Set(c.reportReds.map(\.id)), ["vehicle", "body"])
+        XCTAssertEqual(ReportRules.fixStep(c.reportReds[0].id), 2)
+        c.submittedWithReds = c.reportReds.map(\.label)
+        XCTAssertTrue(c.officerLines.contains("- 고지 후 제출: 빨간불(두 장 번호판 일치, 내용)과 불수용될 수 있다는 안내를 보고 신고인이 그대로 제출"))
+        XCTAssertEqual([("address", 1), ("location", 1), ("plate", 2), ("body", 3), ("interval", 0), ("evidence", 0)].map { ReportRules.fixStep($0.0) }, [1, 1, 2, 3, 0, 0])
     }
     func testDifferentReadsNeedConfirmation() {
         var c = pair(); read(&c, [("12가3456", 0.9), ("12가3457", 0.9)])

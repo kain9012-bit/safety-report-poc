@@ -37,17 +37,17 @@ export interface Precheck {
   checks: CheckResult[];
   /** 앨범 사진이 있으면 그 진위 점검 항목(장별·두 장 관계) */
   album: CheckResult[];
-  /** 고쳐야 낼 수 있는 빨간불이 있다 */
+  /** 빨간불이 있다 — 막지는 않고, 제출할 때 빨간불 사유와 불수용될 수 있다는 안내를 먼저 보여 준다 */
   blocked: boolean;
-  /**
-   * 안내를 보고 그대로 낼 수 있는 빨간불 — 차량번호가 AI 판독과 다를 때만.
-   * AI 가 잘못 읽었더라도 사람이 사진을 보고 정확히 입력했으면 낼 수 있게 한다(불수용 가능성 고지 뒤).
-   */
-  notice: CheckResult[];
 }
 
-/** 안내를 보고 그대로 낼 수 있는 빨간불 */
-const OVERRIDABLE = new Set(['vehicle']);
+/** 빨간불 항목을 고치는 신고서 단계 — 0 유형(사진 칸 포함)·1 발생지역·2 차량번호·3 내용 */
+export function fixStep(id: string): number {
+  if (id === 'address' || id === 'location') return 1;
+  if (id === 'plate' || id === 'vehicle') return 2;
+  if (id === 'body') return 3;
+  return 0;
+}
 
 export function precheck({ draft, body, verdict, vision, now = Date.now(), minInterval }: PrecheckInput): Precheck {
   const shots = primaryShots(draft);
@@ -215,6 +215,5 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
       out.push({ id: 'busstop_number', label: '정류소 표지', status: 'warn', detail: `사진에서 서로 다른 정류소 번호가 읽혔습니다(${stops.join(' / ')}). 차 옆 정류소 표지가 사진에 보이는지 확인해 주세요.` });
     }
   }
-  const fails = out.filter((c) => c.status === 'fail');
-  return { checks: out, album, blocked: fails.some((c) => !OVERRIDABLE.has(c.id)), notice: fails.filter((c) => OVERRIDABLE.has(c.id)) };
+  return { checks: out, album, blocked: out.some((c) => c.status === 'fail') };
 }

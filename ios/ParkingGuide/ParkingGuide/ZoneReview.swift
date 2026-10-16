@@ -71,7 +71,9 @@ struct ZoneCase: Codable, Identifiable {
     var plate: String?
     /// 신고인이 사진을 보고 확인한 차량번호 — 지금 입력한 번호와 같을 때만 확인한 것으로 본다(웹 plateConfirmedFor)
     var plateConfirmedFor: String?
-    /// 제출할 때 담당자에게 함께 보관한 확인 사항(차량번호를 사람이 넣었거나 AI 판독과 다를 때)
+    /// 빨간불 사유와 불수용될 수 있다는 안내를 보고도 '그래도 제출하기'를 누른 항목(점검 이름, 웹 submittedWithReds)
+    var submittedWithReds: [String]?
+    /// 제출할 때 담당자에게 함께 보관한 확인 사항(차량번호를 사람이 넣었거나 AI 판독과 다를 때, 빨간불을 알고 냈을 때)
     var officerNote: String?
     /// 유형을 정한 출처 — nil: 아직 비어 있음, "photo": 사진 근거로 자동, "user": 직접 선택
     var typeSource: String?

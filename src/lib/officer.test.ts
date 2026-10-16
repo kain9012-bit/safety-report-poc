@@ -55,6 +55,12 @@ describe('담당 공무원용 사전 점검 요약', () => {
     const l = lines({ ...draft, plateConfirmedFor: '12가3456' }, { ...v, sameVehicle: 'yes' });
     expect(l[0]).toBe('- 차량번호: 12가3456(신고인이 사진 보고 확인) · AI 판독: 1장 12가3458(확신 93%), 2장 12가3458(확신 91%) — AI 판독과 다름, 사진으로 번호 확인 필요');
   });
+  it('빨간불 안내를 보고 그대로 냈으면 그 항목을 적고, 요약을 줄여도 남긴다', () => {
+    const d = { ...draft, overlap: { ratio: 0.3, score: 0.2, same: false }, submittedWithReds: ['같은 자리 두 장'] };
+    const l = lines(d);
+    expect(l).toContain('- 고지 후 제출: 빨간불(같은 자리 두 장)과 불수용될 수 있다는 안내를 보고 신고인이 그대로 제출');
+    expect(withOfficerSummary('가'.repeat(700), l)).toContain('- 고지 후 제출:');
+  });
   it('요약을 줄여도 차량번호 확인 줄은 남긴다', () => {
     const body = '가'.repeat(700);
     const out = withOfficerSummary(body, lines(draft, null));

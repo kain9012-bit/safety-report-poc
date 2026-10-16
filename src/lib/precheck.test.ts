@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { kstTime } from './kst';
-import { precheck } from './precheck';
+import { fixStep, precheck } from './precheck';
 import type { PrecheckInput } from './precheck';
 import type { DraftReport, Shot } from '../types/report';
 import type { VisionResult } from '../../api/vision';
@@ -174,12 +174,11 @@ describe('지역별 접수 기한', () => {
 
 
 describe('판독 근거와 최종 입력 번호의 일치', () => {
-  it('정상 형식이어도 사진과 다른 번호를 직접 입력하면 빨간불 — 고지 뒤에만 낼 수 있다', () => {
+  it('정상 형식이어도 사진과 다른 번호를 직접 입력하면 빨간불', () => {
     const r = precheck(input({ plate: '99나9999', manual: { plate: true } }));
     expect(status(r, 'plate')).toBe('pass');
     expect(status(r, 'vehicle')).toBe('fail');
-    expect(r.blocked).toBe(false);
-    expect(r.notice.map((c) => c.id)).toEqual(['vehicle']);
+    expect(r.blocked).toBe(true);
     expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('99나9999');
   });
   it('사진을 보고 확인했다고 체크하면 주황으로 낸다', () => {
@@ -187,15 +186,6 @@ describe('판독 근거와 최종 입력 번호의 일치', () => {
     expect(status(r, 'vehicle')).toBe('warn');
     expect(r.blocked).toBe(false);
     expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('신고인이 사진을 보고 확인했습니다');
-  });
-  it('번호 불일치 말고 다른 빨간불이 있으면 고지로 넘어가지 않는다', () => {
-    const r = precheck(input({ plate: '99나9999', manual: { plate: true }, shots: [shot(T0), shot(T0 + 10_000)] }, { minInterval: 60 }));
-    expect(status(r, 'interval')).toBe('fail');
-    expect(r.blocked).toBe(true);
-  });
-  it('형식이 틀린 번호는 판독과 달라도 고지로 넘어가지 않는다', () => {
-    const r = precheck(input({ plate: '99나999', manual: { plate: true } }));
-    expect(r.blocked).toBe(true);
   });
   it('확인한 뒤 번호를 또 바꾸면 확인이 풀린다', () => {
     const r = precheck(input({ plate: '99나9998', manual: { plate: true }, plateConfirmedFor: '99나9999' }));
@@ -259,5 +249,11 @@ describe('지역 기한과 앨범 점검의 일관성', () => {
     const r = precheck(input({ shots }, { now: kstTime(2026, 10, 9, 10) }));
     expect(status(r, 'deadline')).toBe('fail');
     expect(status(r, 'album')).toBe('fail');
+  });
+});
+
+describe('빨간불을 고치는 단계', () => {
+  it.each([['address', 1], ['location', 1], ['plate', 2], ['vehicle', 2], ['body', 3], ['interval', 0], ['deadline', 0], ['evidence', 0]] as const)('%s → %i단계', (id, step) => {
+    expect(fixStep(id)).toBe(step);
   });
 });

@@ -293,8 +293,8 @@ struct ReportStepsScreen: View {
     @State private var supplementCapture: ReportEvidence.Supplement?
     @State private var resetBody = false
     @State private var submitBlocked: String?
-    /// 차량번호가 AI 판독과 다른 채 제출을 눌렀다 — 불수용 가능성 안내
-    @State private var plateNotice = false
+    /// 빨간불이 있는 채 제출을 눌렀다 — 사유와 불수용 안내. 창에 보여 준 빨간불을 담는다.
+    @State private var redNotice: [ReportCheck] = []
     @Environment(\.scenePhase) private var scenePhase
 
     private var step: Int { min(max(draft.step, 0), ReportRules.steps.count - 1) }
@@ -349,10 +349,9 @@ struct ReportStepsScreen: View {
                 if step < ReportRules.steps.count - 1 {
                     Button { go(step + 1) } label: { Text("다음").frame(maxWidth: .infinity) }.buttonStyle(ReportButtonStyle(primary: true))
                 } else {
-                    let fails = draft.reportChecks.filter { $0.status == .fail }.count
-                    let blocked = draft.reportBlocked
-                    Button { if draft.reportNotice.isEmpty { submit() } else { plateNotice = true } } label: { Text(blocked ? "빨간불 \(fails)개" : "제출").frame(maxWidth: .infinity) }
-                        .buttonStyle(ReportButtonStyle(primary: !blocked)).disabled(blocked)
+                    let reds = draft.reportReds
+                    Button { if reds.isEmpty { submit() } else { redNotice = reds } } label: { Text(reds.isEmpty ? "제출" : "제출 (빨간불 \(reds.count)개)").frame(maxWidth: .infinity) }
+                        .buttonStyle(ReportButtonStyle(primary: true))
                 }
             }.padding(.horizontal, 16).padding(.vertical, 10).background(.white).overlay(alignment: .top) { ReportAppearance.border.frame(height: 1) }
         }
@@ -404,11 +403,11 @@ struct ReportStepsScreen: View {
             Button("보내지 않기", role: .cancel) { UserDefaults.standard.set("no", forKey: ReportReading.consentKey); read() }
         } message: { Text("사진 축소본을 설정한 서버로 보내 유형을 확인할까요? 위치·주소·작성 내용은 보내지 않습니다. 이 선택은 판독 서버 설정에서 바꿀 수 있습니다.") }
         .alert("제출 전 점검", isPresented: Binding(get: { submitBlocked != nil }, set: { if !$0 { submitBlocked = nil } })) { Button("확인") { submitBlocked = nil } } message: { Text(submitBlocked ?? "") }
-        .alert("불수용될 가능성이 높아요", isPresented: $plateNotice) {
-            let entered = draft.plateStatus.entered
-            Button("수정하기", role: .cancel) { go(2) }
-            Button("그래도 제출하기 (\(entered))") { submit(confirmPlate: entered) }
-        } message: { Text(plateNoticeText) }
+        .alert("불수용될 수 있어요", isPresented: Binding(get: { !redNotice.isEmpty }, set: { if !$0 { redNotice = [] } })) {
+            let shown = redNotice
+            Button("수정하기", role: .cancel) { go(ReportRules.fixStep(shown.first?.id ?? "")) }
+            Button("그래도 제출하기") { submit(acknowledged: shown.map(\.id)) }
+        } message: { Text(redNoticeText) }
         .confirmationDialog("직접 고친 내용을 자동 작성으로 되돌릴까요?", isPresented: $resetBody, titleVisibility: .visible) {
             Button("자동 작성으로 되돌리기") { draft.bodyEdited = false; draft.body = ""; persist() }
         }
@@ -735,7 +734,7 @@ struct ReportStepsScreen: View {
     // 4. 점검·제출
     private var checkStep: some View {
         let checks = draft.reportChecks
-        return ReportStep(title: "제출 전 점검", sub: !draft.reportNotice.isEmpty && !draft.reportBlocked ? "차량번호가 사진 판독과 달라요. 제출할 때 안내를 한 번 더 보여 드려요" : "빨간불은 고쳐야 제출할 수 있습니다") {
+        return ReportStep(title: "제출 전 점검", sub: draft.reportBlocked ? "빨간불이 있으면 불수용될 수 있어요. 제출할 때 사유를 한 번 더 알려 드려요" : "점검 결과를 확인하고 제출해 주세요") {
             VStack(spacing: 0) {
                 summaryRow("유형", draft.reportType?.reportLabel ?? "비어 있음", step: 0)
                 summaryRow("발생지역", draft.address.isEmpty ? "비어 있음" : draft.address, step: 1)
@@ -779,22 +778,21 @@ struct ReportStepsScreen: View {
             if !last { Divider() }
         }
     }
-    /// 웹 PlateNotice 와 같은 문구
-    private var plateNoticeText: String {
-        let ps = draft.plateStatus
-        let what = ps.conflict == .reads ? "AI가 두 사진에서 서로 다른 번호를 읽었어요(\(ps.reads.joined(separator: " / ")))." : "입력한 차량번호(\(ps.entered))가 AI가 두 사진에서 읽은 번호(\(ps.reads.first ?? ""))와 달라요."
-        return what + " 입력한 번호가 사진에 보이는 번호와 다르면 불수용될 가능성이 높아요.\n\n사진을 보고 정확히 입력했다면 그대로 낼 수 있어요. 담당자가 사진으로 번호를 한 번 더 확인해요."
+    /// 웹 RedNotice 와 같은 문구 — 빨간불마다 이름과 사유
+    private var redNoticeText: String {
+        let items = redNotice.map { "• \($0.label) — \($0.detail)" }.joined(separator: "\n")
+        return "빨간불 \(redNotice.count)개가 남아 있어요. 이대로 내면 담당자가 불수용할 수 있어요.\n\n\(items)\n\n고칠 수 있으면 고친 뒤 내 주세요. 그래도 내면 빨간불 항목을 알고 냈다는 것이 담당자에게 함께 갑니다."
     }
-    /// confirmPlate: 차량번호가 AI 판독과 다르다는 안내를 보고 '그래도 제출하기'를 누른 번호 — 사진을 보고 확인한 것으로 함께 저장한다
-    private func submit(confirmPlate: String? = nil) {
+    /// acknowledged: 빨간불 사유와 불수용 안내 창에서 본 빨간불(점검 id). 누르는 순간 다시 점검해서
+    /// 창에서 보지 못한 빨간불이 새로 생겼으면 내지 않는다(웹 onSubmit).
+    private func submit(acknowledged: [String] = []) {
         var done = draft
-        if let confirmPlate { done.plateConfirmedFor = confirmPlate }
-        // 화면을 열어 둔 사이 달라졌을 수 있으니 누르는 순간 다시 점검한다
-        if done.reportBlocked { submitBlocked = "현재 상태로 다시 점검했습니다. 빨간불 항목을 확인해 주세요."; return }
-        if !done.reportNotice.isEmpty { plateNotice = true; return }
+        let reds = done.reportReds
+        if reds.contains(where: { !acknowledged.contains($0.id) }) { submitBlocked = "현재 상태로 다시 점검했습니다. 빨간불 항목을 확인해 주세요."; return }
+        done.submittedWithReds = reds.isEmpty ? nil : reds.map(\.label)
         done.submittedAt = Date()
         if done.bodyEdited != true { done.body = done.composedBody }
-        done.officerNote = done.officerPlateLine
+        done.officerNote = done.officerLines.isEmpty ? nil : done.officerLines.joined(separator: "\n")
         do { try store.save(done); draft = done; onSubmitted() }
         catch { saveState.failed("저장하지 못했습니다. 입력은 이 화면에 그대로 있습니다. 다시 시도해 주세요.") }
     }

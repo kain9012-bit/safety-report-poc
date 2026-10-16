@@ -16,8 +16,15 @@ enum ReportRules {
     /// 하던 신고를 앱을 열 때 이어서 여는 기간(웹 RESUME_MAX_MS)
     static let resumeWindow: TimeInterval = 36 * 60 * 60
     static let steps = ["유형", "발생지역", "차량번호", "내용", "점검·제출"]
-    /// 안내를 보고 그대로 낼 수 있는 빨간불(웹 precheck OVERRIDABLE)
-    static let overridableChecks: Set<String> = ["vehicle"]
+    /// 빨간불 항목을 고치는 단계(웹 fixStep) — 0 유형(사진 칸 포함)·1 발생지역·2 차량번호·3 내용
+    static func fixStep(_ id: String) -> Int {
+        switch id {
+        case "address", "location": 1
+        case "plate", "vehicle": 2
+        case "body": 3
+        default: 0
+        }
+    }
 
     static func isValidPlate(_ raw: String) -> Bool {
         let plate = raw.filter { !$0.isWhitespace }
@@ -287,7 +294,7 @@ extension ZoneCase {
     }
     var reportBody: String { bodyEdited == true ? body : composedBody }
 
-    /// 웹 제출 전 점검 중 iPhone에서 잴 수 있는 항목. 빨간불이 있으면 제출하지 않는다(차량번호 불일치만 안내를 보고 제출).
+    /// 웹 제출 전 점검 중 iPhone에서 잴 수 있는 항목. 빨간불이 있으면 사유와 불수용 안내를 보여 준 뒤에만 낸다.
     /// 접수 기한·촬영시각 표시·지역 규정·두 사진 겹침은 아직 iPhone에 연결하지 않았다.
     var reportChecks: [ReportCheck] {
         var out: [ReportCheck] = []
@@ -335,11 +342,16 @@ extension ZoneCase {
                          detail: body.count >= ReportRules.bodyMin ? "\(reportBody.count)자" : "\(ReportRules.bodyMin)자 이상 적어야 합니다."))
         return out
     }
-    /// 고쳐야 낼 수 있는 빨간불이 있다(웹 precheck blocked)
-    var reportBlocked: Bool { reportChecks.contains { $0.status == .fail && !ReportRules.overridableChecks.contains($0.id) } }
-    /// 안내를 보고 그대로 낼 수 있는 빨간불 — 차량번호가 AI 판독과 다를 때만(웹 precheck notice).
-    /// AI 가 잘못 읽었더라도 사람이 사진을 보고 정확히 입력했으면 불수용 가능성 고지 뒤 낼 수 있다.
-    var reportNotice: [ReportCheck] { reportChecks.filter { $0.status == .fail && ReportRules.overridableChecks.contains($0.id) } }
+    /// 빨간불 — 막지는 않고, 제출할 때 사유와 불수용될 수 있다는 안내를 먼저 보여 준다(웹 precheck blocked)
+    var reportReds: [ReportCheck] { reportChecks.filter { $0.status == .fail } }
+    var reportBlocked: Bool { !reportReds.isEmpty }
+    /// 담당자에게 함께 가는 확인 사항 — 차량번호 줄과, 빨간불 안내를 보고 그대로 낸 항목(웹 officerLines)
+    var officerLines: [String] {
+        var lines: [String] = []
+        if let plate = officerPlateLine { lines.append(plate) }
+        if let reds = submittedWithReds, !reds.isEmpty { lines.append("- 고지 후 제출: 빨간불(\(reds.joined(separator: ", ")))과 불수용될 수 있다는 안내를 보고 신고인이 그대로 제출") }
+        return lines
+    }
 
     /// 같은 차 — 웹 precheck 'vehicle' 과 같은 세 단계(초록·주황·빨강)와 문구
     var vehicleCheck: ReportCheck {
