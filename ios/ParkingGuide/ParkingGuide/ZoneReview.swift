@@ -69,6 +69,10 @@ struct ZoneCase: Codable, Identifiable {
     // 웹 main과 같은 5단계 신고서(2026-10-15). 이전 초안과 호환되도록 모두 선택 항목이다.
     /// 차량번호(직접 입력)
     var plate: String?
+    /// 신고인이 사진을 보고 확인한 차량번호 — 지금 입력한 번호와 같을 때만 확인한 것으로 본다(웹 plateConfirmedFor)
+    var plateConfirmedFor: String?
+    /// 제출할 때 담당자에게 함께 보관한 확인 사항(차량번호를 사람이 넣었거나 AI 판독과 다를 때)
+    var officerNote: String?
     /// 유형을 정한 출처 — nil: 아직 비어 있음, "photo": 사진 근거로 자동, "user": 직접 선택
     var typeSource: String?
     /// 내용을 직접 고쳤는지. 고치지 않았으면 자동 작성 문구를 보여 준다.

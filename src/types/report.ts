@@ -104,6 +104,8 @@ export interface DraftReport {
   /** 사람이 고른 주소의 출처 — 위치찾기 지도에서 골랐는지, 글자로 쳤는지 */
   addressFrom?: 'map' | 'typed';
   plate?: string;
+  /** 신고인이 사진을 보고 확인한 차량번호 — 지금 입력한 번호와 같을 때만 확인한 것으로 본다 */
+  plateConfirmedFor?: string;
   type?: ViolationType;
   /** 좌표로 계산한 유형 후보와 사진으로 판독한 유형이 엇갈리면 사람에게 묻는다. */
   typeByLocation?: ViolationType;

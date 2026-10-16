@@ -15,7 +15,8 @@ import type { Coverage, Verdict } from '../lib/crosscheck';
 import { RETRYING_TEXT } from '../lib/vision';
 import type { VisionState } from '../lib/vision';
 import type { BoxLabel, Scene, VisionResult } from '../../api/vision';
-import { isValidPlate, PLATE_CONFIDENCE_FLOOR } from '../lib/rules';
+import { isValidPlate } from '../lib/rules';
+import { photoPlates, plateStatus } from '../lib/plateCheck';
 import type { AddressState } from '../lib/reverseGeocode';
 import type { LatLng } from './PickMap';
 import { EXTRA_TYPES, MANUAL_TYPES, SIX_TYPES, VIOLATION_LABEL, locatedShot } from '../types/report';
@@ -335,70 +336,123 @@ export function VisionLine({
   );
 }
 
-/** 차량번호 아래 한 줄 — 두 장에서 따로 읽은 번호가 같을 때만 채운다. 아니면 왜 비웠는지 */
+/**
+ * 차량번호 아래 — 두 장에서 따로 읽은 번호가 같을 때만 채운다.
+ * AI 가 확실히 못 읽으면 사진을 보고 직접 입력하게 안내하고(담당자가 다시 본다),
+ * AI 가 확실히 읽은 번호와 어긋나면 사진별 판독을 나란히 보여 주고 '사진을 보고 다시 확인' 체크를 받는다.
+ */
 export function PlateNote({
   draft,
   vision,
   plateOk,
   onUse,
+  onConfirm,
 }: {
   draft: DraftReport;
   vision: { state: VisionState; result?: VisionResult };
   plateOk: boolean;
   onUse: (text: string) => void;
+  /** 사진을 보고 확인한 번호(체크 해제면 undefined) */
+  onConfirm?: (value: string | undefined) => void;
 }) {
   const r = vision.result;
-  const reads = [...new Set(r?.plate.reads ?? [])];
-  const normalized = (text: string) => text.replace(/\s/g, '');
-  const trusted = r && r.sameVehicle === 'yes' && r.plate.agree === true && r.plate.readable
-    && Number.isFinite(r.plate.confidence) && r.plate.confidence >= PLATE_CONFIDENCE_FLOOR
-    && r.plate.reads.length === 2 && r.plate.reads.every((text) => isValidPlate(text) && normalized(text) === normalized(r.plate.text));
-  const enteredMatches = trusted && draft.plate && normalized(draft.plate) === normalized(r.plate.text);
-  if (draft.plate && !plateOk) {
-    return <p className="mt-1 text-sm text-red-600">형식이 맞지 않습니다. 예: 12가3456, 123가4567</p>;
-  }
-  if (draft.plate && trusted && !enteredMatches) {
-    return <p className="mt-1 text-sm text-red-600">입력한 차량번호({draft.plate})가 두 사진에서 읽은 번호({r.plate.text})와 다릅니다. 사진과 입력을 확인해 주세요.</p>;
-  }
-  if (enteredMatches && !draft.manual?.plate) {
+  const ps = plateStatus(draft, r);
+  const shown = photoPlates(r);
+  const formatError = draft.plate && !plateOk
+    ? <p className="mt-1 text-sm text-red-600">형식이 맞지 않습니다. 예: 12가3456, 123가4567</p>
+    : null;
+  const useButtons = [...new Set(ps.reads)].filter((t) => t !== ps.entered && isValidPlate(t));
+  const readsBox = (
+    <div className="mt-2 rounded border border-slate-200 bg-white text-[15px] divide-y divide-slate-100">
+      {shown.map((read, i) => (
+        <p key={i} className="flex justify-between gap-2 px-3 py-1.5">
+          <span className="text-slate-500">{i + 1}장 사진 AI 판독</span>
+          <span className={`tabular-nums font-bold ${read ? 'text-slate-800' : 'text-slate-400'}`}>
+            {read ? `${read.text} · 확신 ${Math.round(read.confidence * 100)}%` : '못 읽음'}
+          </span>
+        </p>
+      ))}
+      <p className="flex justify-between gap-2 px-3 py-1.5">
+        <span className="text-slate-500">입력한 번호</span>
+        <span className="tabular-nums font-bold text-slate-900">{ps.entered || '빈칸'}</span>
+      </p>
+    </div>
+  );
+  const uses = useButtons.length > 0 && (
+    <div className="mt-2 flex items-center gap-1.5 flex-wrap text-[13px] text-slate-500">
+      사진을 보고 맞으면
+      {useButtons.map((t) => (
+        <button key={t} onClick={() => onUse(t)} className="px-2 py-0.5 rounded border border-slate-300 bg-white text-slate-700 font-bold tabular-nums">
+          {t} 쓰기
+        </button>
+      ))}
+    </div>
+  );
+
+  if (ps.kind === 'match') {
     return (
       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
         <span className={`px-2 py-0.5 rounded border text-xs font-bold ${SOURCE.photo.cls}`}>두 장 판독 일치</span>
-        <span className="text-[13px] text-slate-500">신뢰도 {Math.round(r.plate.confidence * 100)}% · 한 글자씩 확인해 주세요</span>
+        <span className="text-[13px] text-slate-500">신뢰도 {Math.round((r?.plate.confidence ?? 0) * 100)}% · 한 글자씩 확인해 주세요</span>
       </div>
     );
   }
-  if (r && (!draft.plate || !trusted)) {
-    const why = !r.plate.readable || r.plate.reads.length === 0
-      ? '사진에서 번호판을 확실히 읽지 못했습니다'
-      : r.plate.reads.length === 1
-        ? `한 장에서만 읽혔습니다(${reads[0]})`
-        : reads.some((text) => !isValidPlate(text))
-          ? `읽은 값(${reads.join(' / ')})이 번호판 형식과 다릅니다`
-          : !Number.isFinite(r.plate.confidence) || r.plate.confidence < PLATE_CONFIDENCE_FLOOR
-            ? `읽은 번호(${reads.join(' / ')})의 신뢰도가 기준(${Math.round(PLATE_CONFIDENCE_FLOOR * 100)}%)에 못 미치거나 확인되지 않습니다`
-            : r.plate.agree === false
-              ? `두 장에서 읽은 번호가 다릅니다(${r.plate.reads.join(' / ')})`
-              : trusted
-                ? `두 사진에서 같은 번호(${r.plate.text})를 읽었습니다`
-                : '두 장 번호판 일치를 확정할 수 없습니다';
+
+  if (ps.kind === 'conflict') {
+    const ready = Boolean(ps.entered) && plateOk;
     return (
-      <div className="mt-1.5 text-[13px] text-slate-500">
-        <p>{draft.plate && '입력한 번호는 유지했습니다. '}{why} — 사진과 번호를 확인해 주세요</p>
-        {reads.length > 0 && (
-          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-            사진을 보고 맞으면
-            {reads.map((t) => (
-              <button key={t} onClick={() => onUse(t)} className="px-2 py-0.5 rounded border border-slate-300 text-slate-700 font-bold tabular-nums">
-                {t} 쓰기
-              </button>
-            ))}
-          </div>
-        )}
+      <div className={`mt-2 rounded-lg border p-3 ${ps.confirmed ? 'border-amber-300 bg-amber-50' : 'border-red-300 bg-red-50'}`}>
+        {formatError}
+        <p className={`text-[15px] font-bold ${ps.confirmed ? 'text-amber-800' : 'text-red-700'}`}>
+          {ps.conflict === 'reads'
+            ? `AI가 두 장에서 서로 다른 번호를 읽었어요(${ps.reads.join(' / ')})`
+            : `입력한 번호가 AI가 두 장에서 읽은 번호(${ps.reads[0]})와 달라요`}
+        </p>
+        <p className="mt-0.5 text-[13px] text-slate-600">아래 확대 사진에서 번호판을 한 글자씩 보고, 사진에 보이는 번호로 입력해 주세요.</p>
+        {readsBox}
+        {uses}
+        <div className="mt-3">
+          <CheckLine
+            checked={ps.confirmed}
+            onChange={ready ? (v) => onConfirm?.(v ? ps.entered : undefined) : undefined}
+            label={ready ? `사진을 보고 다시 확인했어요 (${ps.entered})` : '번호를 입력하면 확인할 수 있어요'}
+          />
+        </div>
+        <p className={`mt-1.5 text-[13px] ${ps.confirmed ? 'text-amber-800' : 'text-red-700'}`}>
+          {ps.confirmed
+            ? '확인한 번호로 냅니다. 담당자가 사진으로 번호를 한 번 더 확인해요.'
+            : '확인하기 전에는 점검에서 빨간불로 남아 낼 수 없어요.'}
+        </p>
       </div>
     );
   }
-  return null;
+
+  if (ps.kind === 'empty') {
+    return (
+      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[13px] text-slate-500">
+        두 사진에서 같은 번호({ps.reads[0]})를 읽었어요. 사진을 보고 맞으면
+        <button onClick={() => onUse(ps.reads[0])} className="px-2 py-0.5 rounded border border-slate-300 bg-white text-slate-700 font-bold tabular-nums">
+          {ps.reads[0]} 쓰기
+        </button>
+      </div>
+    );
+  }
+
+  if (vision.state === 'loading' || vision.state === 'idle') return formatError;
+  return (
+    <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3">
+      {formatError}
+      <p className="text-[15px] font-bold text-amber-800">사진에서 번호판을 확실히 읽지 못했어요</p>
+      <p className="mt-0.5 text-[13px] text-amber-900">{ps.reason}</p>
+      <ul className="mt-1.5 text-[13px] text-slate-700 list-disc pl-4 space-y-0.5">
+        <li>아래 확대 사진을 보고 직접 입력해 주세요.</li>
+        <li>현장에서 본 번호가 아니라 <b>사진에 보이는 번호</b>를 입력해 주세요. 사진에 번호판이 안 보이면 불수용될 수 있어요.</li>
+        <li>담당자가 사진으로 번호를 한 번 더 확인해요.</li>
+      </ul>
+      {r && readsBox}
+      {uses}
+    </div>
+  );
 }
 
 export const BOX_STYLE: Record<BoxLabel, { color: string; text: string }> = {

@@ -302,7 +302,7 @@ struct ReportStepsScreen: View {
         reading.run(draft, store: store, force: force) { result, captured in
             guard draft.review.revision == captured.review.revision, draft.evidence.map(\.id) == captured.evidence.map(\.id) else { return }
             var review = draft.review; review.aiResult = result; draft.evidenceReview = review
-            draft.applyPhotoType(); persist()
+            draft.applyPhotoType(); draft.applyPhotoPlate(); persist()
         }
     }
     /// 이미 받아 둔 판독으로도 유형을 맞춘다(다시 열었을 때·판독이 꺼져 있을 때)
@@ -608,19 +608,106 @@ struct ReportStepsScreen: View {
         }
     }
 
-    // 2. 차량번호
+    // 2. 차량번호 — 두 사진에서 따로 읽은 번호가 같을 때만 채운다(웹 PlateNote).
+    // AI 가 확실히 못 읽으면 사진을 보고 직접 넣게 안내하고, AI 가 확실히 읽은 번호와 다르면 '사진을 보고 다시 확인' 체크를 받는다.
     private var plateStep: some View {
-        ReportStep(title: "차량번호 확인", sub: "두 사진의 번호판을 보고 입력해 주세요") {
-            TextField("예: 12가3456", text: Binding(get: { draft.plate ?? "" }, set: { draft.plate = $0; persist() }))
+        let ps = draft.plateStatus
+        return ReportStep(title: "차량번호 확인", sub: "두 사진에서 따로 읽은 번호가 같을 때만 채웁니다") {
+            TextField(reading.state == .loading ? "번호판을 읽는 중…" : "직접 입력 (예: 12가3456)", text: Binding(get: { draft.plate ?? "" }, set: { draft.plate = $0; persist() }))
                 .textFieldStyle(.roundedBorder).font(.system(size: 20, weight: .medium)).autocorrectionDisabled().accessibilityLabel("차량번호")
-            let plate = (draft.plate ?? "").filter { !$0.isWhitespace }
-            if !plate.isEmpty && !ReportRules.isValidPlate(plate) { Text("번호판 형식과 다릅니다. 다시 확인해 주세요.").font(.system(size: 13)).foregroundStyle(.red).padding(.top, 6) }
+            if !ps.entered.isEmpty && !ReportRules.isValidPlate(ps.entered) { Text("형식이 맞지 않습니다. 예: 12가3456, 123가4567").font(.system(size: 13)).foregroundStyle(.red).padding(.top, 6) }
+            plateNote(ps)
             HStack(spacing: 8) {
                 ForEach(draft.primaryPair.prefix(2)) { photo in
                     if let image = store.image(photo) { Image(uiImage: image).resizable().scaledToFit().frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: 8)) }
                 }
             }.padding(.top, 12)
         }
+    }
+    @ViewBuilder private func plateNote(_ ps: PlateStatus) -> some View {
+        switch ps.kind {
+        case .match:
+            HStack(spacing: 8) {
+                Text("두 장 판독 일치").font(.system(size: 12, weight: .bold)).foregroundStyle(ReportAppearance.blue)
+                    .padding(.horizontal, 8).padding(.vertical, 2).overlay(RoundedRectangle(cornerRadius: 4).stroke(ReportAppearance.blue.opacity(0.4)))
+                Text("신뢰도 \(Int(((draft.photoPlates?.compactMap { $0?.confidence }.min() ?? 0) * 100).rounded()))% · 한 글자씩 확인해 주세요").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
+            }.padding(.top, 6)
+        case .empty:
+            HStack(spacing: 6) {
+                Text("두 사진에서 같은 번호(\(ps.reads[0]))를 읽었어요. 사진을 보고 맞으면").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
+                plateUseButton(ps.reads[0])
+            }.padding(.top, 6)
+        case .conflict:
+            let ready = ReportRules.isValidPlate(ps.entered)
+            let tint: Color = ps.confirmed ? .orange : .red
+            VStack(alignment: .leading, spacing: 8) {
+                Text(ps.conflict == .reads ? "AI가 두 장에서 서로 다른 번호를 읽었어요(\(ps.reads.joined(separator: " / ")))" : "입력한 번호가 AI가 두 장에서 읽은 번호(\(ps.reads[0]))와 달라요")
+                    .font(.system(size: 15, weight: .bold)).foregroundStyle(tint)
+                Text("아래 사진에서 번호판을 한 글자씩 보고, 사진에 보이는 번호로 입력해 주세요.").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
+                plateReads(ps)
+                plateUseButtons(ps)
+                Button {
+                    guard ready else { return }
+                    draft.plateConfirmedFor = ps.confirmed ? nil : ps.entered; persist()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: ps.confirmed ? "checkmark.square.fill" : "square").font(.system(size: 24)).foregroundStyle(ps.confirmed ? ReportAppearance.blue : Color.gray)
+                        Text(ready ? "사진을 보고 다시 확인했어요 (\(ps.entered))" : "번호를 입력하면 확인할 수 있어요").font(.system(size: 16)).foregroundStyle(ReportAppearance.ink)
+                    }.frame(minHeight: 44)
+                }.buttonStyle(.plain).disabled(!ready).accessibilityValue(ps.confirmed ? "확인함" : "확인 안 함")
+                Text(ps.confirmed ? "확인한 번호로 냅니다. 담당자가 사진으로 번호를 한 번 더 확인해요." : "확인하기 전에는 점검에서 빨간불로 남아 낼 수 없어요.")
+                    .font(.system(size: 13)).foregroundStyle(tint)
+            }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+            .background(tint.opacity(0.07), in: RoundedRectangle(cornerRadius: 10)).overlay(RoundedRectangle(cornerRadius: 10).stroke(tint.opacity(0.4))).padding(.top, 8)
+        case .unreadable:
+            if reading.state != .loading && reading.state != .retrying {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("사진에서 번호판을 확실히 읽지 못했어요").font(.system(size: 15, weight: .bold)).foregroundStyle(.orange)
+                    Text(ps.reason ?? "").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("· 아래 사진을 보고 직접 입력해 주세요.")
+                        Text("· 현장에서 본 번호가 아니라 **사진에 보이는 번호**를 입력해 주세요. 사진에 번호판이 안 보이면 불수용될 수 있어요.")
+                        Text("· 담당자가 사진으로 번호를 한 번 더 확인해요.")
+                    }.font(.system(size: 13)).foregroundStyle(ReportAppearance.ink)
+                    if draft.photoPlates != nil { plateReads(ps) }
+                    plateUseButtons(ps)
+                }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 10)).overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.orange.opacity(0.4))).padding(.top, 8)
+            }
+        }
+    }
+    /// 사진마다 AI 가 읽은 번호와 입력한 번호를 나란히
+    private func plateReads(_ ps: PlateStatus) -> some View {
+        let photos = draft.photoPlates ?? [nil, nil]
+        return VStack(spacing: 0) {
+            ForEach(Array(photos.enumerated()), id: \.offset) { i, read in
+                HStack {
+                    Text("\(i + 1)장 사진 AI 판독").foregroundStyle(ReportAppearance.muted)
+                    Spacer()
+                    if let read, read.readable { Text("\(read.text) · 확신 \(Int((read.confidence * 100).rounded()))%").bold().monospacedDigit() }
+                    else { Text("못 읽음").foregroundStyle(ReportAppearance.muted) }
+                }.padding(.horizontal, 10).padding(.vertical, 6)
+                Divider()
+            }
+            HStack {
+                Text("입력한 번호").foregroundStyle(ReportAppearance.muted)
+                Spacer()
+                Text(ps.entered.isEmpty ? "빈칸" : ps.entered).bold().monospacedDigit()
+            }.padding(.horizontal, 10).padding(.vertical, 6)
+        }.font(.system(size: 15)).background(.white, in: RoundedRectangle(cornerRadius: 8)).overlay(RoundedRectangle(cornerRadius: 8).stroke(ReportAppearance.border))
+    }
+    @ViewBuilder private func plateUseButtons(_ ps: PlateStatus) -> some View {
+        let uses = ps.reads.reduce(into: [String]()) { if !$0.contains($1) && $1 != ps.entered && ReportRules.isValidPlate($1) { $0.append($1) } }
+        if !uses.isEmpty {
+            HStack(spacing: 6) {
+                Text("사진을 보고 맞으면").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted)
+                ForEach(uses, id: \.self) { plateUseButton($0) }
+            }
+        }
+    }
+    private func plateUseButton(_ text: String) -> some View {
+        Button("\(text) 쓰기") { draft.plate = text; persist() }
+            .font(.system(size: 13, weight: .bold)).buttonStyle(.bordered).accessibilityLabel("\(text) 쓰기")
     }
 
     // 3. 내용
@@ -662,6 +749,13 @@ struct ReportStepsScreen: View {
                 }.padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
                 Divider()
             }
+            if let line = draft.officerPlateLine {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("담당 공무원에게 함께 가는 확인 사항").font(.system(size: 15, weight: .bold))
+                    Text(line).font(.system(size: 13)).foregroundStyle(ReportAppearance.ink).fixedSize(horizontal: false, vertical: true)
+                }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                .background(ReportAppearance.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 10)).overlay(RoundedRectangle(cornerRadius: 10).stroke(ReportAppearance.blue.opacity(0.3))).padding(.top, 12)
+            }
             Text("개선 제안용 화면이라 실제로 접수되지 않습니다. 제출하면 이 기기의 '제출한 신고'에 보관합니다.").font(.system(size: 12)).foregroundStyle(ReportAppearance.muted).padding(.top, 10)
         }
     }
@@ -682,6 +776,7 @@ struct ReportStepsScreen: View {
         if draft.reportBlocked { submitBlocked = "현재 상태로 다시 점검했습니다. 빨간불 항목을 확인해 주세요."; return }
         var done = draft; done.submittedAt = Date()
         if done.bodyEdited != true { done.body = done.composedBody }
+        done.officerNote = done.officerPlateLine
         do { try store.save(done); draft = done; onSubmitted() }
         catch { saveState.failed("저장하지 못했습니다. 입력은 이 화면에 그대로 있습니다. 다시 시도해 주세요.") }
     }

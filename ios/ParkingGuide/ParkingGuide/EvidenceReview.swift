@@ -147,6 +147,16 @@ struct NativeGround: Codable, Equatable {
         return surface == "both" || surface == (type == .crossing ? "crosswalk" : "sidewalk") ? "yes" : "no"
     }
 }
+/// 사진 한 장에서 AI 가 읽은 번호판(웹 PhotoRead.plate 와 같다)
+struct NativePlateRead: Codable, Equatable {
+    var text: String; var readable: Bool; var confidence: Double
+    static func normalize(_ raw: Any?) -> NativePlateRead? {
+        guard let r = raw as? [String: Any] else { return nil }
+        let text = String((r["text"] as? String ?? "").filter { !$0.isWhitespace }.prefix(20))
+        let confidence = (r["confidence"] as? NSNumber)?.doubleValue ?? 0
+        return NativePlateRead(text: text, readable: r["readable"] as? Bool == true && !text.isEmpty, confidence: confidence.isFinite ? min(1, max(0, confidence)) : 0)
+    }
+}
 struct NativeAIResult: Codable {
     var revision: Int; var photoIDs: [UUID]; var generatedAt: Date; var recommendedTypes: [EvidenceType]
     var observations: [NativeAIObservation]; var summary: String; var model: String
@@ -156,6 +166,8 @@ struct NativeAIResult: Codable {
     var legacyReads: [NativeLegacyPhotoRead]? = nil
     /// 사진 ID → 바퀴가 닿은 바닥. 이전 판독에는 없다(그때는 횡단보도·인도 '위'를 확인하지 않은 것으로 본다).
     var grounds: [String: NativeGround]? = nil
+    /// 기본 사진 ID → 그 사진에서 읽은 번호판. 이전 판독에는 없다(그때는 판독 결과가 없는 것으로 본다).
+    var plates: [String: NativePlateRead]? = nil
 }
 /// A user-selected search rectangle. It is not an observation or a new photo.
 struct EvidenceRegion: Codable {

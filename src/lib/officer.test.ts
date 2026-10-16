@@ -18,7 +18,14 @@ const draft: DraftReport = {
 };
 const pc = (d: DraftReport, v: VisionResult | null = vision) =>
   precheck({ draft: d, body: '횡단보도 위 주차', verdict: { type: 'crossing', source: 'photo', suspicions: [], alternatives: [] }, vision: v, now: T0 + 120_000, minInterval: 60 });
-const lines = (d: DraftReport, v?: VisionResult | null) => officerLines({ draft: d, precheck: pc(d, v), rules: rulesFor(d.address), minInterval: 60 });
+const lines = (d: DraftReport, v: VisionResult | null = vision) => officerLines({ draft: d, precheck: pc(d, v), rules: rulesFor(d.address), minInterval: 60, vision: v });
+/** 사진마다 AI 가 읽은 번호 — null 은 못 읽은 장 */
+const perPhoto = (reads: ([string, number] | null)[], plate: Partial<VisionResult['plate']>) => ({
+  ...vision,
+  sameVehicle: 'unclear',
+  photos: reads.map((r) => ({ plate: r ? { text: r[0], readable: true, confidence: r[1] } : { text: '', readable: false, confidence: 0 } })),
+  plate: { ...vision.plate, ...plate },
+}) as unknown as VisionResult;
 
 describe('담당 공무원용 사전 점검 요약', () => {
   it('규칙으로 잰 값을 숫자로 적는다', () => {
@@ -34,8 +41,25 @@ describe('담당 공무원용 사전 점검 요약', () => {
   it('통과하지 못한 항목은 숨기지 않는다', () => {
     const l = lines({ ...draft, overlap: { ratio: 0.3, score: 0.2, same: false } }, null).join('\n');
     expect(l).toContain('겹침 30%(기준 50%) 미달');
-    expect(l).toContain('두 장 번호 대조 안 됨');
+    expect(l).toContain('- 차량번호: 12가3456(신고인 직접 입력) · AI 판독: 판독 결과 없음 — AI가 확실히 읽지 못함, 사진으로 번호 확인 필요');
     expect(l).toMatch(/확인 필요: .*두 장 번호판 일치/);
+  });
+  it('AI 가 못 읽은 번호는 출처와 사진별 판독을 맨 위에 적는다', () => {
+    const v = perPhoto([null, ['12가3458', 0.62]], { text: '12가3458', readable: true, confidence: 0.62, agree: null, reads: ['12가3458'] });
+    const l = lines({ ...draft, manual: { plate: true } }, v);
+    expect(l[0]).toBe('- 차량번호: 12가3456(신고인 직접 입력) · AI 판독: 1장 못 읽음, 2장 12가3458(확신 62%) — AI가 확실히 읽지 못함, 사진으로 번호 확인 필요');
+    expect(l.some((x) => x.startsWith('- 같은 차'))).toBe(false);
+  });
+  it('AI 판독과 다른 번호를 신고인이 확인하고 냈으면 그렇게 적는다', () => {
+    const v = perPhoto([['12가3458', 0.93], ['12가3458', 0.91]], { text: '12가3458', reads: ['12가3458', '12가3458'], confidence: 0.91 });
+    const l = lines({ ...draft, plateConfirmedFor: '12가3456' }, { ...v, sameVehicle: 'yes' });
+    expect(l[0]).toBe('- 차량번호: 12가3456(신고인이 사진 보고 확인) · AI 판독: 1장 12가3458(확신 93%), 2장 12가3458(확신 91%) — AI 판독과 다름, 사진으로 번호 확인 필요');
+  });
+  it('요약을 줄여도 차량번호 확인 줄은 남긴다', () => {
+    const body = '가'.repeat(700);
+    const out = withOfficerSummary(body, lines(draft, null));
+    expect(out.length).toBeLessThanOrEqual(900);
+    expect(out).toContain('- 차량번호: 12가3456(신고인 직접 입력)');
   });
   it('지역 규정을 쓰면 그 지역과 확인일을 밝힌다', () => {
     const l = lines({ ...draft, address: '대전광역시 동구 동구청로 147' }).join('\n');

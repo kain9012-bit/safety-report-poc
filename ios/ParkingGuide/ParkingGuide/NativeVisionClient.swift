@@ -21,7 +21,7 @@ struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
         groups += draft.evidence.filter { !primaryIDs.contains($0.id) }.map { [$0] }
         guard !groups.isEmpty else { throw NativeVisionError(message: "보관한 사진이 없습니다.") }
         var observations: [NativeAIObservation] = []; var candidates: [EvidenceType] = []; var summaries: [String] = []; var models: [String] = []; var links: [String: NativeAITargetLink] = [:]
-        var formats: Set<String> = []; var legacyReads: [NativeLegacyPhotoRead] = []; var notes: [String] = []; var grounds: [String: NativeGround] = [:]
+        var formats: Set<String> = []; var legacyReads: [NativeLegacyPhotoRead] = []; var notes: [String] = []; var grounds: [String: NativeGround] = [:]; var plates: [String: NativePlateRead] = [:]
         for group in groups {
             try Task.checkCancellation()
             let images = try group.map { photo -> String in
@@ -80,6 +80,12 @@ struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
                     if let ground = NativeGround.normalize((raw as? [String: Any])?["ground"]) { grounds[group[index].id.uuidString] = ground }
                 }
             }
+            // 번호판도 전체 장면 판독의 것만, 기본 사진 두 장에서만 쓴다(보완사진의 번호는 같은 차 대조에 쓰지 않는다)
+            if group.map(\.id) == draft.primaryPair.map(\.id), let photos = decoded.object["photos"] as? [Any] {
+                for (index, raw) in photos.enumerated() where group.indices.contains(index) {
+                    if let plate = NativePlateRead.normalize((raw as? [String: Any])?["plate"]) { plates[group[index].id.uuidString] = plate }
+                }
+            }
             if decoded.supportsDetails, group.count == 1, let reads = envelope["photos"] as? [[String: Any]], let link = reads.first?["targetLink"] as? [String: Any],
                let referenceID = (link["referencePhotoId"] as? String).flatMap(UUID.init(uuidString:)), referenceID == draft.primaryPair.first?.id {
                 links[group[0].id.uuidString] = .init(referencePhotoID: referenceID, sameVehicle: link["sameVehicle"] as? String ?? "unclear", samePlace: link["samePlace"] as? String ?? "unclear", evidence: String((link["evidence"] as? String ?? "").prefix(1200)))
@@ -90,7 +96,7 @@ struct NativeRegionHint { var type: EvidenceType; var box: [Double] }
         }
         let uniqueNotes = notes.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         let types = EvidenceType.allCases.filter { candidates.contains($0) }
-        return NativeAIResult(revision: draft.review.revision, photoIDs: draft.evidence.map(\.id), generatedAt: Date(), recommendedTypes: types, observations: observations, summary: (uniqueNotes + summaries).joined(separator: "\n"), model: Array(Set(models)).sorted().joined(separator: ","), targetLinks: links, responseFormat: formats.count == 1 ? formats.first : "mixed", compatibilityNotes: uniqueNotes, legacyReads: legacyReads, grounds: grounds.isEmpty ? nil : grounds)
+        return NativeAIResult(revision: draft.review.revision, photoIDs: draft.evidence.map(\.id), generatedAt: Date(), recommendedTypes: types, observations: observations, summary: (uniqueNotes + summaries).joined(separator: "\n"), model: Array(Set(models)).sorted().joined(separator: ","), targetLinks: links, responseFormat: formats.count == 1 ? formats.first : "mixed", compatibilityNotes: uniqueNotes, legacyReads: legacyReads, grounds: grounds.isEmpty ? nil : grounds, plates: draft.primaryPair.isEmpty ? nil : plates)
     }
     static func detailImages(_ object: [String: Any], originals: [Data], regionHints: [[String: Any]] = []) throws -> [[String: Any]] {
         guard let photos = object["photos"] as? [Any] else { return [] }

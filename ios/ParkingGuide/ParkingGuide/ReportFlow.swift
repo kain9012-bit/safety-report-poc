@@ -161,6 +161,47 @@ enum ReportEvidence {
     }
 }
 
+/// 차량번호 — AI 판독과 신고인이 입력한 번호의 관계(웹 src/lib/plateCheck.ts 와 같은 규칙).
+/// AI 가 확실히 못 읽으면 신고인이 사진을 보고 입력한 번호로 내고 담당자가 다시 본다(주황).
+/// AI 가 확실히 읽은 번호와 어긋나면 사진을 보고 확인해야 낼 수 있고, 확인해도 주황으로 남긴다.
+struct PlateStatus: Equatable {
+    enum Kind { case match, empty, unreadable, conflict }
+    enum Conflict { case entered, reads }
+    var kind: Kind
+    var conflict: Conflict? = nil
+    /// 신고인이 입력한 번호(공백 제거)
+    var entered: String
+    /// 두 장에서 읽힌 번호(읽힌 것만)
+    var reads: [String]
+    var confirmed: Bool
+    var reason: String? = nil
+
+    static let confidenceFloor = 0.8
+    private static func clean(_ text: String?) -> String { (text ?? "").filter { !$0.isWhitespace } }
+
+    /// photos: 기본 사진 두 장의 판독(못 읽은 장은 nil). 판독 결과가 없으면 nil.
+    static func make(plate: String?, confirmedFor: String?, photos: [NativePlateRead?]?) -> PlateStatus {
+        let entered = clean(plate)
+        let confirmed = !entered.isEmpty && clean(confirmedFor) == entered
+        let readable = (photos ?? []).compactMap { $0 }.filter(\.readable)
+        let reads = readable.map(\.text)
+        let valid = reads.count == 2 && reads.allSatisfy(ReportRules.isValidPlate)
+        let confident = !readable.isEmpty && readable.map(\.confidence).min()! >= confidenceFloor
+        let sure = valid && confident
+        let trustedMatch = sure && reads[0] == reads[1]
+        if trustedMatch && entered == reads[0] { return .init(kind: .match, entered: entered, reads: reads, confirmed: confirmed) }
+        if sure && reads[0] != reads[1] { return .init(kind: .conflict, conflict: .reads, entered: entered, reads: reads, confirmed: confirmed) }
+        if trustedMatch { return entered.isEmpty ? .init(kind: .empty, entered: entered, reads: reads, confirmed: confirmed) : .init(kind: .conflict, conflict: .entered, entered: entered, reads: reads, confirmed: confirmed) }
+        let reason = photos == nil ? "판독 결과 없음"
+            : reads.isEmpty ? "번호판을 읽지 못함"
+            : reads.count == 1 ? "한 장에서만 읽힘(\(reads[0]))"
+            : !valid ? "읽은 값이 번호판 형식과 다름(\(reads.joined(separator: " / ")))"
+            : !confident ? "확신도가 기준(\(Int(confidenceFloor * 100))%) 미만"
+            : "두 장 번호판 일치를 확정할 수 없음"
+        return .init(kind: .unreadable, entered: entered, reads: reads, confirmed: confirmed, reason: reason)
+    }
+}
+
 struct ReportCheck: Identifiable, Equatable {
     enum Status { case pass, warn, fail }
     var id: String; var label: String; var status: Status; var detail: String
@@ -205,6 +246,29 @@ extension ZoneCase {
     }
     var locatedPhoto: LocationRecord? { primaryPair.compactMap(\.location).first }
 
+    /// 기본 사진 두 장에서 AI 가 읽은 번호판(못 읽은 장은 nil). 지금 사진의 판독이 없으면 nil.
+    var photoPlates: [NativePlateRead?]? {
+        guard let result = review.aiResult, result.revision == review.revision, let plates = result.plates, primaryPair.count == 2 else { return nil }
+        return primaryPair.map { plates[$0.id.uuidString] }
+    }
+    var plateStatus: PlateStatus { .make(plate: plate, confirmedFor: plateConfirmedFor, photos: photoPlates) }
+    /// '1장 12가3456(확신 92%), 2장 못 읽음' (웹 perPhotoReads)
+    var perPhotoReads: String {
+        guard let photos = photoPlates else { return "판독 결과 없음" }
+        return photos.enumerated().map { i, p in
+            if let p, p.readable { return "\(i + 1)장 \(p.text)(확신 \(Int((p.confidence * 100).rounded()))%)" }
+            return "\(i + 1)장 못 읽음"
+        }.joined(separator: ", ")
+    }
+    /// 담당자에게 함께 가는 차량번호 줄(웹 officerLines 의 '- 차량번호:'). 두 장 판독·입력이 같으면 nil.
+    var officerPlateLine: String? {
+        let ps = plateStatus
+        if ps.kind == .match { return nil }
+        let from = ps.confirmed ? "신고인이 사진 보고 확인" : "신고인 직접 입력"
+        let why = ps.kind == .conflict ? "AI 판독과 다름" : ps.kind == .empty ? "차량번호 빈칸" : "AI가 확실히 읽지 못함"
+        return "- 차량번호: \(ps.entered.isEmpty ? "빈칸" : "\(ps.entered)(\(from))") · AI 판독: \(perPhotoReads) — \(why), 사진으로 번호 확인 필요"
+    }
+
     /// 웹 composeBody 와 같은 개조식. 없는 값은 줄째로 뺀다. 판독 근거는 신고 내용에 붙이지 않는다.
     var composedBody: String {
         guard let first = primaryPair.first ?? evidence.first else { return "" }
@@ -222,7 +286,7 @@ extension ZoneCase {
     var reportBody: String { bodyEdited == true ? body : composedBody }
 
     /// 웹 제출 전 점검 중 iPhone에서 잴 수 있는 항목. 빨간불이 하나라도 있으면 제출하지 않는다.
-    /// 접수 기한·촬영시각 표시·지역 규정·번호판 판독 대조·두 사진 겹침은 아직 iPhone에 연결하지 않았다.
+    /// 접수 기한·촬영시각 표시·지역 규정·두 사진 겹침은 아직 iPhone에 연결하지 않았다.
     var reportChecks: [ReportCheck] {
         var out: [ReportCheck] = []
         let need = Double(ReportRules.intervalSeconds)
@@ -235,6 +299,7 @@ extension ZoneCase {
         let plate = (self.plate ?? "").filter { !$0.isWhitespace }
         out.append(.init(id: "plate", label: "차량번호", status: ReportRules.isValidPlate(plate) ? .pass : .fail,
                          detail: plate.isEmpty ? "차량번호가 비어 있습니다." : ReportRules.isValidPlate(plate) ? "\(plate) — 형식이 맞습니다." : "\(plate) — 번호판 형식과 다릅니다. 다시 확인해 주세요."))
+        out.append(vehicleCheck)
         let at = locatedPhoto
         let accuracy = at.flatMap { $0.accuracy.isFinite && $0.accuracy >= 0 ? $0.accuracy : nil }
         out.append(.init(id: "location", label: "위치 특정", status: at == nil ? .fail : accuracy == nil || accuracy! > 30 ? .warn : .pass,
@@ -269,4 +334,28 @@ extension ZoneCase {
         return out
     }
     var reportBlocked: Bool { reportChecks.contains { $0.status == .fail } }
+
+    /// 같은 차 — 웹 precheck 'vehicle' 과 같은 세 단계(초록·주황·빨강)와 문구
+    var vehicleCheck: ReportCheck {
+        let ps = plateStatus
+        let confirmedNote = "신고인이 사진을 보고 확인했습니다. 담당자가 사진으로 번호를 한 번 더 확인합니다."
+        let detail: String
+        switch ps.kind {
+        case .match: detail = "두 장에서 따로 읽은 번호와 입력한 차량번호가 같습니다."
+        case .empty: detail = "차량번호가 비어 있습니다. 두 장에서 읽은 번호는 \(ps.reads[0])입니다. 사진을 보고 입력해 주세요."
+        case .conflict:
+            detail = (ps.conflict == .reads ? "두 장에서 읽은 번호가 다릅니다(\(ps.reads.joined(separator: " / ")))." : "입력한 차량번호(\(ps.entered))가 두 장에서 읽은 번호(\(ps.reads[0]))와 다릅니다.")
+                + " " + (ps.confirmed ? confirmedNote : "차량번호 단계에서 사진을 보고 확인해 주세요.")
+        case .unreadable:
+            detail = ReportRules.isValidPlate(ps.entered)
+                ? "사진에서 번호판을 확실히 읽지 못했습니다(\(ps.reason ?? "")). 신고인이 입력한 번호로 내고, 담당자가 사진으로 번호를 한 번 더 확인합니다."
+                : "사진에서 번호판을 확실히 읽지 못했습니다(\(ps.reason ?? "")). 사진을 보고 차량번호를 바르게 입력해 주세요."
+        }
+        return .init(id: "vehicle", label: "두 장 번호판 일치", status: ps.kind == .match ? .pass : ps.kind == .conflict && !ps.confirmed ? .fail : .warn, detail: detail)
+    }
+    /// 판독이 두 장에서 같은 번호를 확실히 읽었고 칸이 비었으면 채운다(웹 자동 입력과 같이 — 사람이 넣은 번호는 덮어쓰지 않는다)
+    mutating func applyPhotoPlate() {
+        let ps = plateStatus
+        if ps.kind == .empty { plate = ps.reads[0] }
+    }
 }

@@ -96,9 +96,9 @@ describe('제출 전 점검 — 회의 결정 반영', () => {
   const st = (d: DraftReport, vision: never, id: string) =>
     precheck({ draft: d, body: '내용입니다', verdict: ok, vision, now: FRI_10 + 600_000 }).checks.find((c) => c.id === id);
 
-  it('번호판이 한 장에서만 읽히면 막는다', () => {
+  it('번호판이 한 장에서만 읽히면 막지 않고 담당자 확인(주황)으로 남긴다', () => {
     const c = st(base(), v('unclear', ['12가3456']), 'vehicle')!;
-    expect(c.status).toBe('fail');
+    expect(c.status).toBe('warn');
     expect(c.detail).toContain('한 장에서만');
   });
   it('두 장 번호가 같으면 통과', () => {
