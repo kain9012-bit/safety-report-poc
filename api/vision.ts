@@ -460,6 +460,8 @@ type CallOutcome = { read: PhotoRead; model: string } | 'rate_limited' | 'busy' 
 
 /** 사진 한 장 판독. 지정 모델이 붐비거나(503) 없어지면(404) 다음 후보로 넘어간다. */
 async function readOne(img: { mime: string; data: string }, key: string, models: string[]): Promise<CallOutcome> {
+  // 한도 초과(429)면 예비 모델로 넘긴다 — 무료 등급은 모델마다 한도를 따로 센다. 모두 막히면 그때 한도 초과로 알린다.
+  let limited = false;
   for (const model of models) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
@@ -476,8 +478,11 @@ async function readOne(img: { mime: string; data: string }, key: string, models:
       signal: AbortSignal.timeout(40_000),
     });
     if (res.status === 503 || res.status === 404) continue;
-    if (res.status === 429) return 'rate_limited';
-    if (!res.ok) return 'upstream';
+    if (res.status === 429) {
+      limited = true;
+      continue;
+    }
+    if (!res.ok) return limited ? 'rate_limited' : 'upstream';
     const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
     const text = j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
     try {
@@ -487,7 +492,7 @@ async function readOne(img: { mime: string; data: string }, key: string, models:
       return 'upstream';
     }
   }
-  return 'busy';
+  return limited ? 'rate_limited' : 'busy';
 }
 
 export async function POST(request: Request): Promise<Response> {

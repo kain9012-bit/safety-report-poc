@@ -12,6 +12,7 @@ import { SHOW_IN_PHOTO } from '../lib/crosscheck';
 import type { Precheck } from '../lib/precheck';
 import type { CheckResult, CheckStatus } from '../lib/rules';
 import type { Coverage, Verdict } from '../lib/crosscheck';
+import { RETRYING_TEXT } from '../lib/vision';
 import type { VisionState } from '../lib/vision';
 import type { BoxLabel, Scene, VisionResult } from '../../api/vision';
 import { effectiveScene } from '../../api/vision';
@@ -306,6 +307,7 @@ export function VisionLine({
     ok: '사진 판독 완료',
     no_key: '사진 판독 키가 연결되지 않았습니다',
     rate_limited: '사진 판독 한도에 걸렸습니다. 잠시 후 다시 시도해 주세요',
+    retrying: RETRYING_TEXT,
     busy: '판독 서버가 붐빕니다. 잠시 후 다시 시도해 주세요',
     error: '사진 판독에 실패했습니다',
   };

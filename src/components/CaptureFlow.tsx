@@ -18,6 +18,7 @@ import type { AppliedRules } from '../lib/localRules';
 import type { TypeOption } from '../lib/choose';
 import { OVERLAP_MIN } from '../lib/overlap';
 import { primeAlerts, ringReady, titleCountdown } from '../lib/alert';
+import { RETRYING_TEXT } from '../lib/vision';
 import type { VisionState } from '../lib/vision';
 import type { VisionResult } from '../../api/vision';
 import { VIOLATION_LABEL } from '../types/report';
@@ -381,6 +382,7 @@ function Spinner({ text }: { text: string }) {
 const READ_FAIL: Partial<Record<VisionState, string>> = {
   no_key: '사진 판독 키가 연결되지 않았습니다',
   rate_limited: '사진 판독 한도에 걸렸습니다. 잠시 후 다시 시도해 주세요',
+  retrying: RETRYING_TEXT,
   busy: '판독 서버가 붐빕니다. 잠시 후 다시 시도해 주세요',
   error: '사진 판독에 실패했습니다',
 };
@@ -408,7 +410,11 @@ function FirstReview(p: Props & { remainSec: number; rules: AppliedRules }) {
         <p className="text-[19px] font-bold">첫 번째 사진을 판독하지 못했습니다</p>
         <p className="text-[14px] text-slate-600">{READ_FAIL[st] ?? '사진 판독에 실패했습니다'}</p>
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => p.onRetryRead(0)} className="h-12 rounded-lg bg-[#3a8fdb] text-white font-bold">다시 판독</button>
+          {st === 'retrying' ? (
+            <Spinner text="곧 다시 판독합니다" />
+          ) : (
+            <button onClick={() => p.onRetryRead(0)} className="h-12 rounded-lg bg-[#3a8fdb] text-white font-bold">다시 판독</button>
+          )}
           <button onClick={p.onAcceptFirst} className="h-12 rounded-lg border-2 border-slate-300 text-slate-700 font-bold">판독 없이 계속</button>
         </div>
       </div>

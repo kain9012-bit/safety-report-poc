@@ -4,7 +4,12 @@
  */
 import type { PhotoRead, VisionResult } from '../../api/vision';
 
-export type VisionState = 'idle' | 'loading' | 'ok' | 'no_key' | 'rate_limited' | 'busy' | 'error';
+/** retrying: 판독 한도에 걸려 잠시 뒤 한 번 더 자동으로 판독하는 중 */
+export type VisionState = 'idle' | 'loading' | 'ok' | 'no_key' | 'rate_limited' | 'retrying' | 'busy' | 'error';
+
+/** 판독 한도에 걸렸을 때 자동으로 다시 판독하기까지 기다리는 시간 — 한 번만, 분당 한도가 풀릴 만큼 천천히 */
+export const RATE_LIMIT_RETRY_MS = 40_000;
+export const RETRYING_TEXT = '사진 판독 한도에 걸려 잠시 뒤 한 번 더 자동으로 판독합니다';
 
 /** 판독용 사본의 긴 변(px). 번호판 글자가 읽힐 만큼은 남긴다. */
 export const VISION_EDGE = 1280;
