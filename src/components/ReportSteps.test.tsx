@@ -33,6 +33,7 @@ function props(takenAt = TAKEN): ComponentProps<typeof ReportSteps> {
     options: [], rules: rulesFor(address),
     onRetryVision: vi.fn(), onEdit: vi.fn(), onPickAddress: vi.fn(),
     onRetake: vi.fn(), onHome: vi.fn(), onSubmit: vi.fn(),
+    photos: { onCamera: vi.fn(), onAlbum: vi.fn(), onRemove: vi.fn() },
   };
 }
 

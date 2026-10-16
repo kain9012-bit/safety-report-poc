@@ -8,10 +8,10 @@ import type { PhotoRead, VisionResult } from '../api/vision';
 import App from './App';
 import { kstTime } from './lib/kst';
 
-const mock = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), remove: vi.fn(), read: vi.fn(), album: vi.fn() }));
+const mock = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), remove: vi.fn(), read: vi.fn(), album: vi.fn(), albumFile: vi.fn() }));
 vi.mock('./lib/reports', async (original) => ({ ...await original<object>(), listReports: mock.list, saveReport: mock.save, deleteReport: mock.remove }));
 vi.mock('./lib/vision', () => ({ readOne: mock.read }));
-vi.mock('./lib/album', () => ({ readAlbum: mock.album }));
+vi.mock('./lib/album', () => ({ readAlbum: mock.album, readAlbumFile: mock.albumFile }));
 vi.mock('./lib/reverseGeocode', () => ({ reverseGeocode: vi.fn(async () => ({ state: 'error' })) }));
 vi.mock('./lib/facilities', () => ({ loadNearby: vi.fn(async () => ({ state: 'ok', busstops: [], crosswalks: [], schools: [], missing: [] })) }));
 vi.mock('./lib/recommend', () => ({ recommend: () => [] }));
@@ -33,6 +33,10 @@ vi.mock('./components/ReportSteps', () => ({ default: (p: ComponentProps<typeof 
   <output data-testid="draft">{JSON.stringify(p.draft)}</output>
   <button onClick={p.onRetake}>retake</button><button onClick={p.onHome}>home</button><button onClick={p.onSubmit}>submit</button>
   <button onClick={() => p.onEdit('body', '수정한 수동 내용')}>edit body</button>
+  <button onClick={() => p.photos.onCamera(0)}>camera 0</button><button onClick={() => p.photos.onCamera(1)}>camera 1</button>
+  <button onClick={() => p.photos.onAlbum(0, new File(['new'], 'new.jpg'))}>album 0</button><button onClick={() => p.photos.onAlbum(1, new File(['new'], 'new.jpg'))}>album 1</button>
+  <button onClick={() => p.photos.onRemove(0)}>remove 0</button>
+  <output data-testid="ask">{String(Boolean(p.askMore))}</output><button onClick={p.onAsked}>asked</button>
 </div> }));
 
 const NOW = kstTime(2026, 10, 7, 11);
@@ -151,4 +155,66 @@ describe('실제 App의 보존·저장 화면 전환', () => {
     expect(screen.queryByTestId('home')).toBeNull(); expect(screen.getByTestId('capture')).toBeTruthy();
   });
 
+});
+
+describe('신고서 사진 칸 — 바꾸기·지우기·1장 더 넣기', () => {
+  const settle = () => act(() => new Promise((r) => setTimeout(r, 350)));
+
+  it('앨범으로 바꾸면 새 사진을 다 읽은 뒤에만 바꾸고 저장하며, 새 사진만 다시 판독한다', async () => {
+    const reading = deferred<DraftReport['shots'][number]>(); mock.albumFile.mockReturnValueOnce(reading.promise);
+    await boot(); click('album 1');
+    expect(draft().shots.map((s) => s.dataUrl)).toEqual(['data:,original0', 'data:,original1']);
+    await act(async () => reading.resolve({ takenAt: NOW - 30_000, dataUrl: 'data:,picked', source: 'album', meta: { takenAt: NOW - 30_000 } as never }));
+    expect(draft().shots.map((s) => s.dataUrl)).toEqual(['data:,original0', 'data:,picked']);
+    expect(mock.read).toHaveBeenCalledWith('data:,picked');
+    expect(mock.read).not.toHaveBeenCalledWith('data:,original0');
+    await settle();
+    expect(stored.draft.shots.map((s) => s.dataUrl)).toEqual(['data:,original0', 'data:,picked']);
+    expect(stored.draft.body).toBe(initial().draft.body);
+  });
+
+  it('앨범 사진을 읽지 못하면 기존 사진과 입력을 그대로 두고 알린다', async () => {
+    mock.albumFile.mockRejectedValueOnce(new Error('decode'));
+    await boot(); click('album 0');
+    await screen.findByText('사진을 읽지 못했습니다. 기존 사진과 입력은 그대로입니다.');
+    expect(draft()).toEqual(initial().draft);
+  });
+
+  it('카메라로 1번째를 바꾸면 2번째를 남겨 1번째로 두고 새 사진을 2번째로 찍으며, 취소하면 원래대로 돌아간다', async () => {
+    await boot(); click('camera 0'); await screen.findByTestId('capture');
+    expect(draft().shots.map((s) => s.dataUrl)).toEqual(['data:,original1']);
+    expect(draft().firstOk).toBe(true);
+    click('재촬영 취소 · 기존 자료로 돌아가기'); await screen.findByTestId('form');
+    expect(draft()).toEqual(initial().draft);
+    click('camera 0'); await screen.findByTestId('capture'); click('shot'); click('finish');
+    await screen.findByTestId('form');
+    expect(stored.draft.shots.map((s) => s.dataUrl)).toEqual(['data:,original1', 'data:,replacement']);
+  });
+
+  it('두 장 중 한 장을 지우면 남은 한 장으로 신고서에 머물고 저장한다', async () => {
+    await boot(); click('remove 0');
+    expect(draft().shots.map((s) => s.dataUrl)).toEqual(['data:,original1']);
+    expect(screen.getByTestId('form')).toBeTruthy();
+    await settle();
+    expect(stored.draft.shots.map((s) => s.dataUrl)).toEqual(['data:,original1']);
+    expect(mock.remove).not.toHaveBeenCalled();
+  });
+
+  it('앨범에서 1장만 고르면 1장 더 넣기를 묻고, 마지막 한 장을 지우면 신고를 지우고 처음 화면으로 간다', async () => {
+    mock.list.mockResolvedValue([]); render(<App />); await screen.findByTestId('home');
+    mock.album.mockResolvedValueOnce([{ takenAt: NOW - 600_000, dataUrl: 'data:,one', source: 'album' }]);
+    click('album'); await screen.findByTestId('form');
+    expect(screen.getByTestId('ask').textContent).toBe('true');
+    click('asked'); expect(screen.getByTestId('ask').textContent).toBe('false');
+    click('remove 0'); await screen.findByTestId('home');
+    expect(mock.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('카메라로 빈 칸에 넣으면 있는 한 장을 1번째로 남기고 2번째만 찍는다', async () => {
+    mock.list.mockResolvedValue([]); render(<App />); await screen.findByTestId('home');
+    mock.album.mockResolvedValueOnce([{ takenAt: NOW - 600_000, dataUrl: 'data:,one', source: 'album' }]);
+    click('album'); await screen.findByTestId('form');
+    click('camera 1'); await screen.findByTestId('capture');
+    expect(draft().shots.map((s) => s.dataUrl)).toEqual(['data:,one']);
+  });
 });

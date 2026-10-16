@@ -3,7 +3,7 @@ import { deleteReport, listReports, measure, newId, pickResume, saveReport } fro
 import type { ReportRecord } from './lib/reports';
 import { composeBody } from './lib/compose';
 import { precheck } from './lib/precheck';
-import { replacementDraft } from './lib/replacement';
+import { cameraDraft, removePhoto, replacePhoto, replacementDraft } from './lib/replacement';
 import { reverseGeocode } from './lib/reverseGeocode';
 import type { AddressState } from './lib/reverseGeocode';
 import { loadNearby } from './lib/facilities';
@@ -348,12 +348,13 @@ export default function App() {
 
   const onShot = (s: Shot) => setDraft((d) => ({ ...d, shots: [...d.shots, s].slice(0, 2) }));
 
-  const retake = (index: 0 | 1) => {
+  // 교체 촬영 — 원래 기록은 저장해 두고 후보만 촬영 화면으로 보낸다. 완료 버튼에서 저장이 확정될 때만 바뀐다.
+  const recapture = (build: (d: DraftReport) => DraftReport) => {
     const snapshot = current.current;
     if (!snapshot || busyRef.current) return;
     const begin = () => {
       setReplacement((old) => old ?? snapshot);
-      const next = replacementDraft(snapshot.draft, index);
+      const next = build(snapshot.draft);
       setRec({ ...snapshot, draft: next, phase: 'capture' });
       setReadStates(statesOf(next));
       geoKey.current = undefined;
@@ -361,10 +362,54 @@ export default function App() {
       setScreen('capture');
     };
     if (replacementRef.current) begin();
-    else void persist(snapshot, begin, () => retake(index));
+    else void persist(snapshot, begin, () => recapture(build));
   };
+  const retake = (index: 0 | 1) => recapture((d) => replacementDraft(d, index));
   const retakeFirst = () => retake(0);
   const retakeSecond = () => retake(1);
+
+  /* 신고서의 사진 칸 — 바꾸기·넣기(앨범·카메라)·지우기 */
+  const [photoBusy, setPhotoBusy] = useState<0 | 1 | undefined>(undefined);
+  const [askMore, setAskMore] = useState(false);
+  const applyPhotos = (next: DraftReport) => {
+    setRec((r) => (r ? { ...r, draft: next } : r));
+    setReadStates(statesOf(next));
+    ovKey.current = '';
+  };
+  const photoByCamera = (slot: 0 | 1) => {
+    const n = Math.min(2, current.current?.draft.shots.length ?? 0);
+    // 바꾸는 칸이 아닌 다른 한 장을 남긴다. 빈 칸에 넣을 때는 있는 한 장을 남긴다.
+    const keep: 0 | 1 | undefined = slot < n ? (n === 2 ? ((1 - slot) as 0 | 1) : undefined) : n > 0 ? 0 : undefined;
+    recapture((d) => cameraDraft(d, keep));
+  };
+  const photoByAlbum = (slot: 0 | 1, file: File) => {
+    if (busyRef.current || photoBusy !== undefined) return;
+    const id = rec?.id;
+    setPhotoBusy(slot);
+    void import('./lib/album')
+      .then(({ readAlbumFile }) => readAlbumFile(file))
+      .then((shot) => {
+        // 새 사진을 다 읽은 뒤에만 바꾼다 — 읽기에 실패하면 기존 사진·입력은 그대로다
+        const snapshot = current.current;
+        if (!snapshot || snapshot.id !== id) return;
+        applyPhotos(replacePhoto(snapshot.draft, slot, shot));
+      })
+      .catch(() => {
+        setToast('사진을 읽지 못했습니다. 기존 사진과 입력은 그대로입니다.');
+        setTimeout(() => setToast(null), 4000);
+      })
+      .finally(() => setPhotoBusy(undefined));
+  };
+  const photoRemove = (slot: 0 | 1) => {
+    const snapshot = current.current;
+    if (!snapshot || busyRef.current) return;
+    if (snapshot.draft.shots.length <= 1) {
+      // 사진이 한 장도 없는 신고는 남기지 않는다(처음 화면 목록의 지우기와 같다)
+      void remove(snapshot.id);
+      return;
+    }
+    applyPhotos(removePhoto(snapshot.draft, slot));
+  };
   const finishCapture = () => {
     const snapshot = current.current;
     if (!snapshot || snapshot.draft.shots.length !== 2) return;
@@ -397,6 +442,8 @@ export default function App() {
         setRec({ id: newId(t), draft: { shots, firstOk: true }, phase: 'form', step: 0, createdAt: t, updatedAt: t });
         setReadStates([]);
         geoKey.current = undefined;
+        // 한 장만 골랐으면 신고서를 열자마자 1장 더 넣기를 묻는다
+        setAskMore(shots.length < 2);
         setAlbumState('idle');
         setScreen('form');
       })
@@ -433,7 +480,10 @@ export default function App() {
     clearTimeout(saveTimer.current);
     try {
       await deleteReport(id);
-      if (current.current?.id === id) setRec(null);
+      if (current.current?.id === id) {
+        setRec(null);
+        setScreen('home');
+      }
       setStorageError(null);
       await refresh();
     } catch {
@@ -521,6 +571,9 @@ export default function App() {
             onEdit={onEdit}
             onPickAddress={onPickAddress}
             onRetake={retakeSecond}
+            photos={{ busySlot: photoBusy, onCamera: photoByCamera, onAlbum: photoByAlbum, onRemove: photoRemove }}
+            askMore={askMore}
+            onAsked={() => setAskMore(false)}
             onHome={goHome}
             onSubmit={onSubmit}
           />
