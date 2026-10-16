@@ -73,6 +73,25 @@ export interface PhotoRead {
   typeConfidence: number;
   evidence: string;
   boxes: Box[];
+  /** 바퀴가 닿은 바닥 — 횡단보도·인도 '위'는 이것으로만 정한다. 이전 판독에는 없다. */
+  ground?: GroundRead;
+}
+
+/** 바퀴 하나가 닿은 바닥 — 하나만 고른다 */
+export type WheelSurface = 'roadway' | 'crosswalk_stripe' | 'sidewalk_block' | 'curb' | 'unclear';
+/** 차 전체로 하나 — 한 바퀴라도 흰 줄 위면 crosswalk, 보도블록 위면 sidewalk, 둘 다면 both, 보이는 바퀴가 모두 차도면 roadway */
+export type GroundSurface = 'roadway' | 'crosswalk' | 'sidewalk' | 'both' | 'unclear';
+/** 차와 횡단보도의 관계 — on(흰 줄 위)·adjacent(바로 앞뒤)·apart(떨어짐)·none(횡단보도 없음) */
+export type CrosswalkRelation = 'on' | 'adjacent' | 'apart' | 'none' | 'unclear';
+/**
+ * '바퀴가 닿은 바닥' 판독(사진 한 장). 근처에 보이는 횡단보도·보도와 차가 그 위에 있는 것을 섞지 않으려고
+ * 장면 항목과 따로 묻는다. 실제 사진에서 '횡단보도 위?·인도 위?'를 따로 물으면 바로 앞에 선 차를 '위'로 잘못 읽었다.
+ */
+export interface GroundRead {
+  surface: GroundSurface;
+  wheels: { wheel: string; surface: WheelSurface }[];
+  crosswalkRelation: CrosswalkRelation;
+  evidence: string;
 }
 
 export interface VisionResult {
@@ -91,6 +110,8 @@ export interface VisionResult {
   modelAgrees: boolean;
   evidence: string;
   model: string;
+  /** 횡단보도 바로 앞(바퀴는 횡단보도 밖)으로 읽힌 사진이 있다 — 유형으로 정하지 않고 따로 알린다 */
+  crosswalkAdjacent?: boolean;
 }
 
 export type VisionError = 'bad_request' | 'no_key' | 'rate_limited' | 'busy' | 'upstream' | 'too_large';
@@ -177,8 +198,18 @@ export const RESPONSE_SCHEMA = {
         required: ['label', 'box_2d'],
       },
     },
+    ground: {
+      type: 'OBJECT',
+      properties: {
+        wheels: { type: 'ARRAY', items: { type: 'OBJECT', properties: { wheel: { type: 'STRING' }, surface: { type: 'STRING', enum: ['roadway', 'crosswalk_stripe', 'sidewalk_block', 'curb', 'unclear'] } }, required: ['wheel', 'surface'] } },
+        surface: { type: 'STRING', enum: ['roadway', 'crosswalk', 'sidewalk', 'both', 'unclear'] },
+        crosswalkRelation: { type: 'STRING', enum: ['on', 'adjacent', 'apart', 'none', 'unclear'] },
+        evidence: { type: 'STRING' },
+      },
+      required: ['wheels', 'surface', 'crosswalkRelation', 'evidence'],
+    },
   },
-  required: ['plate', 'scene', 'typeGuess', 'typeConfidence', 'evidence', 'boxes'],
+  required: ['plate', 'scene', 'typeGuess', 'typeConfidence', 'evidence', 'boxes', 'ground'],
 };
 
 export const PROMPT = `너는 한국의 불법 주정차 신고 사진 한 장을 판독한다. 사진에 실제로 보이는 것만 답한다. 추측으로 채우지 않는다.
@@ -188,8 +219,7 @@ export const PROMPT = `너는 한국의 불법 주정차 신고 사진 한 장�
    - 한 글자라도 확실하지 않으면 readable=false, text는 빈 문자열. 틀린 번호는 엉뚱한 사람에게 과태료가 간다.
    - confidence는 0~1.
 2. scene: 단속 대상 차가 서 있는 자리에 대해 yes/no/unclear. 보이지 않으면 unclear.
-   - onCrosswalk: 차가 횡단보도(흰 줄무늬) 위에 걸쳐 있다
-   - onSidewalk: 차가 보도(인도) 위에 올라가 있다
+   - onCrosswalk·onSidewalk: 6번 ground 의 답과 같게 적는다(바퀴가 흰 줄·보도블록 위에 있을 때만 yes)
    - busStopVisible: 버스정류장 표지판·승강장이 차 바로 옆에 보인다
    - schoolZoneMarking: 어린이보호구역 표시(빨간 노면, '어린이보호구역' 표지·글씨)가 보인다
    - intersectionCorner: 차가 교차로 모퉁이(도로가 꺾이거나 만나는 곳)에 붙어 있다
@@ -205,7 +235,12 @@ export const PROMPT = `너는 한국의 불법 주정차 신고 사진 한 장�
 4. typeConfidence: 0~1. evidence: 그렇게 본 근거 한 문장(한국어).
 5. boxes: 근거가 된 것의 위치. 번호판(plate), 단속 차량(vehicle), 그리고 scene 에서 yes 로 답한 것마다
    (crosswalk, sidewalk, busstop_sign, schoolzone_mark, corner, hydrant, disabled_mark, permit, firelane_mark, ev_charger) 상자 하나.
-   box_2d 는 [ymin, xmin, ymax, xmax] 로, 사진 크기를 0~1000으로 본 정수.`;
+   box_2d 는 [ymin, xmin, ymax, xmax] 로, 사진 크기를 0~1000으로 본 정수.
+6. ground: 단속 대상 차의 바퀴가 실제로 닿아 있는 바닥만 본다. 근처에 보이는 횡단보도·보도는 바퀴가 그 위에 있지 않으면 넣지 않는다.
+   - wheels: 보이는 바퀴마다 하나만 — roadway(차도 아스팔트), crosswalk_stripe(횡단보도 흰 줄 위), sidewalk_block(보도블록·인도 포장 위), curb(연석에 걸침), unclear(안 보임).
+   - surface: 차 전체로 하나만 — 한 바퀴라도 흰 줄 위면 crosswalk, 한 바퀴라도 보도블록·인도 위로 올라가 있으면 sidewalk, 둘 다면 both, 보이는 바퀴가 모두 차도면 roadway, 바퀴와 바닥이 안 보이면 unclear.
+   - crosswalkRelation: on(차가 흰 줄 위), adjacent(바로 앞뒤에 붙어 있음), apart(떨어져 있음), none(횡단보도 없음), unclear. 실제 m 거리는 정하지 않는다.
+   - evidence: 판단 근거 한 문장(한국어).`;
 
 /** data URL 에서 base64 와 형식을 꺼낸다. 이미지가 아니면 null. */
 export function parseDataUrl(s: unknown): { mime: string; data: string } | null {
@@ -260,14 +295,64 @@ export function normalizeRead(raw: unknown): PhotoRead | null {
   const sc = (r.scene ?? {}) as Record<string, unknown>;
   const text = typeof r.plate?.text === 'string' ? r.plate.text.replace(/\s/g, '') : '';
   const scene = Object.fromEntries(SCENE_KEYS.map((k) => [k, tri(sc[k])])) as unknown as Scene;
+  const ground = normalizeGround(r.ground);
   return {
     plate: { text, readable: Boolean(r.plate?.readable) && text.length > 0, confidence: clamp01(r.plate?.confidence) },
-    scene,
+    scene: effectiveScene({ scene, ground }),
+    ...(ground ? { ground } : {}),
     typeGuess: TYPES.includes(r.typeGuess) ? r.typeGuess : 'none',
     typeConfidence: clamp01(r.typeConfidence),
     evidence: typeof r.evidence === 'string' ? r.evidence.slice(0, 200) : '',
     boxes: Array.isArray(r.boxes) ? (r.boxes.map(normalizeBox).filter(Boolean) as Box[]) : [],
   };
+}
+
+const WHEEL_SURFACES: WheelSurface[] = ['roadway', 'crosswalk_stripe', 'sidewalk_block', 'curb', 'unclear'];
+const GROUND_SURFACES: GroundSurface[] = ['roadway', 'crosswalk', 'sidewalk', 'both', 'unclear'];
+const CROSSWALK_RELATIONS: CrosswalkRelation[] = ['on', 'adjacent', 'apart', 'none', 'unclear'];
+
+/**
+ * '바퀴가 닿은 바닥' 응답을 다듬는다. 바퀴별 답과 차 전체 답이 서로 맞지 않으면 전체 답을 'unclear'로 둔다
+ * (예: 바퀴는 모두 차도인데 전체 답이 횡단보도). 바퀴 답이 없거나 연석·모름뿐이면 전체 답을 그대로 쓴다.
+ */
+export function normalizeGround(value: unknown): GroundRead | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  const r = value as Record<string, any>;
+  const wheels = (Array.isArray(r.wheels) ? r.wheels : []).slice(0, 8).flatMap((w: any) =>
+    w && WHEEL_SURFACES.includes(w.surface) ? [{ wheel: typeof w.wheel === 'string' ? w.wheel.slice(0, 40) : '', surface: w.surface as WheelSurface }] : [],
+  );
+  let surface: GroundSurface = GROUND_SURFACES.includes(r.surface) ? r.surface : 'unclear';
+  const cross = wheels.some((w: { surface: WheelSurface }) => w.surface === 'crosswalk_stripe');
+  const side = wheels.some((w: { surface: WheelSurface }) => w.surface === 'sidewalk_block');
+  const fromWheels: GroundSurface = cross && side ? 'both' : cross ? 'crosswalk' : side ? 'sidewalk'
+    : wheels.length && wheels.every((w: { surface: WheelSurface }) => w.surface === 'roadway') ? 'roadway' : 'unclear';
+  if (fromWheels !== 'unclear' && fromWheels !== surface) surface = 'unclear';
+  return {
+    surface,
+    wheels,
+    crosswalkRelation: CROSSWALK_RELATIONS.includes(r.crosswalkRelation) ? r.crosswalkRelation : 'unclear',
+    evidence: typeof r.evidence === 'string' ? r.evidence.slice(0, 300) : '',
+  };
+}
+
+/** 횡단보도·인도 '위' — 바닥 답으로만 정한다. 바닥 답이 없거나 모름이면 unclear. */
+export function groundOn(type: 'crossing' | 'sidewalk', ground?: GroundRead): Tri {
+  if (!ground || ground.surface === 'unclear') return 'unclear';
+  return ground.surface === 'both' || ground.surface === (type === 'crossing' ? 'crosswalk' : 'sidewalk') ? 'yes' : 'no';
+}
+
+/**
+ * 규칙이 쓰는 장면 — 횡단보도·인도 '위'를 바닥 답으로 바꾼다.
+ * 바닥 답이 없는 이전 판독은 그 두 항목을 '모름'으로 본다(근처에 보이기만 해도 '예'라고 답한 적이 있어서).
+ */
+export function effectiveScene(read: { scene: Scene; ground?: GroundRead }): Scene {
+  return { ...read.scene, onCrosswalk: groundOn('crossing', read.ground), onSidewalk: groundOn('sidewalk', read.ground) };
+}
+
+/** 횡단보도 바로 앞(바퀴는 횡단보도 밖)으로 읽힌 사진이 있는가 — 유형으로 정하지 않고 따로 알린다 */
+export function crosswalkAdjacent(reads: readonly (PhotoRead | null | undefined)[]): boolean {
+  const grounds = reads.flatMap((r) => (r?.ground ? [r.ground] : []));
+  return grounds.some((g) => g.crosswalkRelation === 'adjacent') && !grounds.some((g) => groundOn('crossing', g) === 'yes');
 }
 
 /** 두 장의 yes/no 를 합친다. 한쪽 yes·한쪽 no 면 판단 보류. */
@@ -335,7 +420,9 @@ export function mergeReads(reads: (PhotoRead | null)[], model: string): VisionRe
   };
   const sameVehicle: Tri = agree === true ? 'yes' : agree === false ? 'no' : 'unclear';
 
-  const scene = Object.fromEntries(SCENE_KEYS.map((k) => [k, mergeTri(a?.scene[k], b?.scene[k])])) as unknown as Scene;
+  // 이전에 저장된 판독(바닥 답 없음)도 같은 규칙으로 읽는다
+  const [sa, sb] = [a && effectiveScene(a), b && effectiveScene(b)];
+  const scene = Object.fromEntries(SCENE_KEYS.map((k) => [k, mergeTri(sa?.[k], sb?.[k])])) as unknown as Scene;
   const ruleTypes = typesFromScene(scene);
   const guesses = ok.map((r) => r.typeGuess).filter((t) => t !== 'none');
   const top = ruleTypes[0] ?? 'none';
@@ -355,6 +442,7 @@ export function mergeReads(reads: (PhotoRead | null)[], model: string): VisionRe
     modelAgrees,
     evidence,
     model,
+    ...(crosswalkAdjacent(reads) ? { crosswalkAdjacent: true } : {}),
   };
 }
 

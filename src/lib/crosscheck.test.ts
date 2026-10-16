@@ -18,11 +18,18 @@ const FLAG: Partial<Record<PhotoType, keyof Scene>> = {
   schoolzone: 'schoolZoneMarking',
 };
 
+/** 횡단보도·인도 '위'는 바퀴가 닿은 바닥 답으로만 정한다 — 그 두 유형은 바닥 답을 함께 넣는다 */
+const GROUND: Partial<Record<PhotoType, unknown>> = {
+  crossing: { surface: 'crosswalk', wheels: [{ wheel: '앞', surface: 'crosswalk_stripe' }], crosswalkRelation: 'on', evidence: '' },
+  sidewalk: { surface: 'sidewalk', wheels: [{ wheel: '앞', surface: 'sidewalk_block' }], crosswalkRelation: 'none', evidence: '' },
+};
+
 /** 사진 한 장 판독 — 유형에 맞는 장면 항목을 yes 로 */
 const read = (type: PhotoType, opts: { plate?: string; conf?: number; guess?: PhotoType } = {}): PhotoRead =>
   normalizeRead({
     plate: { text: opts.plate ?? '12가3456', readable: opts.plate !== '', confidence: 0.95 },
     scene: FLAG[type] ? { [FLAG[type]!]: 'yes' } : {},
+    ...(GROUND[type] ? { ground: GROUND[type] } : {}),
     typeGuess: opts.guess ?? type,
     typeConfidence: opts.conf ?? 0.9,
     evidence: '근거',
@@ -71,8 +78,8 @@ describe('유형 판정 — 근거는 사진뿐, 위치자료는 의심', () => 
   it('사진에 함께 보인 다른 유형은 바꿀 후보로', () => {
     const both = mergeReads(
       [
-        normalizeRead({ scene: { onCrosswalk: 'yes', schoolZoneMarking: 'yes' }, typeGuess: 'crossing', typeConfidence: 0.9 }),
-        normalizeRead({ scene: { onCrosswalk: 'yes', schoolZoneMarking: 'yes' }, typeGuess: 'crossing', typeConfidence: 0.9 }),
+        normalizeRead({ scene: { onCrosswalk: 'yes', schoolZoneMarking: 'yes' }, ground: GROUND.crossing, typeGuess: 'crossing', typeConfidence: 0.9 }),
+        normalizeRead({ scene: { onCrosswalk: 'yes', schoolZoneMarking: 'yes' }, ground: GROUND.crossing, typeGuess: 'crossing', typeConfidence: 0.9 }),
       ],
       'm',
     )!;
@@ -109,7 +116,7 @@ describe('번호판 — 두 장 따로 읽어 대조', () => {
 
 describe('유형은 장면 항목에서 규칙으로', () => {
   it('항목 우선순위: 횡단보도·인도 → 소화전·정류장·모퉁이 → 보호구역', () => {
-    const s = normalizeRead({ scene: { schoolZoneMarking: 'yes', busStopVisible: 'yes', onCrosswalk: 'yes' } })!.scene;
+    const s = normalizeRead({ scene: { schoolZoneMarking: 'yes', busStopVisible: 'yes', onCrosswalk: 'yes' }, ground: GROUND.crossing })!.scene;
     expect(typesFromScene(s)).toEqual(['crossing', 'busstop', 'schoolzone']);
   });
   it('두 장이 엇갈리면(보임/아님) 모름', () => {

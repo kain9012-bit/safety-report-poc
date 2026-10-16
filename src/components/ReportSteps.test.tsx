@@ -104,3 +104,14 @@ it('지역 규정 유효기간을 넘으면 안내 카드·점검·전달 요약
   expect(summary.textContent).not.toContain('대전 동구 규정');
   expect(summary.textContent).toContain('접수 기한 미달');
 });
+
+describe('횡단보도 바로 앞 — 유형으로 정하지 않고 한 줄로 알린다', () => {
+  it('바로 앞으로 읽히면 위반 유형 확인 단계에 알리고, 횡단보도를 고르면 숨긴다', () => {
+    const p = props();
+    const base = { ...p, step: 0, draft: { ...p.draft, type: undefined }, vision: { ...p.vision, result: { ...p.vision.result!, crosswalkAdjacent: true } } };
+    const { rerender } = render(<ReportSteps {...base} />);
+    expect(screen.getByText(/횡단보도 바로 앞에 서 있는 것으로 보여요/)).toBeTruthy();
+    rerender(<ReportSteps {...base} draft={{ ...base.draft, type: 'crossing' }} />);
+    expect(screen.queryByText(/횡단보도 바로 앞에 서 있는 것으로 보여요/)).toBeNull();
+  });
+});
