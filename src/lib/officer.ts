@@ -11,10 +11,12 @@
 import { BODY_MAX } from './compose';
 import { OVERLAP_MIN } from './overlap';
 import { intervalSeconds } from './rules';
+import { perPhotoReads, plateStatus } from './plateCheck';
 import { VIOLATION_LABEL, isSixType, locatedShot } from '../types/report';
 import type { AppliedRules } from './localRules';
 import type { Precheck } from './precheck';
 import type { DraftReport } from '../types/report';
+import type { VisionResult } from '../../api/vision';
 
 export const OFFICER_HEADER = '[신고 앱 사전 점검 — 규칙으로 잰 값, 수용 여부는 담당자 판단]';
 
@@ -24,13 +26,15 @@ export interface OfficerInput {
   rules: AppliedRules;
   /** 두 사진 간격 기준(초) */
   minInterval: number;
+  /** 사진 판독 결과 — 사진마다 읽은 번호를 담당자에게 함께 보낸다 */
+  vision?: VisionResult | null;
 }
 
 const st = (pc: Precheck, id: string) => pc.checks.find((c) => c.id === id)?.status;
 const mark = (s?: string) => (s === 'pass' ? '충족' : s === 'warn' ? '확인 필요' : '미달');
 
 /** 요약 줄들 — 값이 없는 항목은 지어내지 않고 뺀다 */
-export function officerLines({ draft, precheck: pc, rules, minInterval }: OfficerInput): string[] {
+export function officerLines({ draft, precheck: pc, rules, minInterval, vision }: OfficerInput): string[] {
   const [a, b] = draft.shots;
   const lines: string[] = [];
   if (a && b) {
@@ -40,7 +44,14 @@ export function officerLines({ draft, precheck: pc, rules, minInterval }: Office
     lines.push(`- 같은 자리: 두 사진 겹침 ${Math.round(draft.overlap.ratio * 100)}%(기준 ${Math.round(OVERLAP_MIN * 100)}%) ${mark(st(pc, 'overlap'))}`);
   }
   const v = st(pc, 'vehicle');
-  if (v) lines.push(`- 같은 차: ${v === 'pass' ? '두 장에서 따로 읽은 번호 일치' : '두 장 번호 대조 안 됨 — 확인 필요'}`);
+  if (v === 'pass') lines.push('- 같은 차: 두 장에서 따로 읽은 번호 일치');
+  else if (v) {
+    // 번호를 사람이 넣었거나 AI 판독과 어긋나면 맨 위에 — 담당자가 사진으로 번호부터 본다(요약이 줄어도 남는다)
+    const ps = plateStatus(draft, vision);
+    const from = ps.confirmed ? '신고인이 사진 보고 확인' : '신고인 직접 입력';
+    const why = ps.kind === 'conflict' ? 'AI 판독과 다름' : ps.kind === 'empty' ? '차량번호 빈칸' : 'AI가 확실히 읽지 못함';
+    lines.unshift(`- 차량번호: ${ps.entered ? `${ps.entered}(${from})` : '빈칸'} · AI 판독: ${perPhotoReads(vision)} — ${why}, 사진으로 번호 확인 필요`);
+  }
   if (draft.type) {
     const e = st(pc, 'evidence');
     lines.push(`- 위반 근거: ${e === 'pass' ? `사진에 ${VIOLATION_LABEL[draft.type]} 근거 보임` : `${VIOLATION_LABEL[draft.type]} — 신고인이 직접 고름, 사진 확인 필요`}`);
@@ -69,7 +80,8 @@ export function withOfficerSummary(body: string, lines: string[], max = BODY_MAX
   const head = body.trimEnd();
   let block = [OFFICER_HEADER, ...lines];
   const join = (bl: string[]) => (head ? `${head}\n\n${bl.join('\n')}` : bl.join('\n'));
-  const caution = (line: string) => line.startsWith('- 확인 필요:') && line !== '- 확인 필요: 없음';
+  // 확인 필요 목록과 사람이 넣은 차량번호 줄은 끝까지 남긴다
+  const caution = (line: string) => (line.startsWith('- 확인 필요:') && line !== '- 확인 필요: 없음') || line.startsWith('- 차량번호:');
   while (block.length > 1 && join(block).length > max) {
     const removable = block.map((line, i) => i > 0 && !caution(line)).lastIndexOf(true);
     // 경고를 담을 공간조차 없으면 통과 항목만 붙여 오해하게 만들지 않는다.

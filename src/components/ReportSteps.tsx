@@ -49,6 +49,8 @@ interface Props {
   rules: AppliedRules;
   onRetryVision: () => void;
   onEdit: (field: EditableField, value: string | undefined) => void;
+  /** 신고인이 사진을 보고 확인한 차량번호(체크 해제면 undefined) */
+  onConfirmPlate?: (value: string | undefined) => void;
   onPickAddress: (a: PickedAddress) => void;
   /** 촬영 화면으로 돌아가 사진을 다시 찍는다 */
   onRetake: () => void;
@@ -92,8 +94,8 @@ export default function ReportSteps(p: Props) {
   // 담당 공무원에게 함께 가는 사전 점검 요약 — 규칙으로 잰 값(수용 여부는 담당자 판단)
   const minInterval = effectiveInterval(draft.type ? currentRules.types[draft.type].intervalSec : maxInterval(currentRules));
   const sent = useMemo(
-    () => withOfficerSummary(body, officerLines({ draft, precheck: pc, rules: currentRules, minInterval })),
-    [body, draft, pc, currentRules, minInterval],
+    () => withOfficerSummary(body, officerLines({ draft, precheck: pc, rules: currentRules, minInterval, vision: vision.result })),
+    [body, draft, pc, currentRules, minInterval, vision.result],
   );
   const count = (st: CheckStatus) => pc.checks.filter((c) => c.status === st).length;
   const last = STEPS.length - 1;
@@ -229,6 +231,7 @@ export default function ReportSteps(p: Props) {
               vision={vision}
               plateOk={draft.plate ? isValidPlate(draft.plate) : false}
               onUse={(t) => p.onEdit('plate', t)}
+              onConfirm={p.onConfirmPlate}
             />
             <PlateZoom shots={draft.shots} reads={draft.reads} />
           </Step>

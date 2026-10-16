@@ -102,7 +102,7 @@ describe('제출 전 점검', () => {
     expect(status(r.checks, 'evidence')).toBe('fail');
   });
   it('두 장 번호가 다르면 막는다', () => {
-    const r = precheck({ draft: draft(), body: '내용입니다', verdict: ok, vision: { sameVehicle: 'no', plate: { reads: ['12가3456', '34나5678'] } } as never, now: NOW });
+    const r = precheck({ draft: draft(), body: '내용입니다', verdict: ok, vision: { sameVehicle: 'no', plate: { text: '', readable: true, confidence: 0.95, agree: false, reads: ['12가3456', '34나5678'] } } as never, now: NOW });
     expect(status(r.checks, 'vehicle')).toBe('fail');
   });
   it('어린이보호구역은 08~20시 밖이면 막는다', () => {

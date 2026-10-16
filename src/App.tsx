@@ -587,6 +587,7 @@ export default function App() {
             rules={rules}
             onRetryVision={() => draft.reads?.forEach((r, i) => r === null && retryRead(i))}
             onEdit={onEdit}
+            onConfirmPlate={(value) => setDraft((d) => ({ ...d, plateConfirmedFor: value }))}
             onPickAddress={onPickAddress}
             onRetake={retakeSecond}
             photos={{ busySlot: photoBusy, onCamera: photoByCamera, onAlbum: photoByAlbum, onRemove: photoRemove }}

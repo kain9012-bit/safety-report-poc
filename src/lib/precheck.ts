@@ -9,7 +9,8 @@
 import { kstShort } from './kst';
 import { checkAlbum, worst } from './authenticity';
 import { BODY_MIN } from './compose';
-import { isValidPlate, PLATE_CONFIDENCE_FLOOR, runChecks } from './rules';
+import { isValidPlate, runChecks } from './rules';
+import { plateStatus } from './plateCheck';
 import { effectiveInterval, inEnforcement, maxInterval, rulesFor } from './localRules';
 import { OVERLAP_MIN } from './overlap';
 import { extraTypeCheck } from './extraTypes';
@@ -87,39 +88,26 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
   const extra = extraTypeCheck(draft.type, vision?.scene);
   if (extra) out.push(extra);
 
-  // 같은 차 — 판독 요약의 yes만 믿지 않고, 번호판 근거와 신고인이 입력한 최종 번호까지 대조한다.
-  const same = vision?.sameVehicle;
-  const plate = vision?.plate;
-  const reads = (plate?.reads ?? []).map((text) => text.replace(/\s/g, ''));
-  const validReads = reads.length === 2 && reads.every(isValidPlate);
-  const confident = typeof plate?.confidence === 'number' && Number.isFinite(plate.confidence)
-    && plate.confidence >= PLATE_CONFIDENCE_FLOOR;
-  const evidenceMatches = validReads && reads[0] === reads[1];
-  const enteredMatches = evidenceMatches && draft.plate?.replace(/\s/g, '') === reads[0];
-  const trustedMatch = same === 'yes' && plate?.agree === true && plate.readable
-    && confident && evidenceMatches && plate.text.replace(/\s/g, '') === reads[0];
-  const vehiclePass = trustedMatch && enteredMatches;
+  // 같은 차 — 두 장에서 따로 읽은 번호와 입력한 번호가 같으면 통과(회의 결정).
+  // AI 가 확실히 읽지 못하면 신고인이 사진을 보고 입력한 번호로 내고 담당자가 다시 본다(주황).
+  // AI 가 확실히 읽은 번호와 어긋나면 신고인이 사진을 보고 확인해야 낼 수 있고, 확인해도 주황으로 남긴다.
+  const ps = plateStatus(draft, vision);
+  const confirmedNote = '신고인이 사진을 보고 확인했습니다. 담당자가 사진으로 번호를 한 번 더 확인합니다.';
   out.push({
     id: 'vehicle',
     label: '두 장 번호판 일치',
-    status: vehiclePass ? 'pass' : 'fail',
-    detail: vehiclePass
+    status: ps.kind === 'match' ? 'pass' : ps.kind === 'conflict' && !ps.confirmed ? 'fail' : 'warn',
+    detail: ps.kind === 'match'
       ? '두 장에서 따로 읽은 번호와 입력한 차량번호가 같습니다.'
-      : !vision
-        ? '사진 판독 결과가 없습니다. 다시 판독해 주세요.'
-        : reads.length === 1
-          ? `한 장에서만 번호판이 읽혔습니다(${reads[0]}). 두 장 모두 번호판이 보이게 찍어야 합니다.`
-          : reads.length !== 2
-            ? '두 장 번호판 판독 결과가 필요합니다. 다시 판독하거나 번호판이 보이게 찍어 주세요.'
-            : !validReads
-              ? `판독한 번호가 번호판 형식과 다릅니다(${reads.join(' / ')}). 다시 판독하거나 촬영해 주세요.`
-              : !confident
-                ? '번호판 판독 확신도가 기준(80%)에 못 미치거나 확인되지 않습니다. 다시 판독하거나 촬영해 주세요.'
-                : !evidenceMatches
-                  ? `두 장에서 읽은 번호가 다릅니다(${reads.join(' / ')}).`
-                  : !trustedMatch
-                    ? '두 장 번호판 일치를 확정할 수 없습니다. 다시 판독해 주세요.'
-                    : `입력한 차량번호(${draft.plate || '빈칸'})가 두 장에서 읽은 번호(${reads[0]})와 다릅니다. 사진과 입력을 확인해 주세요.`,
+      : ps.kind === 'empty'
+        ? `차량번호가 비어 있습니다. 두 장에서 읽은 번호는 ${ps.reads[0]}입니다. 사진을 보고 입력해 주세요.`
+        : ps.kind === 'conflict'
+          ? `${ps.conflict === 'reads'
+            ? `두 장에서 읽은 번호가 다릅니다(${ps.reads.join(' / ')}).`
+            : `입력한 차량번호(${ps.entered})가 두 장에서 읽은 번호(${ps.reads[0]})와 다릅니다.`} ${ps.confirmed ? confirmedNote : '차량번호 단계에서 사진을 보고 확인해 주세요.'}`
+          : !isValidPlate(ps.entered)
+            ? `사진에서 번호판을 확실히 읽지 못했습니다(${ps.reason}). 사진을 보고 차량번호를 바르게 입력해 주세요.`
+            : `사진에서 번호판을 확실히 읽지 못했습니다(${ps.reason}). 신고인이 입력한 번호로 내고, 담당자가 사진으로 번호를 한 번 더 확인합니다.`,
   });
 
   // 같은 자리 — 두 사진 겹침(규칙 기반 영상 대조)

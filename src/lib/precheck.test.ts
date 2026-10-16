@@ -75,12 +75,34 @@ describe('두 장 번호판 일치 — 같은 차', () => {
     expect(status(r, 'vehicle')).toBe('fail');
     expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('12가3457');
   });
-  it('한 장만 읽혀도 막는다', () => {
-    const r = precheck(input({}, { vision: vision({ sameVehicle: 'unclear', plate: { text: '12가3456', readable: true, confidence: 0.9, agree: null, reads: ['12가3456'] } }) }));
-    expect(status(r, 'vehicle')).toBe('fail');
+  it('두 장 번호가 달라도 신고인이 사진을 보고 확인하면 주황으로 낸다', () => {
+    const v = vision({ sameVehicle: 'no', plate: { text: '', readable: true, confidence: 0.9, agree: false, reads: ['12가3456', '12가3457'] } });
+    const r = precheck(input({ plateConfirmedFor: '12가3456' }, { vision: v }));
+    expect(status(r, 'vehicle')).toBe('warn');
+    expect(r.blocked).toBe(false);
+    expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('담당자가 사진으로');
   });
-  it('판독 결과가 없으면 막는다', () => {
-    expect(status(precheck(input({}, { vision: null })), 'vehicle')).toBe('fail');
+  it('한 장만 읽히면 막지 않고 주황 — 신고인이 입력한 번호로 내고 담당자가 다시 본다', () => {
+    const r = precheck(input({}, { vision: vision({ sameVehicle: 'unclear', plate: { text: '12가3456', readable: true, confidence: 0.9, agree: null, reads: ['12가3456'] } }) }));
+    expect(status(r, 'vehicle')).toBe('warn');
+    expect(r.blocked).toBe(false);
+    expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('한 장에서만');
+  });
+  it('판독 결과가 없어도 입력한 번호가 있으면 주황', () => {
+    const r = precheck(input({}, { vision: null }));
+    expect(status(r, 'vehicle')).toBe('warn');
+    expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('판독 결과 없음');
+  });
+  it('못 읽었는데 번호도 비었으면 차량번호 칸이 빨간불', () => {
+    const r = precheck(input({ plate: undefined }, { vision: null }));
+    expect(status(r, 'plate')).toBe('fail');
+    expect(status(r, 'vehicle')).toBe('warn');
+    expect(r.blocked).toBe(true);
+  });
+  it('두 장에서 같은 번호를 읽었는데 칸을 비웠으면 읽은 번호를 알려 준다', () => {
+    const r = precheck(input({ plate: undefined, manual: { plate: true } }));
+    expect(status(r, 'plate')).toBe('fail');
+    expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('12가3456');
   });
 });
 
@@ -159,6 +181,16 @@ describe('판독 근거와 최종 입력 번호의 일치', () => {
     expect(r.blocked).toBe(true);
     expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('99나9999');
   });
+  it('사진을 보고 확인했다고 체크하면 주황으로 낸다', () => {
+    const r = precheck(input({ plate: '99나9999', manual: { plate: true }, plateConfirmedFor: '99 나 9999' }));
+    expect(status(r, 'vehicle')).toBe('warn');
+    expect(r.blocked).toBe(false);
+    expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('신고인이 사진을 보고 확인했습니다');
+  });
+  it('확인한 뒤 번호를 또 바꾸면 확인이 풀린다', () => {
+    const r = precheck(input({ plate: '99나9998', manual: { plate: true }, plateConfirmedFor: '99나9999' }));
+    expect(status(r, 'vehicle')).toBe('fail');
+  });
   it('공백만 다르고 실제 번호가 같으면 통과한다', () => {
     expect(precheck(input({ plate: ' 12 가 3456 ', manual: { plate: true } })).blocked).toBe(false);
   });
@@ -167,18 +199,21 @@ describe('판독 근거와 최종 입력 번호의 일치', () => {
     expect(status(r, 'plate')).toBe('fail');
     expect(r.blocked).toBe(true);
   });
-  it.each([0.79, NaN, undefined])('과거 요약이 yes여도 확신도 %s이면 다시 확인한다', (confidence) => {
+  it.each([0.79, NaN, undefined])('과거 요약이 yes여도 확신도 %s이면 통과시키지 않고 주황으로 남긴다', (confidence) => {
     const v = vision();
     const r = precheck(input({}, { vision: vision({ plate: { ...v.plate, confidence: confidence as number } }) }));
-    expect(status(r, 'vehicle')).toBe('fail');
+    expect(status(r, 'vehicle')).toBe('warn');
+    expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('확신도');
   });
   it('판독된 두 번호의 형식이 틀리면 yes 요약으로 우회하지 못한다', () => {
     const v = vision({ plate: { text: 'ABC', reads: ['ABC', 'ABC'], readable: true, confidence: 0.99, agree: true } });
-    expect(status(precheck(input({}, { vision: v })), 'vehicle')).toBe('fail');
+    const r = precheck(input({}, { vision: v }));
+    expect(status(r, 'vehicle')).toBe('warn');
+    expect(r.checks.find((c) => c.id === 'vehicle')?.detail).toContain('형식');
   });
   it('요약 번호와 개별 판독 번호가 다르면 확정하지 않는다', () => {
     const v = vision();
-    expect(status(precheck(input({}, { vision: vision({ plate: { ...v.plate, text: '99나9999' } }) })), 'vehicle')).toBe('fail');
+    expect(status(precheck(input({}, { vision: vision({ plate: { ...v.plate, text: '99나9999' } }) })), 'vehicle')).toBe('warn');
   });
 });
 
