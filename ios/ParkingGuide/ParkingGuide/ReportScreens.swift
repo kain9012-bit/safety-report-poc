@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import Combine
+import PhotosUI
 
 // 웹 main 과 같은 흐름(2026-10-15): 처음 화면 → 두 장 촬영 → 신고서 5단계(유형·발생지역·차량번호·내용·점검·제출).
 // 판독 근거·GPS 품질·촬영 방향은 뒤에서 기록만 하고, 화면에는 민원인이 할 일이 있을 때만 한 줄씩 꺼낸다.
@@ -45,22 +46,40 @@ struct ReportFlowScreen: View {
     @State private var draft: ZoneCase
     @State private var capturing: Bool
     @State private var retake: PrimarySlot?
+    /// 신고서 사진 칸에서 카메라로 바꾸기·넣기 — 남길 사진 다음(2번째)으로 한 장을 찍는다
+    @State private var cameraReplace: ReportCaptureScreen.Replace?
+    @State private var askMore: Bool
     let onSubmitted: () -> Void
 
-    init(initial: ZoneCase, store: ZoneStore, onSubmitted: @escaping () -> Void) {
+    init(initial: ZoneCase, store: ZoneStore, askMore: Bool = false, onSubmitted: @escaping () -> Void) {
         self.store = store; self.onSubmitted = onSubmitted
         _draft = State(initialValue: initial)
-        _capturing = State(initialValue: initial.primaryPair.count < 2)
+        // 신고서까지 갔던 신고(앨범 1장·사진을 지운 신고 포함)는 촬영이 아니라 신고서로 연다(웹 phase 'form')
+        _capturing = State(initialValue: initial.primaryPair.count < 2 && initial.formOpened != true)
+        _askMore = State(initialValue: askMore)
     }
 
     var body: some View {
         Group {
-            if capturing {
+            if let replace = cameraReplace {
+                ReportCaptureScreen(draft: $draft, store: store, mode: .replace(replace), onDone: {
+                    cameraReplace = nil; draft.step = 0
+                }, onExit: { cameraReplace = nil })
+            } else if capturing {
                 ReportCaptureScreen(draft: $draft, store: store, mode: .pair(retake: retake), onDone: {
-                    retake = nil; draft.step = 0; try? store.save(draft); capturing = false
-                }, onExit: close)
+                    retake = nil; draft.step = 0; draft.formOpened = true; try? store.save(draft); capturing = false
+                }, onExit: {
+                    // 신고서에서 다시 찍으러 왔으면 신고서로 돌아간다(웹 '재촬영 취소'와 같다)
+                    if draft.formOpened == true { retake = nil; capturing = false } else { close() }
+                })
             } else {
-                ReportStepsScreen(draft: $draft, store: store, onRetakeSecond: { retake = .second; capturing = true }, onHome: close, onSubmitted: { onSubmitted(); dismiss() })
+                ReportStepsScreen(draft: $draft, store: store, askMore: $askMore,
+                                  onRetakeSecond: { draft.formOpened = true; retake = .second; capturing = true },
+                                  onCamera: { keep, target in
+                                      draft.formOpened = true
+                                      if let keep { cameraReplace = .init(keep: keep, target: target) } else { retake = .first; capturing = true }
+                                  },
+                                  onHome: close, onDeleted: { dismiss() }, onSubmitted: { onSubmitted(); dismiss() })
             }
         }.tint(ReportAppearance.blue).preferredColorScheme(.light)
     }
@@ -74,7 +93,9 @@ struct ReportFlowScreen: View {
 // MARK: - 촬영
 
 struct ReportCaptureScreen: View {
-    enum Mode: Equatable { case pair(retake: PrimarySlot?), supplement(text: String) }
+    /// 신고서 사진 칸의 카메라 바꾸기·넣기 — keep 사진을 1번째로 남기고 새 사진을 2번째로 찍는다. target 은 바꿀 사진(넣기면 nil).
+    struct Replace: Equatable { let keep: UUID; let target: UUID? }
+    enum Mode: Equatable { case pair(retake: PrimarySlot?), supplement(text: String), replace(Replace) }
     private enum Phase { case first, wait, second }
     @Binding var draft: ZoneCase
     let store: ZoneStore
@@ -96,8 +117,12 @@ struct ReportCaptureScreen: View {
         if case .pair(let slot) = mode { _retake = State(initialValue: slot) }
     }
 
-    private var first: ZoneEvidence? { retake == .first ? nil : draft.evidence.first { $0.primarySlot == .first } }
-    private var second: ZoneEvidence? { retake != nil ? nil : draft.evidence.first { $0.primarySlot == .second } }
+    private var replacing: Replace? { if case .replace(let value) = mode { return value }; return nil }
+    private var first: ZoneEvidence? {
+        if let replacing { return draft.evidence.first { $0.id == replacing.keep } }
+        return retake == .first ? nil : draft.evidence.first { $0.primarySlot == .first }
+    }
+    private var second: ZoneEvidence? { retake != nil || replacing != nil ? nil : draft.evidence.first { $0.primarySlot == .second } }
     private var isSupplement: Bool { if case .supplement = mode { return true }; return false }
     private var remain: Int {
         guard let taken = first?.takenAt else { return 0 }
@@ -109,7 +134,7 @@ struct ReportCaptureScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Button(action: onExit) { Label(isSupplement ? "취소" : "처음 화면", systemImage: "arrow.left").font(.system(size: 15)) }
+                Button(action: onExit) { Label(isSupplement || replacing != nil ? "취소" : "처음 화면", systemImage: "arrow.left").font(.system(size: 15)) }
                     .buttonStyle(.plain).foregroundStyle(.white).frame(minHeight: 44).disabled(saving)
                 Spacer()
                 Text(isSupplement ? "사진 한 장 더" : phase == .first ? "첫 번째 사진" : "두 번째 사진").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
@@ -155,7 +180,7 @@ struct ReportCaptureScreen: View {
                                 .accessibilityLabel("\(slot == .first ? 1 : 2)번째 사진 \(item == nil ? "아직 없음" : "찍음")")
                         }
                         Spacer()
-                        if phase != .first { Button("첫 사진 다시 찍기") { retake = .first }.font(.system(size: 14)).foregroundStyle(.white).disabled(saving) }
+                        if phase != .first && replacing == nil { Button("첫 사진 다시 찍기") { retake = .first }.font(.system(size: 14)).foregroundStyle(.white).disabled(saving) }
                     }
                 }
                 Button { camera.capture() } label: {
@@ -185,6 +210,19 @@ struct ReportCaptureScreen: View {
 
     private func save(_ data: Data) {
         let takenAt = camera.capturedAt
+        if let replacing {
+            // 새 사진 저장이 끝난 뒤에만 바꿀 사진을 뺀다(ZoneStore.replacePrimary)
+            saving = true
+            defer { saving = false }
+            do {
+                draft = try store.replacePrimary(data: data, source: .prototypeCamera, date: takenAt, location: location.snapshot(at: takenAt), replacing: replacing.target, in: draft)
+                camera.retake(); onDone()
+            } catch {
+                self.error = "사진을 저장하지 못했습니다. 기존 사진과 입력은 그대로입니다. 다시 찍어 주세요."
+                camera.retake()
+            }
+            return
+        }
         let slot: PrimarySlot = isSupplement ? .supplemental : (first == nil ? .first : .second)
         let replacing = slot == .first ? draft.evidence.first { $0.primarySlot == .first }?.id
             : slot == .second ? draft.evidence.first { $0.primarySlot == .second }?.id : nil
@@ -209,9 +247,23 @@ struct ReportCaptureScreen: View {
 struct ReportStepsScreen: View {
     @Binding var draft: ZoneCase
     let store: ZoneStore
+    /// 앨범에서 1장만 골라 들어왔을 때 — 화면을 열자마자 1장 더 넣기를 묻는다
+    @Binding var askMore: Bool
     let onRetakeSecond: () -> Void
+    /// 사진 칸의 카메라 바꾸기·넣기 — keep 을 남기고 다음 사진을 찍는다. keep 이 없으면 두 장을 처음부터 찍는다.
+    let onCamera: (_ keep: UUID?, _ target: UUID?) -> Void
     let onHome: () -> Void
+    /// 마지막 사진을 지워 신고를 지웠을 때
+    let onDeleted: () -> Void
     let onSubmitted: () -> Void
+    /// 사진 칸 바꾸기·넣기 선택(앨범·카메라). more: 앨범 1장 뒤 '1장 더 넣기'
+    struct PhotoSheet: Equatable { let index: Int; let more: Bool }
+    @State private var photoSheet: PhotoSheet?
+    @State private var removing: ZoneEvidence?
+    @State private var albumIndex: Int?
+    @State private var albumOpen = false
+    @State private var albumItem: PhotosPickerItem?
+    @State private var photoBusy = false
     @StateObject private var reading = ReportReading()
     @State private var saveState = ZoneDraftSaveState()
     @State private var typeSheet = false
@@ -280,7 +332,38 @@ struct ReportStepsScreen: View {
             }.padding(.horizontal, 16).padding(.vertical, 10).background(.white).overlay(alignment: .top) { ReportAppearance.border.frame(height: 1) }
         }
         .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("입력 완료") { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) } } }
-        .task { syncPhotoType(); read() }
+        .task {
+            syncPhotoType(); read()
+            if askMore {
+                askMore = false
+                guard draft.primaryPair.count == 1 else { return }
+                try? await Task.sleep(for: .milliseconds(400))
+                photoSheet = PhotoSheet(index: 1, more: true)
+            }
+        }
+        .confirmationDialog(photoSheetTitle, isPresented: Binding(get: { photoSheet != nil }, set: { if !$0 { photoSheet = nil } }), titleVisibility: .visible, presenting: photoSheet) { sheet in
+            Button("앨범에서 고르기") {
+                // 선택 창이 닫힌 뒤에 앨범을 연다(바로 열면 겹쳐 열리지 않는다)
+                albumIndex = sheet.index
+                Task { try? await Task.sleep(for: .milliseconds(400)); albumOpen = true }
+            }
+            Button("카메라로 찍기") { camera(sheet.index) }
+            Button(sheet.more ? "나중에" : "취소", role: .cancel) {}
+        } message: { sheet in Text(photoSheetMessage(sheet)) }
+        .confirmationDialog(removing.map { "\(slotName($0))을 지울까요?" } ?? "", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible, presenting: removing) { photo in
+            let last = draft.primaryPair.count <= 1
+            Button(last ? "신고 지우기" : "지우기", role: .destructive) { remove(photo) }
+            if last {
+                Button("다른 사진으로 바꾸기") {
+                    Task { try? await Task.sleep(for: .milliseconds(400)); photoSheet = PhotoSheet(index: 0, more: false) }
+                }
+            }
+            Button("취소", role: .cancel) {}
+        } message: { _ in Text(removeMessage) }
+        .photosPicker(isPresented: $albumOpen, selection: $albumItem, matching: .images)
+        .onChange(of: albumItem) { _, item in
+            if let item, let index = albumIndex { Task { await importAlbum(item, index: index) } }
+        }
         .onChange(of: scenePhase) { _, value in if value != .active { persist() } }
         .onDisappear { reading.cancel() }
         .sheet(isPresented: $typeSheet) { typeChooser }
@@ -304,15 +387,7 @@ struct ReportStepsScreen: View {
     // 0. 유형
     private var typeStep: some View {
         ReportStep(title: "위반 유형 확인", sub: "사진에 보이는 것으로 정했습니다") {
-            HStack(spacing: 8) {
-                ForEach(Array(draft.primaryPair.prefix(2).enumerated()), id: \.element.id) { _, photo in
-                    ZStack(alignment: .bottom) {
-                        if let image = store.image(photo) { Image(uiImage: image).resizable().scaledToFill() } else { Color(white: 0.92) }
-                        Text(photo.takenAt.map(ReportRules.clock) ?? "시각 없음").font(.system(size: 11)).monospacedDigit()
-                            .frame(maxWidth: .infinity).padding(.vertical, 2).background(.black.opacity(0.6)).foregroundStyle(.white)
-                    }.frame(maxWidth: .infinity).aspectRatio(4 / 3, contentMode: .fit).clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-            }
+            photoSlots
             if let gap = draft.intervalSeconds { Text("\(Int(gap))초 간격").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted).padding(.top, 6) }
             readingLine.padding(.top, 4)
             HStack {
@@ -322,6 +397,112 @@ struct ReportStepsScreen: View {
             }.padding(.top, 20)
             typeValue
             followUps
+        }
+    }
+    // 사진 두 칸 — 칸마다 바꾸기·지우기, 빈 칸은 사진 넣기(웹 PhotoSlots 와 같은 흐름·문구)
+    @ViewBuilder private var photoSlots: some View {
+        let pair = Array(draft.primaryPair.prefix(2))
+        HStack(alignment: .top, spacing: 8) {
+            ForEach(0..<2, id: \.self) { index in
+                if index < pair.count { filledSlot(pair[index], index: index) } else { emptySlot(index) }
+            }
+        }
+        if pair.count < 2 {
+            Text("사진이 \(pair.count)장입니다. 같은 자리에서 \(intervalText) 이상 간격을 두고 찍은 사진을 \(2 - pair.count)장 더 넣어 주세요.\(ReportRules.intervalNote)")
+                .font(.system(size: 14)).foregroundStyle(Color(red: 0.47, green: 0.27, blue: 0.0)).fixedSize(horizontal: false, vertical: true)
+                .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(red: 1, green: 0.98, blue: 0.92), in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(red: 0.99, green: 0.9, blue: 0.6))).padding(.top, 8)
+        }
+    }
+    private func filledSlot(_ photo: ZoneEvidence, index: Int) -> some View {
+        VStack(spacing: 4) {
+            ZStack(alignment: .bottom) {
+                if let image = store.image(photo) { Image(uiImage: image).resizable().scaledToFill() } else { Color(white: 0.92) }
+                Text(photo.takenAt.map(ReportRules.clock) ?? "시각 없음").font(.system(size: 11)).monospacedDigit()
+                    .frame(maxWidth: .infinity).padding(.vertical, 2).background(.black.opacity(0.6)).foregroundStyle(.white)
+            }.frame(maxWidth: .infinity).aspectRatio(4 / 3, contentMode: .fit).clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay { if photoBusy && albumIndex == index { ProgressView("사진 읽는 중…").font(.system(size: 13)).frame(maxWidth: .infinity, maxHeight: .infinity).background(.white.opacity(0.8)) } }
+            HStack(spacing: 4) {
+                Button { photoSheet = PhotoSheet(index: index, more: false) } label: {
+                    Label("바꾸기", systemImage: "arrow.triangle.2.circlepath").font(.system(size: 14, weight: .bold)).frame(maxWidth: .infinity, minHeight: 40)
+                }.foregroundStyle(ReportAppearance.ink).accessibilityLabel("\(index + 1)번째 사진 바꾸기")
+                Button { removing = photo } label: {
+                    Label("지우기", systemImage: "trash").font(.system(size: 14, weight: .bold)).frame(maxWidth: .infinity, minHeight: 40)
+                }.foregroundStyle(.red).accessibilityLabel("\(index + 1)번째 사진 지우기")
+            }.buttonStyle(.plain).labelStyle(.titleAndIcon)
+                .overlay(alignment: .center) { ReportAppearance.border.frame(width: 1).padding(.vertical, 8) }
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(ReportAppearance.border))
+                .disabled(photoBusy)
+        }.frame(maxWidth: .infinity)
+    }
+    private func emptySlot(_ index: Int) -> some View {
+        Button { photoSheet = PhotoSheet(index: index, more: false) } label: {
+            // 사진 칸과 같은 4:3 크기 — 늘어나는 도형에 비율을 걸고 글자는 위에 얹는다
+            RoundedRectangle(cornerRadius: 8).fill(ReportAppearance.blue.opacity(0.06))
+                .aspectRatio(4 / 3, contentMode: .fit)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(ReportAppearance.blue, style: StrokeStyle(lineWidth: 2, dash: [5])))
+                .overlay {
+                    VStack(spacing: 4) {
+                        if photoBusy && albumIndex == index { ProgressView() } else { Image(systemName: "plus").font(.system(size: 22, weight: .semibold)) }
+                        Text(photoBusy && albumIndex == index ? "사진 읽는 중…" : "사진 넣기").font(.system(size: 15, weight: .bold))
+                    }.foregroundStyle(ReportAppearance.blue)
+                }
+                .contentShape(Rectangle())
+        }.buttonStyle(.plain).disabled(photoBusy).frame(maxWidth: .infinity).accessibilityLabel("\(index + 1)번째 사진 넣기")
+    }
+    private var intervalText: String {
+        let s = ReportRules.intervalSeconds
+        return s >= 60 && s % 60 == 0 ? "\(s / 60)분" : "\(s)초"
+    }
+    private var supplementCount: Int { max(0, draft.evidence.count - draft.primaryPair.count) }
+    private func slotName(_ photo: ZoneEvidence) -> String { "\((draft.primaryPair.firstIndex { $0.id == photo.id } ?? 0) + 1)번째 사진" }
+    private var photoSheetTitle: String {
+        guard let sheet = photoSheet else { return "" }
+        if sheet.more { return "사진 1장 더 넣기" }
+        return sheet.index < draft.primaryPair.count ? "\(sheet.index + 1)번째 사진 바꾸기" : "\(sheet.index + 1)번째 사진 넣기"
+    }
+    private func photoSheetMessage(_ sheet: PhotoSheet) -> String {
+        let replacing = sheet.index < draft.primaryPair.count
+        let remaining = draft.primaryPair.count - (replacing ? 1 : 0)
+        var text = sheet.more ? "사진이 2장 있어야 신고할 수 있습니다. 같은 자리에서 \(intervalText) 이상 간격을 두고 찍은 사진을 골라 주세요.\(ReportRules.intervalNote)\n" : ""
+        text += remaining > 0 ? "카메라로 찍은 사진은 남은 사진 다음, 2번째 사진이 됩니다." : "카메라로는 1번째·2번째 사진을 차례로 찍습니다."
+        text += " 두 사진은 촬영 시각 순서로 1·2번째가 정해집니다."
+        if replacing && supplementCount > 0 { text += " 보완 사진 \(supplementCount)장은 함께 빠집니다." }
+        return text
+    }
+    private var removeMessage: String {
+        if draft.primaryPair.count <= 1 { return "사진이 이 1장뿐이라, 지우면 이 신고도 함께 지워집니다." }
+        return "이 사진과 판독 결과를 지웁니다. 빈 칸에 다른 사진을 넣으면 됩니다." + (supplementCount > 0 ? " 보완 사진 \(supplementCount)장은 함께 빠집니다." : "")
+    }
+    /// 사진이 바뀌면 사진 근거로 정한 유형을 다시 맞추고 다시 판독한다
+    private func photosChanged() { saveState.saved(); syncPhotoType(); read() }
+    private func camera(_ index: Int) {
+        let pair = draft.primaryPair
+        let target = index < pair.count ? pair[index].id : nil
+        let keep = pair.first { $0.id != target }?.id
+        persist(); onCamera(keep, target)
+    }
+    private func remove(_ photo: ZoneEvidence) {
+        if draft.primaryPair.count <= 1 {
+            do { try store.delete(draft); onDeleted() } catch { saveState.failed("지우지 못했습니다. 기존 자료를 유지했습니다.") }
+            return
+        }
+        do { draft = try store.removePrimary(photo, from: draft); photosChanged() }
+        catch { saveState.failed("사진을 지우지 못했습니다. 기존 사진과 입력은 그대로입니다.") }
+    }
+    /// 앨범 한 장 → 그 칸에. 새 사진을 다 읽은 뒤에만 바꾼다 — 실패하면 기존 사진·입력은 그대로다.
+    private func importAlbum(_ item: PhotosPickerItem, index: Int) async {
+        photoBusy = true
+        defer { photoBusy = false; albumItem = nil; albumIndex = nil }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self), data.count <= 25 * 1024 * 1024, UIImage(data: data) != nil else { throw CocoaError(.fileReadCorruptFile) }
+            let meta = AlbumPhotoMeta(data)
+            let target = index < draft.primaryPair.count ? draft.primaryPair[index].id : nil
+            draft = try store.replacePrimary(data: data, source: .album, date: meta.takenAt, location: meta.location, replacing: target, in: draft)
+            photosChanged()
+        } catch {
+            saveState.failed("사진을 읽지 못했습니다. 기존 사진과 입력은 그대로입니다.")
         }
     }
     @ViewBuilder private var readingLine: some View {

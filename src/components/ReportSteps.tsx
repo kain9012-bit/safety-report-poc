@@ -1,7 +1,6 @@
 import { ArrowLeft, Check, CopyPlus, MapPin, Pointer, RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { formatStamp } from '../lib/camera';
 import { BODY_MAX, composeBody } from '../lib/compose';
 import { precheck } from '../lib/precheck';
 import { describeRules, effectiveInterval, maxInterval, rulesFor } from '../lib/localRules';
@@ -34,6 +33,8 @@ import {
 import type { PickedAddress, TypeInfo } from './FormParts';
 import FollowUps from './FollowUps';
 import type { FollowUpProps } from './FollowUps';
+import PhotoSlots from './PhotoSlots';
+import type { PhotoSlotActions } from './PhotoSlots';
 
 export const STEPS = ['유형', '발생지역', '차량번호', '내용', '점검·제출'] as const;
 
@@ -54,6 +55,11 @@ interface Props {
   followUps?: FollowUpProps;
   /** 촬영 화면으로 돌아가 사진을 다시 찍는다 */
   onRetake: () => void;
+  /** 사진 칸마다 바꾸기·지우기, 빈 칸은 사진 넣기(앨범·카메라) */
+  photos: PhotoSlotActions;
+  /** 앨범에서 1장만 골라 들어왔을 때 1장 더 넣기를 묻는다 */
+  askMore?: boolean;
+  onAsked?: () => void;
   onHome: () => void;
   onSubmit: () => void;
 }
@@ -135,23 +141,15 @@ export default function ReportSteps(p: Props) {
       <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-3 pb-6">
         {step === 0 && (
           <Step title="위반 유형 확인" sub="사진에 보이는 것으로 정했습니다">
-            <div className="grid grid-cols-2 gap-2">
-              {[first, second].map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => vision.result && setSheet('evidence')}
-                  className="relative aspect-[4/3] rounded-lg bg-slate-100 overflow-hidden"
-                  aria-label={`${i + 1}번째 사진 근거 보기`}
-                >
-                  {s && <img src={s.dataUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
-                  {s && (
-                    <span className="absolute bottom-0 inset-x-0 bg-slate-900/60 text-white text-[11px] tabular-nums py-0.5 text-center">
-                      {s.source === 'album' && s.meta?.takenAt === undefined ? '시각 없음' : formatStamp(s.takenAt).slice(11)}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            <PhotoSlots
+              shots={[first, second]}
+              supplements={Math.max(0, draft.shots.length - 2)}
+              minInterval={minInterval}
+              askMore={p.askMore}
+              onAsked={p.onAsked}
+              onEvidence={() => vision.result && setSheet('evidence')}
+              {...p.photos}
+            />
             {first && second && (
               <p className="mt-1.5 text-[13px] text-slate-500">
                 {Math.floor(intervalSeconds(first.takenAt, second.takenAt))}초 간격

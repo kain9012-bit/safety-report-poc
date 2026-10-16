@@ -11,6 +11,8 @@ struct ContentView: View {
     @State private var albumItems: [PhotosPickerItem] = []
     @State private var albumBusy = false
     @State private var albumError: String?
+    /// 앨범에서 1장만 골랐으면 신고서를 열자마자 1장 더 넣기를 묻는다
+    @State private var askMore = false
     @State private var toast: String?
     @State private var resumed = false
     @State private var settingsOpen = false
@@ -69,8 +71,8 @@ struct ContentView: View {
                         .padding(.horizontal, 24).padding(.bottom, 32).transition(.opacity)
                 }
             }
-            .fullScreenCover(item: $opened, onDismiss: dropEmptyDrafts) { value in
-                ReportFlowScreen(initial: value, store: zoneStore) { show("개선 제안용 화면이라 접수되지 않습니다\n제출한 신고에 저장했습니다") }
+            .fullScreenCover(item: $opened, onDismiss: { askMore = false; dropEmptyDrafts() }) { value in
+                ReportFlowScreen(initial: value, store: zoneStore, askMore: askMore) { show("개선 제안용 화면이라 접수되지 않습니다\n제출한 신고에 저장했습니다") }
             }
             .sheet(isPresented: $settingsOpen) { VisionSettingsSheet() }
             .onChange(of: albumItems) { _, items in if !items.isEmpty { Task { await importAlbum(items) } } }
@@ -139,6 +141,9 @@ struct ContentView: View {
     private func importAlbum(_ items: [PhotosPickerItem]) async {
         albumBusy = true; albumError = nil
         defer { albumBusy = false; albumItems = [] }
+        // 앨범 선택 창이 닫히는 중에 신고서를 띄우면 화면 위쪽 여백(상태 표시줄)을 잃어 뒤로 단추가 상태 표시줄 밑에 깔린다.
+        // 선택 창이 다 닫힌 뒤에 연다(시뮬레이터에서 확인, 2026-10-16).
+        let closing = Task { try? await Task.sleep(for: .milliseconds(700)) }
         do {
             var photos: [(data: Data, meta: AlbumPhotoMeta)] = []
             for item in items.prefix(2) {
@@ -151,6 +156,11 @@ struct ContentView: View {
             for (index, photo) in photos.enumerated() {
                 draft = try zoneStore.add(data: photo.data, source: .album, role: .incident, date: photo.meta.takenAt, to: draft, slot: index == 0 ? .first : .second, location: photo.meta.location)
             }
+            // 앨범은 촬영 화면을 거치지 않고 신고서로 연다(웹과 같다). 1장이면 1장 더 넣기를 묻는다.
+            draft.formOpened = true
+            try zoneStore.save(draft)
+            askMore = photos.count < 2
+            await closing.value
             opened = draft
         } catch {
             albumError = "앨범 사진을 읽지 못했습니다. 다른 사진을 골라 주세요."

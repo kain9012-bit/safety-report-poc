@@ -77,6 +77,8 @@ struct ZoneCase: Codable, Identifiable {
     var supplementAsked: [String]?
     /// '제출'한 시각 — 개선 제안용 화면이라 실제 접수는 하지 않고 기기에 보관만 한다
     var submittedAt: Date?
+    /// 신고서 단계로 넘어갔는지(웹 phase 'form'). 앨범 1장·사진을 지운 신고도 다시 열면 촬영이 아니라 신고서로 연다.
+    var formOpened: Bool?
 
     static let sourceNote = "시제품 사진과 휴대폰 사진은 공식 안전신문고 촬영본으로 확인되지 않습니다. 실제 신고는 공식 앱의 촬영 방법과 관할 기준을 확인해 주세요."
     var finding: String {
@@ -188,6 +190,43 @@ struct ZoneDraftSaveState {
             if let old { try? FileManager.default.removeItem(at: folder.appendingPathComponent(old.filename)) }
             return next
         } catch { try? FileManager.default.removeItem(at: url); throw error }
+    }
+    /// 신고서 사진 칸의 바꾸기·넣기(웹 replacePhoto·cameraDraft 와 같다). 새 사진 파일을 다 쓴 뒤에만 기록을 바꾸고 이전 파일을 지운다.
+    /// replacing 이 nil 이면 빈 칸에 넣는다(기본 사진이 이미 두 장이면 넣지 않는다).
+    func replacePrimary(data: Data, source: ZoneSource, date: Date?, location: LocationRecord?, replacing: UUID?, in draft: ZoneCase) throws -> ZoneCase {
+        guard ready, data.count > 0, data.count <= 25 * 1024 * 1024, UIImage(data: data) != nil else { throw CocoaError(.fileReadCorruptFile) }
+        if let replacing, !draft.primaryPair.contains(where: { $0.id == replacing }) { throw CocoaError(.fileNoSuchFile) }
+        let kept = draft.primaryPair.filter { $0.id != replacing }
+        guard kept.count < 2 else { throw CocoaError(.fileWriteUnknown) }
+        let item = ZoneEvidence(id: UUID(), roles: [.incident], source: source, filename: "\(UUID().uuidString).image", takenAt: date, addedAt: Date(), primarySlot: .second, location: location)
+        let url = folder.appendingPathComponent(item.filename)
+        do {
+            try data.write(to: url, options: [.atomic, .completeFileProtection])
+            return try commitPrimary(kept + [item], to: draft)
+        } catch { try? FileManager.default.removeItem(at: url); throw error }
+    }
+    /// 신고서 사진 칸의 지우기 — 남은 사진이 1번째가 된다. 마지막 한 장을 지우는 일은 신고 삭제(delete)로 한다.
+    func removePrimary(_ photo: ZoneEvidence, from draft: ZoneCase) throws -> ZoneCase {
+        guard draft.primaryPair.contains(where: { $0.id == photo.id }) else { throw CocoaError(.fileNoSuchFile) }
+        return try commitPrimary(draft.primaryPair.filter { $0.id != photo.id }, to: draft)
+    }
+    /// 기본 사진을 pair 로 다시 정해 저장한다. 두 장은 촬영 시각 순으로 1·2번째(시각 모르는 사진은 뒤).
+    /// 보완사진은 이전 두 장의 부족한 근거를 채우려고 받은 것이라 함께 빼고, 같은 부족이 남으면 다시 묻는다.
+    /// 빠진 사진의 파일은 저장이 끝난 뒤에만 지운다.
+    private func commitPrimary(_ pair: [ZoneEvidence], to draft: ZoneCase) throws -> ZoneCase {
+        let sorted = pair.enumerated().sorted { a, b in
+            let ta = a.element.takenAt ?? .distantFuture, tb = b.element.takenAt ?? .distantFuture
+            return ta == tb ? a.offset < b.offset : ta < tb
+        }.map(\.element)
+        var next = draft
+        next.evidence = sorted.enumerated().map { index, photo in var photo = photo; photo.primarySlot = index == 0 ? .first : .second; return photo }
+        next.supplementAsked = nil
+        next.formOpened = true
+        next.invalidateEvidenceReview()
+        try save(next)
+        let keptIDs = Set(next.evidence.map(\.id))
+        for old in draft.evidence where !keptIDs.contains(old.id) { try? FileManager.default.removeItem(at: folder.appendingPathComponent(old.filename)) }
+        return next
     }
     func remove(_ evidence: ZoneEvidence, from draft: ZoneCase) throws -> ZoneCase {
         var next = draft; next.evidence.removeAll { $0.id == evidence.id }; next.invalidateEvidenceReview()
