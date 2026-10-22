@@ -993,21 +993,24 @@ aside.notes{display:none}
   <h2>숫자로 <em>확인했습니다</em></h2>
 </section>
 
-<!-- 18 검증 결과 — 채점 후 ○ 표시를 채운다 -->
-<section class="slide" data-title="검증 결과" data-steps="3">
+<!-- 18 검증 결과 — 근거: docs/eval-results.md (2026-10-22, 같은 사진 4회 채점) -->
+<section class="slide" data-title="검증 결과" data-steps="3" id="evalres">
   <div class="top-title">
-    <div class="eyebrow">검증 결과 · 본인·팀원 차량 사진</div>
-    <div class="title">목표와 결과를 함께 봅니다</div>
+    <div class="eyebrow">검증 결과 · 실제 사진으로 4번 채점</div>
+    <div class="title">AI가 제안하고, 사람이 확인합니다</div>
   </div>
   <div class="goals">
-    <div class="goal f" data-step="1"><div class="n todo-n">00<small>장</small></div><p>채점한 사진</p><div class="tgt">계획 100장 · 시험용 30장은 한 번만 채점</div></div>
-    <div class="goal f" data-step="2"><div class="n todo-n">00<small>%</small></div><p>유형 정답률</p><div class="tgt">목표 95% · 규칙까지 거친 최종 답</div></div>
-    <div class="goal red f" data-step="3"><div class="n todo-n">0<small>건</small></div><p>틀린 번호판</p><div class="tgt">목표 0건 · 두 장이 같을 때만 채움</div></div>
+    <div class="goal f" data-step="1"><div class="n">89<small>%</small></div><p>위반 유형 판독</p><div class="tgt">사진 49장 × 4회 · 47장은 4번 모두 같은 답</div></div>
+    <div class="goal f" data-step="2"><div class="n">1<small>장</small></div><p>엉뚱한 유형으로 갈 수 있는 사진</p><div class="tgt">나머지 오답은 비워 두고 신고자가 고르거나<br>함께 찍힌 다른 위반</div></div>
+    <div class="goal f" data-step="3"><div class="n">89<small>%</small></div><p>번호판 판독</p><div class="tgt">나·너처럼 비슷한 글자는<br>확대 사진을 보고 신고자가 확인</div></div>
   </div>
-  <div class="footnote">테두리 숫자는 채점 후 채움 · 100장 중 95장이면 실제 범위 약 89~98%</div>
+  <div class="footnote">테스트 사진 51장(어린이보호구역 23장 포함) · 정답은 팀이 사진 기준으로 작성 · 2026. 10. 22. 채점</div>
   <div class="pg"></div>
   <aside class="notes">
-    본인과 팀원 차량 사진으로 채점했습니다. (채점 결과를 채운 뒤 읽기) 유형 정답률은 ○○%로 목표 95%에 …, 틀린 번호판은 ○건입니다.
+    실제 사진 51장으로 AI 판독을 채점했습니다. 같은 사진을 네 번 돌려 결과가 흔들리는지도 봤습니다.
+    (다음) 위반 유형은 평균 89% 맞혔습니다. 49장 중 47장은 네 번 모두 같은 답을 냈습니다.
+    (다음) 틀린 사진 여섯 장 중 다섯 장은 앱이 유형을 비워 두고 신고자에게 고르게 했거나, 횡단보도와 어린이보호구역처럼 함께 찍힌 다른 실제 위반을 고른 경우입니다. 엉뚱한 유형으로 신고가 나갈 수 있는 사진은 한 장이었습니다.
+    (다음) 번호판도 89% 맞게 읽었습니다. 다만 '나'와 '너'처럼 비슷한 글자를 헷갈렸습니다. 그래서 번호판은 확대 사진을 보여 주고 신고자가 마지막으로 확인합니다. AI가 결정하는 것이 아니라, AI가 제안하고 사람이 확인하는 구조입니다.
   </aside>
 </section>
 
