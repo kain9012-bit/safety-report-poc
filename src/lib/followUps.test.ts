@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerSharedParking, busStopNumbers, sharedParkingQuestion, supplementRequest } from './followUps';
+import { answerSharedParking, busStopNumbers, sharedAnswerNeeded, sharedParkingQuestion, supplementRequest } from './followUps';
 import { appendPhoto, normalizeDraft, primaryFirst, reviewedReads } from './photoEvidence';
 import { crosscheck } from './crosscheck';
 import { mergeReads } from '../../api/vision';
@@ -84,6 +84,13 @@ describe('일반 자동차 병행주차 질문 — 친환경차 유형이면 늘
     expect(sharedParkingQuestion(d)?.answer).toBe('different_bay');
     const other = draftWith([read([]), read([])], { type: 'hydrant' });
     expect(answerSharedParking(other, 'same_bay', at)).toBe(other);
+  });
+  it('답이 없을 때만 다음 단계로 못 가게 한다 — 모르겠어요도 답이다', () => {
+    expect(sharedAnswerNeeded(sharedParkingQuestion(ev('ev_extra_time')))).toBe(true);
+    for (const scope of ['same_bay', 'different_bay', 'unknown'] as const) {
+      expect(sharedAnswerNeeded(sharedParkingQuestion(answerSharedParking(ev('ev_extra_time'), scope)))).toBe(false);
+    }
+    expect(sharedAnswerNeeded(sharedParkingQuestion({ ...ev('general_car'), type: 'disabled' }))).toBe(false);
   });
 });
 

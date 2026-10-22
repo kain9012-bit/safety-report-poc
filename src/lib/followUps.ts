@@ -5,6 +5,7 @@
  *     거리·법적 요건만 부족한 경우는 사진으로 해결되지 않으므로 요청하지 않는다(evidence.supplementalNeeds).
  *  2. 병행주차 — 친환경차 충전·전용구역 유형이면 사진에 안내가 보이지 않아도 늘 한 번 묻는다(2026-10-22 결정).
  *     일반 자동차도 세울 수 있는 칸이 있어 확인하고 신고하게 한다. 사진에서 그런 안내를 읽었으면 그 사실도 알린다.
+ *     답해야 위반 유형 확인 단계를 떠날 수 있다('모르겠어요'도 답이다, 2026-10-22 결정).
  *
  * 그 밖의 판독 근거(관찰·미확인 사유·GPS 품질·촬영 방향)는 기록에만 남기고 화면에 늘어놓지 않는다.
  */
@@ -56,6 +57,11 @@ export function sharedParkingQuestion(d: DraftReport): SharedParkingQuestion | u
   const notice = generalNotice(d);
   const p = d.sharedParking;
   return { notice: notice?.text ?? '', answer: p && p.inputKey === evidenceKey(d) ? p.scope : undefined };
+}
+
+/** 병행주차 질문에 아직 답하지 않았다 — 답하기 전에는 다음 단계로 넘어가거나 제출하지 못한다 */
+export function sharedAnswerNeeded(q: SharedParkingQuestion | undefined): boolean {
+  return !!q && q.answer === undefined;
 }
 
 /** 사람이 고른 답과 사진에서 읽은 안내(있으면)를 함께 기록한다. 법적 허용 여부는 정하지 않는다. */

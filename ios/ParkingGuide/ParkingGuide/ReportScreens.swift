@@ -331,11 +331,17 @@ struct ReportStepsScreen: View {
     @State private var submitBlocked: String?
     /// 빨간불이 있는 채 제출을 눌렀다 — 사유와 불수용 안내. 창에 보여 준 빨간불을 담는다.
     @State private var redNotice: [ReportCheck] = []
+    /// 병행주차 질문에 답하지 않고 다음·제출을 누른 횟수 — 누를 때마다 질문으로 옮기고 먼저 답하라고 알린다
+    @State private var askShared = 0
     @Environment(\.scenePhase) private var scenePhase
 
     private var step: Int { min(max(draft.step, 0), ReportRules.steps.count - 1) }
     private func persist() { saveState.persist(draft, in: store) }
-    private func go(_ next: Int) { draft.step = next; persist() }
+    private func go(_ next: Int) {
+        let allowed = ReportEvidence.allowedStep(draft, to: next)
+        if allowed != next { askShared += 1 }
+        draft.step = allowed; persist()
+    }
     private func read(force: Bool = false) {
         reading.run(draft, store: store, force: force) { result, captured in
             guard draft.review.revision == captured.review.revision, draft.evidence.map(\.id) == captured.evidence.map(\.id) else { return }
@@ -375,6 +381,10 @@ struct ReportStepsScreen: View {
                         }
                     }.padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 24)
                 }.onChange(of: step) { _, _ in proxy.scrollTo("top", anchor: .top) }
+                .onChange(of: askShared) { _, _ in
+                    // 단계가 바뀌어 맨 위로 올린 뒤에 질문으로 옮긴다
+                    Task { try? await Task.sleep(for: .milliseconds(150)); withAnimation { proxy.scrollTo("shared", anchor: .center) } }
+                }
             }
         }
         .background(.white)
@@ -384,9 +394,11 @@ struct ReportStepsScreen: View {
                 else { Button("이전") { go(step - 1) }.buttonStyle(ReportButtonStyle()) }
                 if step < ReportRules.steps.count - 1 {
                     Button { go(step + 1) } label: { Text("다음").frame(maxWidth: .infinity) }.buttonStyle(ReportButtonStyle(primary: true))
+                        .opacity(ReportEvidence.sharedPending(draft) ? 0.5 : 1)
                 } else {
                     let reds = draft.reportReds
-                    Button { if reds.isEmpty { submit() } else { redNotice = reds } } label: { Text(reds.isEmpty ? "제출" : "제출 (빨간불 \(reds.count)개)").frame(maxWidth: .infinity) }
+                    // 병행주차 질문에 답하기 전이면 go 가 위반 유형 확인 단계로 돌려보낸다
+                    Button { if ReportEvidence.sharedPending(draft) { go(step) } else if reds.isEmpty { submit() } else { redNotice = reds } } label: { Text(reds.isEmpty ? "제출" : "제출 (빨간불 \(reds.count)개)").frame(maxWidth: .infinity) }
                         .buttonStyle(ReportButtonStyle(primary: true))
                 }
             }.padding(.horizontal, 16).padding(.vertical, 10).background(.white).overlay(alignment: .top) { ReportAppearance.border.frame(height: 1) }
@@ -618,8 +630,13 @@ struct ReportStepsScreen: View {
         }
         if ReportEvidence.sharedQuestionApplies(draft) {
             let answer = ReportEvidence.sharedAnswer(draft)
+            let needed = askShared > 0 && answer == nil
             VStack(alignment: .leading, spacing: 8) {
                 Text("이 칸에 일반 자동차도 주차할 수 있다는 안내가 있나요?").font(.system(size: 14, weight: .bold))
+                if needed {
+                    Text("먼저 답해 주세요. 답해야 다음 단계로 넘어갈 수 있어요.").font(.system(size: 13, weight: .bold)).foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Text(ReportEvidence.generalNotice(draft) != nil
                      ? "사진에 그런 안내가 보이는 것 같아요. 이 차가 있는 칸에 해당하는지 확인해 주세요."
                      : "친환경차 충전구역 중에는 표지판이나 바닥 글씨로 일반 자동차도 세울 수 있다고 안내하는 칸이 있어요. 있으면 신고 대상이 아닐 수 있어요.")
@@ -631,7 +648,9 @@ struct ReportStepsScreen: View {
                     }
                 }
             }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(ReportAppearance.border)).padding(.top, 14)
+                .background(needed ? Color.red.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(needed ? Color.red.opacity(0.6) : ReportAppearance.border)).padding(.top, 14)
+                .id("shared")
         }
     }
     private var typeChooser: some View {

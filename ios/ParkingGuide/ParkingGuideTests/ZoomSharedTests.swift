@@ -45,6 +45,18 @@ import XCTest
         c.invalidateEvidenceReview()
         XCTAssertNil(ReportEvidence.sharedAnswer(c), "사진이 바뀌면 다시 묻는다")
     }
+    func testEvMustAnswerBeforeLeavingTypeStep() {
+        var c = pair(); c.chooseType(.evcharging)
+        XCTAssertTrue(ReportEvidence.sharedPending(c))
+        XCTAssertEqual(ReportEvidence.allowedStep(c, to: 1), 0, "답하기 전에는 다음 단계로 못 간다")
+        XCTAssertEqual(ReportEvidence.allowedStep(c, to: 4), 0, "제출 단계에서도 위반 유형 확인 단계로 돌려보낸다")
+        XCTAssertEqual(ReportEvidence.allowedStep(c, to: 0), 0)
+        c.answerShared(.unknown)
+        XCTAssertFalse(ReportEvidence.sharedPending(c), "모르겠어요도 답이다")
+        XCTAssertEqual(ReportEvidence.allowedStep(c, to: 1), 1)
+        var hydrant = pair(); hydrant.chooseType(.hydrant)
+        XCTAssertEqual(ReportEvidence.allowedStep(hydrant, to: 2), 2)
+    }
     func testOtherTypesAndNoPhotosAreNotAsked() {
         var hydrant = pair(); hydrant.chooseType(.hydrant)
         XCTAssertFalse(ReportEvidence.sharedQuestionApplies(hydrant)); XCTAssertNil(row(hydrant))

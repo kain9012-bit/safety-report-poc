@@ -162,6 +162,10 @@ enum ReportEvidence {
         guard s.reviewedSignature == draft.reviewSignature, s.source == "photo_ai_user_answer" || s.source == "user_answer" else { return nil }
         switch s.appliesToBay { case .yes: return .sameBay; case .no: return .differentBay; case .unknown: return .unknown }
     }
+    /// 병행주차 질문에 아직 답하지 않았다('모르겠어요'도 답이다, 웹 sharedAnswerNeeded)
+    static func sharedPending(_ draft: ZoneCase) -> Bool { sharedQuestionApplies(draft) && sharedAnswer(draft) == nil }
+    /// 답하기 전에는 위반 유형 확인 단계를 떠나거나 제출하지 못한다 — 가려던 단계 대신 갈 단계(웹 ReportSteps held)
+    static func allowedStep(_ draft: ZoneCase, to next: Int) -> Int { next > 0 && sharedPending(draft) ? 0 : next }
     /// 사진에서 읽은 정류소 공개 번호 — 서로 다르면 대상 정류소를 정할 수 없다
     static func busStopNumbers(_ draft: ZoneCase) -> [String] {
         var seen: [String] = []
