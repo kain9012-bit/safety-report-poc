@@ -458,41 +458,67 @@ const MAX_B64 = 4_000_000;
 
 type CallOutcome = { read: PhotoRead; model: string } | 'rate_limited' | 'busy' | 'upstream';
 
-/** 사진 한 장 판독. 지정 모델이 붐비거나(503) 없어지면(404) 다음 후보로 넘어간다. */
-async function readOne(img: { mime: string; data: string }, key: string, models: string[]): Promise<CallOutcome> {
-  // 한도 초과(429)면 예비 모델로 넘긴다 — 무료 등급은 모델마다 한도를 따로 센다. 모두 막히면 그때 한도 초과로 알린다.
+/** 모델 한 번 호출의 제한 시간. 함수 전체 한도(vercel.json maxDuration 60초) 안에 예비 모델까지 돌 수 있게 짧게 둔다. */
+const MODEL_TIMEOUT_MS = 25_000;
+/** 함수 시작 후 이 시간이 지나면 다음 모델을 부르지 않는다(60초 한도 전에 답을 돌려준다) */
+const DEADLINE_MS = 52_000;
+
+/**
+ * 사진 한 장 판독. 지정 모델이 붐비거나(503)·없어지거나(404)·한도에 걸리거나(429)·
+ * 늦거나(시간 초과)·오류(5xx)·이상한 답이면 다음 후보로 넘어간다.
+ * 실패 사유는 Vercel 로그에 남긴다(키는 남기지 않음) — 429 본문의 quota 이름으로 무료·유료 등급도 확인할 수 있다.
+ */
+async function readOne(
+  img: { mime: string; data: string },
+  key: string,
+  models: string[],
+  startedAt = Date.now(),
+): Promise<CallOutcome> {
   let limited = false;
+  let failed = false;
   for (const model of models) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: PROMPT }, { inline_data: { mime_type: img.mime, data: img.data } }] }],
-        generationConfig: {
-          temperature: 0,
-          thinkingConfig: { thinkingLevel: 'low' },
-          responseMimeType: 'application/json',
-          responseSchema: RESPONSE_SCHEMA,
-        },
-      }),
-      signal: AbortSignal.timeout(40_000),
-    });
-    if (res.status === 503 || res.status === 404) continue;
-    if (res.status === 429) {
-      limited = true;
+    const left = DEADLINE_MS - (Date.now() - startedAt);
+    if (left < 8_000) break;
+    let res: Response;
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: PROMPT }, { inline_data: { mime_type: img.mime, data: img.data } }] }],
+          generationConfig: {
+            temperature: 0,
+            thinkingConfig: { thinkingLevel: 'low' },
+            responseMimeType: 'application/json',
+            responseSchema: RESPONSE_SCHEMA,
+          },
+        }),
+        signal: AbortSignal.timeout(Math.min(MODEL_TIMEOUT_MS, left - 3_000)),
+      });
+    } catch (e) {
+      console.warn(`[vision] ${model} 호출 실패: ${(e as Error)?.name ?? 'error'}`);
+      failed = true;
       continue;
     }
-    if (!res.ok) return limited ? 'rate_limited' : 'upstream';
-    const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 400);
+      console.warn(`[vision] ${model} ${res.status} ${detail}`);
+      if (res.status === 429) limited = true;
+      else if (res.status !== 503 && res.status !== 404) failed = true;
+      continue;
+    }
+    const j = (await res.json().catch(() => ({}))) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
     const text = j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
     try {
       const read = normalizeRead(JSON.parse(text));
-      return read ? { read, model } : 'upstream';
+      if (read) return { read, model };
     } catch {
-      return 'upstream';
+      /* 아래로 */
     }
+    console.warn(`[vision] ${model} 답 형식 오류`);
+    failed = true;
   }
-  return limited ? 'rate_limited' : 'busy';
+  return limited ? 'rate_limited' : failed ? 'upstream' : 'busy';
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -512,7 +538,8 @@ export async function POST(request: Request): Promise<Response> {
   const models = [...new Set([process.env.VISION_MODEL || DEFAULT_MODEL, ...FALLBACK_MODELS])];
 
   try {
-    const outcomes = await Promise.all(imgs.map((img) => readOne(img!, key, models)));
+    const startedAt = Date.now();
+    const outcomes = await Promise.all(imgs.map((img) => readOne(img!, key, models, startedAt)));
     const reads = outcomes.map((o) => (typeof o === 'object' ? o.read : null));
     const model = outcomes.find((o): o is { read: PhotoRead; model: string } => typeof o === 'object')?.model ?? '';
     const merged = mergeReads(reads, model);
