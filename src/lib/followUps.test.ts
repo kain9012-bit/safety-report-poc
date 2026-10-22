@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerSharedParking, photoKey, sharedParkingQuestion } from './followUps';
+import { answerSharedParking, photoKey, sharedAnswerNeeded, sharedParkingQuestion } from './followUps';
 import { precheck } from './precheck';
 import { kstTime } from './kst';
 import type { DraftReport, Shot } from '../types/report';
@@ -27,6 +27,13 @@ describe('친환경차 병행주차 질문 — 친환경차충전구역 유형�
     const d = answerSharedParking(ev(), 'same_bay', at);
     expect(d.sharedParking).toMatchObject({ answer: 'not_seen', notice: '', scope: 'same_bay', permission: 'unknown', inputKey: photoKey(d), answeredAt: at });
     expect(sharedParkingQuestion(d)?.answer).toBe('same_bay');
+  });
+  it('답이 없을 때만 다음 단계로 못 가게 한다 — 모르겠어요도 답이다', () => {
+    expect(sharedAnswerNeeded(sharedParkingQuestion(ev()))).toBe(true);
+    for (const scope of ['same_bay', 'different_bay', 'unknown'] as const) {
+      expect(sharedAnswerNeeded(sharedParkingQuestion(answerSharedParking(ev(), scope, at)))).toBe(false);
+    }
+    expect(sharedAnswerNeeded(sharedParkingQuestion(ev({ type: 'hydrant' })))).toBe(false);
   });
   it('사진이 바뀌면 다시 묻는다', () => {
     const d = answerSharedParking(ev(), 'different_bay', at);

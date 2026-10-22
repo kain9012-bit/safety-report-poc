@@ -156,3 +156,42 @@ describe('빨간불이 있어도 낼 수 있다 — 사유와 불수용 안내�
     expect(p.onSubmit).toHaveBeenCalledWith();
   });
 });
+
+describe('친환경차 병행주차 질문 — 답해야 다음 단계로 넘어가고 제출된다', () => {
+  const evProps = (answer?: 'same_bay' | 'different_bay' | 'unknown', step = 0) => {
+    const p = props();
+    return {
+      ...p, step,
+      draft: { ...p.draft, type: 'evcharge' as const },
+      followUps: { shared: { notice: '', answer }, onSharedAnswer: vi.fn() },
+    };
+  };
+  const alert = () => screen.queryByText('먼저 답해 주세요. 답해야 다음 단계로 넘어갈 수 있어요.');
+
+  it('답하기 전에 다음·단계 표시를 누르면 넘어가지 않고 질문에 먼저 답하라고 알린다', () => {
+    const p = evProps();
+    render(<ReportSteps {...p} />);
+    expect(alert()).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+    expect(p.onStep).not.toHaveBeenCalled();
+    expect(alert()).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '차량번호' }));
+    expect(p.onStep).not.toHaveBeenCalled();
+  });
+
+  it('모르겠어요를 포함해 답하면 넘어간다', () => {
+    const p = evProps('unknown');
+    render(<ReportSteps {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+    expect(p.onStep).toHaveBeenCalledWith(1);
+    expect(alert()).toBeNull();
+  });
+
+  it('뒤 단계에서 친환경차로 정해져 답이 없으면 제출하지 않고 위반 유형 확인 단계로 돌려보낸다', () => {
+    const p = evProps(undefined, 4);
+    render(<ReportSteps {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: /^제출/ }));
+    expect(p.onSubmit).not.toHaveBeenCalled();
+    expect(p.onStep).toHaveBeenCalledWith(0);
+  });
+});

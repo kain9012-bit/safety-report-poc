@@ -33,6 +33,7 @@ import {
 } from './FormParts';
 import type { PickedAddress, TypeInfo } from './FormParts';
 import { CROSSWALK_ADJACENT_NOTE } from '../lib/ground';
+import { sharedAnswerNeeded } from '../lib/followUps';
 import FollowUps from './FollowUps';
 import type { FollowUpProps } from './FollowUps';
 import PhotoSlots, { Dialog } from './PhotoSlots';
@@ -106,6 +107,19 @@ export default function ReportSteps(p: Props) {
   const count = (st: CheckStatus) => pc.checks.filter((c) => c.status === st).length;
   const last = STEPS.length - 1;
 
+  // 친환경차 병행주차 질문에 답하기 전에는 위반 유형 확인 단계를 떠나거나 제출하지 못한다 — 질문으로 돌려보낸다
+  const sharedPending = sharedAnswerNeeded(p.followUps?.shared);
+  const [askShared, setAskShared] = useState(0);
+  const held = (target: number) => {
+    if (target === 0 || !sharedPending) return false;
+    setAskShared((n) => n + 1);
+    if (step !== 0) onStep(0);
+    return true;
+  };
+  const go = (n: number) => {
+    if (!held(n)) onStep(n);
+  };
+
   const copyBody = async () => {
     try {
       await navigator.clipboard.writeText(sent);
@@ -135,7 +149,7 @@ export default function ReportSteps(p: Props) {
       <ol className="shrink-0 grid grid-cols-5 gap-1 px-3 pt-2 pb-1 bg-white" aria-label="신고 단계">
         {STEPS.map((s, i) => (
           <li key={s}>
-            <button onClick={() => onStep(i)} className="w-full text-center" aria-current={i === step ? 'step' : undefined}>
+            <button onClick={() => go(i)} className="w-full text-center" aria-current={i === step ? 'step' : undefined}>
               <span className={`block h-1.5 rounded-full ${i <= step ? 'bg-[#3a8fdb]' : 'bg-slate-200'}`} />
               <span className={`block mt-1 text-[11px] ${i === step ? 'font-bold text-blue-700' : 'text-slate-500'}`}>{s}</span>
             </button>
@@ -183,7 +197,7 @@ export default function ReportSteps(p: Props) {
             {vision.result?.crosswalkAdjacent && draft.type !== 'crossing' && (
               <p className="mt-3 rounded border border-slate-200 px-3 py-2 text-[14px] text-slate-700 leading-snug">{CROSSWALK_ADJACENT_NOTE}</p>
             )}
-            {p.followUps && <FollowUps {...p.followUps} />}
+            {p.followUps && <FollowUps {...p.followUps} sharedNeeded={askShared} />}
           </Step>
         )}
 
@@ -284,10 +298,10 @@ export default function ReportSteps(p: Props) {
             sub={pc.blocked ? '빨간불이 있으면 불수용될 수 있어요. 제출할 때 사유를 한 번 더 알려 드려요' : '점검 결과를 확인하고 제출해 주세요'}
           >
             <ul className="rounded-lg border border-slate-200 divide-y divide-slate-100">
-              <Summary label="유형" value={draft.type ? VIOLATION_LABEL[draft.type] : '비어 있음'} onFix={() => onStep(0)} />
-              <Summary label="발생지역" value={draft.address ?? '비어 있음'} onFix={() => onStep(1)} />
-              <Summary label="차량번호" value={draft.plate ?? '비어 있음'} onFix={() => onStep(2)} />
-              <Summary label="내용" value={`${body.length}자`} onFix={() => onStep(3)} />
+              <Summary label="유형" value={draft.type ? VIOLATION_LABEL[draft.type] : '비어 있음'} onFix={() => go(0)} />
+              <Summary label="발생지역" value={draft.address ?? '비어 있음'} onFix={() => go(1)} />
+              <Summary label="차량번호" value={draft.plate ?? '비어 있음'} onFix={() => go(2)} />
+              <Summary label="내용" value={`${body.length}자`} onFix={() => go(3)} />
             </ul>
             <p className="mt-4 mb-1 flex items-center gap-3 text-[13px] text-slate-600">
               <span className="flex items-center gap-1"><Light status="pass" />{count('pass')}</span>
@@ -343,17 +357,24 @@ export default function ReportSteps(p: Props) {
               다시 찍기
             </button>
           ) : (
-            <button onClick={() => onStep(step - 1)} className="h-14 rounded bg-slate-400 text-white text-[19px] font-bold">
+            <button onClick={() => go(step - 1)} className="h-14 rounded bg-slate-400 text-white text-[19px] font-bold">
               이전
             </button>
           )}
           {step < last ? (
-            <button onClick={() => onStep(step + 1)} className="h-14 rounded bg-[#3a8fdb] text-white text-[19px] font-bold">
+            <button
+              onClick={() => go(step + 1)}
+              className={`h-14 rounded bg-[#3a8fdb] text-white text-[19px] font-bold ${sharedPending ? 'opacity-50' : ''}`}
+            >
               다음
             </button>
           ) : (
             <button
-              onClick={() => (pc.blocked ? setSheet('notice') : p.onSubmit())}
+              onClick={() => {
+                if (held(last)) return;
+                if (pc.blocked) setSheet('notice');
+                else p.onSubmit();
+              }}
               className="h-14 rounded bg-[#3a8fdb] text-white text-[19px] font-bold flex items-center justify-center gap-1.5"
             >
               <Check className="w-6 h-6" aria-hidden="true" /> {pc.blocked ? `제출 (빨간불 ${fails}개)` : '제출'}
@@ -365,7 +386,7 @@ export default function ReportSteps(p: Props) {
       {sheet === 'notice' && (
         <RedNotice
           reds={pc.checks.filter((c) => c.status === 'fail')}
-          onFix={(step) => { setSheet(null); onStep(step); }}
+          onFix={(step) => { setSheet(null); go(step); }}
           onSubmit={(ids) => { setSheet(null); p.onSubmit(ids); }}
           onClose={() => setSheet(null)}
         />
