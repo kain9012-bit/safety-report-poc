@@ -21,6 +21,17 @@ import UIKit
         let parsed = NativeVisionClient.parse(decoded.object, allowedPhotoIDs: Set(ids))
         XCTAssertTrue(parsed.types.isEmpty); XCTAssertTrue(parsed.observations.isEmpty)
     }
+    /// 운영(main) 판독은 친환경차충전구역을 'evcharge'로 답한다 — 실패로 버리지 않고 앱 유형(evcharging)으로 받는다(2026-10-22 폰 시험에서 발견)
+    func testLegacyAcceptsMainEvChargeTypeName() throws {
+        let ids = [UUID(), UUID()]
+        let ev: [String: Any] = ["scene": ["evChargingSpace": "yes", "evVehicle": "no"], "typeGuess": "evcharge", "evidence": "전기차 충전소 칸에 일반 번호판 차"]
+        let decoded = try NativeVisionContract.decode(["photos": [ev, ev]], photoIDs: ids, inputVersion: "3")
+        XCTAssertEqual(decoded.format, "legacy")
+        XCTAssertEqual(decoded.legacyReads.map(\.typeGuess), ["evcharging", "evcharging"])
+        XCTAssertEqual(decoded.legacyReads[0].scene["evChargingSpace"], "yes")
+        let unknown: [String: Any] = ["scene": ["evChargingSpace": "yes"], "typeGuess": "spaceship", "evidence": ""]
+        XCTAssertThrowsError(try NativeVisionContract.decode(["photos": [unknown, unknown]], photoIDs: ids, inputVersion: "3"), "모르는 유형은 그대로 막는다")
+    }
     func testModernAndWrappedResponsesRetainBoundObservations() throws {
         let id = UUID()
         let decoded = try NativeVisionContract.decode(["result": modern(id)], photoIDs: [id], inputVersion: "3")

@@ -72,12 +72,15 @@ enum NativeVisionContract {
             return .init(object: object, format: "evidence_v2", notes: notes)
         }
         guard let photos else { throw invalid() }
+        // 운영(main) 판독은 친환경차충전구역을 'evcharge'로 부른다 — 앱 유형 이름(evcharging)으로 맞춘다
+        let aliases = ["evcharge": EvidenceType.evcharging.rawValue]
         let keys = ["onCrosswalk", "onSidewalk", "busStopVisible", "schoolZoneMarking", "intersectionCorner", "fireHydrantNear", "disabledSpace", "disabledPermit", "fireLane", "evChargingSpace", "evVehicle"]
         var legacy: [NativeLegacyPhotoRead] = []
         for (index, value) in photos.enumerated() {
             if value is NSNull { continue }
             guard let photo = value as? [String: Any], let scene = photo["scene"] as? [String: Any],
-                  let evidence = photo["evidence"] as? String, let guess = photo["typeGuess"] as? String,
+                  let evidence = photo["evidence"] as? String, let rawGuess = photo["typeGuess"] as? String,
+                  case let guess = aliases[rawGuess] ?? rawGuess,
                   guess == "none" || (EvidenceType(rawValue: guess) != nil && guess != "other"),
                   keys.contains(where: { ["yes", "no", "unclear"].contains(scene[$0] as? String ?? "") }) else { throw invalid() }
             let flags = Dictionary(uniqueKeysWithValues: keys.compactMap { key -> (String, String)? in
