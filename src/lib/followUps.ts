@@ -3,7 +3,8 @@
  *
  *  1. 보완 촬영 — 사진으로 해결되는 부족 사유일 때만, 한 번에 하나, 같은 사유는 한 번만 요청한다.
  *     거리·법적 요건만 부족한 경우는 사진으로 해결되지 않으므로 요청하지 않는다(evidence.supplementalNeeds).
- *  2. 병행주차 — 친환경차 충전·전용구역에서 '일반 자동차도 주차할 수 있다'는 안내가 사진에 보일 때만 묻는다.
+ *  2. 병행주차 — 친환경차 충전·전용구역 유형이면 사진에 안내가 보이지 않아도 늘 한 번 묻는다(2026-10-22 결정).
+ *     일반 자동차도 세울 수 있는 칸이 있어 확인하고 신고하게 한다. 사진에서 그런 안내를 읽었으면 그 사실도 알린다.
  *
  * 그 밖의 판독 근거(관찰·미확인 사유·GPS 품질·촬영 방향)는 기록에만 남기고 화면에 늘어놓지 않는다.
  */
@@ -38,7 +39,7 @@ export function supplementRequest(d: DraftReport): SupplementRequest | undefined
 export type SharedScope = 'same_bay' | 'different_bay' | 'unknown';
 
 export interface SharedParkingQuestion {
-  /** 사진에서 읽은 안내 문구(그대로 보여 주지는 않고 기록에 남긴다) */
+  /** 사진에서 읽은 안내 문구(그대로 보여 주지는 않고 기록에 남긴다). 읽지 못했으면 '' */
   notice: string;
   /** 지금 사진 기준으로 받은 답. 사진이 바뀌었으면 undefined(다시 묻는다) */
   answer?: SharedScope;
@@ -51,27 +52,27 @@ function generalNotice(d: DraftReport) {
 }
 
 export function sharedParkingQuestion(d: DraftReport): SharedParkingQuestion | undefined {
+  if (d.type !== 'evcharging' || primaryShots(d).length === 0) return;
   const notice = generalNotice(d);
-  if (!notice) return;
   const p = d.sharedParking;
-  return { notice: notice.text, answer: p && p.inputKey === evidenceKey(d) ? p.scope : undefined };
+  return { notice: notice?.text ?? '', answer: p && p.inputKey === evidenceKey(d) ? p.scope : undefined };
 }
 
-/** 사람이 고른 답과 사진에서 읽은 안내를 함께 기록한다. 법적 허용 여부는 정하지 않는다. */
+/** 사람이 고른 답과 사진에서 읽은 안내(있으면)를 함께 기록한다. 법적 허용 여부는 정하지 않는다. */
 export function answerSharedParking(d: DraftReport, scope: SharedScope, now = Date.now()): DraftReport {
+  if (d.type !== 'evcharging') return d;
   const notice = generalNotice(d);
-  if (!notice) return d;
   return {
     ...d,
     sharedParking: {
-      answer: 'yes',
-      notice: notice.text,
-      targetBay: notice.bayText,
+      answer: notice ? 'yes' : 'not_seen',
+      notice: notice?.text ?? '',
+      targetBay: notice?.bayText ?? '',
       scope,
-      permission: notice.kind === 'general_car' || notice.kind === 'both' ? 'general' : 'unknown',
-      timeCondition: notice.timeText,
+      permission: notice ? 'general' : 'unknown',
+      timeCondition: notice?.timeText ?? '',
       timeMatch: 'unknown',
-      conditions: notice.otherConditions,
+      conditions: notice?.otherConditions ?? '',
       inputKey: evidenceKey(d),
       answeredAt: now,
     },

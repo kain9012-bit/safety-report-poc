@@ -146,7 +146,9 @@ enum ReportEvidence {
     enum SharedScope: String, CaseIterable { case sameBay = "same_bay", differentBay = "different_bay", unknown
         var label: String { switch self { case .sameBay: "있어요"; case .differentBay: "없어요"; case .unknown: "모르겠어요" } }
     }
-    /// 친환경차 충전·전용구역에서 '일반 자동차도 주차할 수 있다'는 안내가 사진에 보일 때만 묻는다
+    /// 병행주차 질문 — 친환경차 충전·전용구역 유형이면 사진에 안내가 보이지 않아도 늘 한 번 묻는다(2026-10-22 결정, 웹 sharedParkingQuestion)
+    static func sharedQuestionApplies(_ draft: ZoneCase) -> Bool { draft.reportType == .evcharging && !draft.primaryPair.isEmpty }
+    /// 사진에서 읽은 '일반 자동차도 주차할 수 있다' 안내(있으면 질문에 그 사실을 알리고 기록에 남긴다)
     static func generalNotice(_ draft: ZoneCase) -> (observation: NativeAIObservation, notice: NativeSharedNotice)? {
         guard draft.reportType == .evcharging else { return nil }
         for o in observations(draft) where o.type == .evcharging {
@@ -157,7 +159,7 @@ enum ReportEvidence {
     /// 지금 사진 기준으로 받은 답. 사진이 바뀌었으면 nil(다시 묻는다)
     static func sharedAnswer(_ draft: ZoneCase) -> SharedScope? {
         let s = draft.review.shared
-        guard s.reviewedSignature == draft.reviewSignature, s.observed == .yes else { return nil }
+        guard s.reviewedSignature == draft.reviewSignature, s.source == "photo_ai_user_answer" || s.source == "user_answer" else { return nil }
         switch s.appliesToBay { case .yes: return .sameBay; case .no: return .differentBay; case .unknown: return .unknown }
     }
     /// 사진에서 읽은 정류소 공개 번호 — 서로 다르면 대상 정류소를 정할 수 없다
@@ -240,12 +242,19 @@ extension ZoneCase {
         var r = review; r.selectedType = type; r.selectionSource = "user"; evidenceReview = r
         typeSource = "user"
     }
+    /// 신고인의 답과 사진에서 읽은 안내(있으면)를 함께 기록한다. 법적 허용 여부는 정하지 않는다(웹 answerSharedParking)
     mutating func answerShared(_ scope: ReportEvidence.SharedScope) {
-        guard let (observation, notice) = ReportEvidence.generalNotice(self) else { return }
+        guard ReportEvidence.sharedQuestionApplies(self) else { return }
         var s = review.shared
-        s.observed = .yes; s.kind = notice.kind; s.noticeText = notice.text; s.scope = notice.bay; s.timeConditions = notice.time
+        if let (observation, notice) = ReportEvidence.generalNotice(self) {
+            s.observed = .yes; s.kind = notice.kind; s.noticeText = notice.text; s.scope = notice.bay; s.timeConditions = notice.time
+            s.source = "photo_ai_user_answer"; s.photoIDs = [observation.photoID]
+        } else {
+            s.observed = .no; s.kind = "unclear"; s.noticeText = ""; s.scope = ""; s.timeConditions = ""
+            s.source = "user_answer"; s.photoIDs = []
+        }
         s.appliesToBay = scope == .sameBay ? .yes : scope == .differentBay ? .no : .unknown
-        s.source = "photo_ai_user_answer"; s.photoIDs = [observation.photoID]; s.reviewedSignature = reviewSignature
+        s.reviewedSignature = reviewSignature
         var r = review; r.shared = s; evidenceReview = r
     }
 
@@ -321,13 +330,14 @@ extension ZoneCase {
                          detail: type == nil ? "위반유형이 비어 있습니다. 위반 장소가 사진에 보이게 찍거나 유형을 골라 주세요."
                          : (type != .other && confident.contains(type!)) ? "사진에서 위반 장소의 근거를 찾았습니다."
                          : "직접 고른 유형입니다. 그 근거(표지판·노면 표시 등)가 사진에 보이는지 확인해 주세요."))
-        if ReportEvidence.generalNotice(self) != nil {
+        if ReportEvidence.sharedQuestionApplies(self) {
             let answer = ReportEvidence.sharedAnswer(self)
             if answer != .differentBay {
                 out.append(.init(id: "shared_parking", label: "일반 자동차 주차 안내", status: .warn, detail:
                     answer == .sameBay ? "이 칸에 일반 자동차도 주차할 수 있다는 안내가 있다고 답했습니다. 안내의 시간·조건에 해당하면 신고 대상이 아닐 수 있습니다."
                     : answer == .unknown ? "일반 자동차 주차 안내가 이 칸에 적용되는지 확인하지 못했습니다. 안내의 시간·조건에 해당하면 신고 대상이 아닐 수 있습니다."
-                    : "사진에 일반 자동차 주차 안내가 보입니다. 위반 유형 확인 단계에서 이 칸에 적용되는지 답해 주세요."))
+                    : ReportEvidence.generalNotice(self) != nil ? "사진에 일반 자동차 주차 안내가 보입니다. 위반 유형 확인 단계에서 이 칸에 적용되는지 답해 주세요."
+                    : "친환경차 충전구역 중에는 일반 자동차도 세울 수 있는 칸이 있습니다. 위반 유형 확인 단계에서 이 칸에 그런 안내가 있는지 답해 주세요."))
             }
         }
         let stops = type == .busstop ? ReportEvidence.busStopNumbers(self) : []

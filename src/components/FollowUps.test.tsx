@@ -38,4 +38,13 @@ describe('위반 유형 확인 단계의 후속 질문', () => {
     fireEvent.click(screen.getByRole('button', { name: '없어요' }));
     expect(onSharedAnswer).toHaveBeenCalledWith('different_bay');
   });
+  it('사진에서 안내를 못 읽었어도 친환경차면 묻고, 왜 묻는지 한 줄로 알린다', () => {
+    const onSharedAnswer = vi.fn();
+    render(<FollowUps shared={{ notice: '' }} onSupplement={vi.fn()} onSharedAnswer={onSharedAnswer} />);
+    expect(screen.getByText('이 칸에 일반 자동차도 주차할 수 있다는 안내가 있나요?')).toBeTruthy();
+    expect(screen.getByText(/일반 자동차도 세울 수 있다고 안내하는 칸이 있어요/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '없어요' }));
+    expect(onSharedAnswer).toHaveBeenCalledWith('different_bay');
+  });
+
 });

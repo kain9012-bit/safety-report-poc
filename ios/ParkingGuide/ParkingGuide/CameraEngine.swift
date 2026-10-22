@@ -46,6 +46,20 @@ final class CameraEngine: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureFile
     private var movieDate = Date()
     private var movieSeconds = 5
     private var interruptionObserver: NSObjectProtocol?
+    private var device: AVCaptureDevice?
+
+    /// 사진 부분만 키우는 배율 — 후면 광각 카메라의 videoZoomFactor(1 = 기본 화각). 기기가 지원하는 범위 안에서만
+    func setZoom(_ factor: CGFloat) {
+        queue.async { [self] in
+            guard let device else { return }
+            let zoom = min(max(factor, 1), device.maxAvailableVideoZoomFactor)
+            do {
+                try device.lockForConfiguration()
+                device.videoZoomFactor = zoom
+                device.unlockForConfiguration()
+            } catch {}
+        }
+    }
 
     func start() {
         queue.async { [self] in
@@ -57,6 +71,7 @@ final class CameraEngine: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureFile
                     guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
                         throw CameraError.unavailable
                     }
+                    device = camera
                     let input = try AVCaptureDeviceInput(device: camera)
                     guard session.canAddInput(input) else { throw CameraError.unavailable }
                     session.addInput(input)
@@ -212,6 +227,8 @@ final class CameraEngine: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureFile
     @Published var recordingStartedAt: Date?
     @Published var seconds = 5
     @Published var capturedAt = Date()
+    /// 촬영 배율(CameraZoom) — 첫 사진과 두 번째 사진 사이에도 그대로 둔다
+    @Published var zoom: CGFloat = 1
     private var visible = false
     private var clipTask: Task<Void, Never>?
     private var movieToPrepare: URL?
@@ -293,6 +310,12 @@ final class CameraEngine: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureFile
         photoRequests.cancel(); movieRequests.cancel()
         visible = false; ready = false; processingToken = nil; clipTask?.cancel(); engine.stop()
         recording = false; processing = false; capturing = false; recordingStartedAt = nil
+    }
+    func setZoom(_ value: CGFloat) {
+        let next = CameraZoom.clamp(value)
+        guard next != zoom else { return }
+        zoom = next
+        engine.setZoom(next)
     }
     func capture() {
         guard ready, !capturing else { return }

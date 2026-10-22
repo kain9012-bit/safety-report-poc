@@ -132,6 +132,8 @@ struct ReportCaptureScreen: View {
     @State private var saving = false
     @State private var error: String?
     @State private var rang = false
+    /// 두 손가락으로 벌리기 시작할 때의 배율
+    @State private var pinchBase: CGFloat?
     private let tick = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
 
     init(draft: Binding<ZoneCase>, store: ZoneStore, mode: Mode, onDone: @escaping () -> Void, onExit: @escaping () -> Void) {
@@ -170,6 +172,12 @@ struct ReportCaptureScreen: View {
                     }.foregroundStyle(.white)
                 } else {
                     CameraPreview(session: camera.engine.session).background(.black)
+                        .gesture(MagnifyGesture()
+                            .onChanged { value in
+                                if pinchBase == nil { pinchBase = camera.zoom }
+                                camera.setZoom((pinchBase ?? 1) * value.magnification)
+                            }
+                            .onEnded { _ in pinchBase = nil })
                     // 첫 번째 사진 잔상 — 같은 구도를 잡게(웹 main 과 같이 35%)
                     if !isSupplement, first != nil, second == nil, let image = firstImage {
                         Image(uiImage: image).resizable().scaledToFit().opacity(0.35).allowsHitTesting(false)
@@ -189,6 +197,7 @@ struct ReportCaptureScreen: View {
                 }
                 if !camera.ready && !camera.denied { ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity) }
             }.frame(maxHeight: .infinity).background(.black)
+            .overlay(alignment: .bottom) { if !camera.denied { zoomControls } }
             VStack(spacing: 12) {
                 if !isSupplement {
                     HStack(spacing: 10) {
@@ -223,6 +232,33 @@ struct ReportCaptureScreen: View {
         .alert("촬영 안내", isPresented: Binding(get: { error != nil || camera.error != nil }, set: { if !$0 { error = nil; camera.error = nil } })) {
             Button("확인") { error = nil; camera.error = nil }
         } message: { Text(error ?? camera.error ?? "") }
+    }
+
+    /// 촬영 배율 단추(1·2·3배)와 2배부터 한 줄 안내 — 웹 CaptureFlow 와 같다
+    private var zoomControls: some View {
+        VStack(spacing: 6) {
+            if camera.zoom >= 2 {
+                Text(CameraZoom.wideNote).font(.system(size: 12, weight: .bold)).multilineTextAlignment(.center)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Color(red: 0.96, green: 0.62, blue: 0.04).opacity(0.95), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(.black)
+            }
+            HStack(spacing: 4) {
+                ForEach(CameraZoom.steps, id: \.self) { step in
+                    let on = camera.zoom == step
+                    Button { camera.setZoom(step) } label: {
+                        Text(CameraZoom.label(step)).font(.system(size: 14, weight: .bold)).monospacedDigit()
+                            .frame(minWidth: 48, minHeight: 36)
+                            .background(on ? Color.white : Color.clear, in: Capsule())
+                            .foregroundStyle(on ? Color.black : Color.white)
+                    }.buttonStyle(.plain).accessibilityAddTraits(on ? .isSelected : [])
+                }
+                if camera.zoom != camera.zoom.rounded() {
+                    Text(CameraZoom.label(camera.zoom)).font(.system(size: 13, weight: .bold)).monospacedDigit()
+                        .foregroundStyle(.orange).padding(.horizontal, 8)
+                }
+            }.padding(4).background(.black.opacity(0.7), in: Capsule()).accessibilityElement(children: .contain).accessibilityLabel("촬영 배율")
+        }.padding(.horizontal, 16).padding(.bottom, 12)
     }
 
     private var guidance: String {
@@ -580,10 +616,14 @@ struct ReportStepsScreen: View {
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(red: 0.99, green: 0.9, blue: 0.6)))
                 .foregroundStyle(Color(red: 0.47, green: 0.27, blue: 0.0)).padding(.top, 14)
         }
-        if ReportEvidence.generalNotice(draft) != nil {
+        if ReportEvidence.sharedQuestionApplies(draft) {
             let answer = ReportEvidence.sharedAnswer(draft)
             VStack(alignment: .leading, spacing: 8) {
                 Text("이 칸에 일반 자동차도 주차할 수 있다는 안내가 있나요?").font(.system(size: 14, weight: .bold))
+                Text(ReportEvidence.generalNotice(draft) != nil
+                     ? "사진에 그런 안내가 보이는 것 같아요. 이 차가 있는 칸에 해당하는지 확인해 주세요."
+                     : "친환경차 충전구역 중에는 표지판이나 바닥 글씨로 일반 자동차도 세울 수 있다고 안내하는 칸이 있어요. 있으면 신고 대상이 아닐 수 있어요.")
+                    .font(.system(size: 13)).foregroundStyle(ReportAppearance.muted).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
                     ForEach(ReportEvidence.SharedScope.allCases, id: \.self) { scope in
                         Button { draft.answerShared(scope); persist() } label: { Text(scope.label).font(.system(size: 14, weight: .bold)).frame(minWidth: 60) }

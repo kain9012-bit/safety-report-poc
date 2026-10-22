@@ -2,12 +2,15 @@
  * 앱의 워터마크는 시제품 메타데이터이며 공식 신고 접수 자격을 보장하지 않는다.
  */
 import { kstStamp } from './kst';
+import { centerCrop } from './zoom';
 
 export interface CaptureMeta {
   takenAt: number;
   lat?: number;
   lng?: number;
   accuracy?: number;
+  /** 디지털 확대 배율 — 1보다 크면 가운데를 잘라 낸다(기기 카메라 배율은 이미 프레임에 들어 있어 넘기지 않는다) */
+  digitalZoom?: number;
 }
 
 /** 사진에 새기는 촬영시각 — 기기 시간대와 상관없이 한국 시각 */
@@ -21,15 +24,15 @@ export function captureFrame(video: HTMLVideoElement, meta: CaptureMeta): string
 }
 
 export function captureEvidenceFrame(video: HTMLVideoElement, meta: CaptureMeta): { originalDataUrl: string; dataUrl: string } {
-  const w = video.videoWidth;
-  const h = video.videoHeight;
-  if (w <= 0 || h <= 0 || video.readyState < 2) throw new Error('촬영 화면이 아직 준비되지 않았습니다');
+  if (video.videoWidth <= 0 || video.videoHeight <= 0 || video.readyState < 2) throw new Error('촬영 화면이 아직 준비되지 않았습니다');
+  // 디지털 확대면 화면에 키워 보인 가운데 부분만 원래 화소 그대로 잘라 낸다(늘려 붙이지 않는다)
+  const { sx, sy, sw: w, sh: h } = centerCrop(video.videoWidth, video.videoHeight, meta.digitalZoom ?? 1);
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('캔버스를 만들 수 없습니다');
-  ctx.drawImage(video, 0, 0, w, h);
+  ctx.drawImage(video, sx, sy, w, h, 0, 0, w, h);
   const originalDataUrl = canvas.toDataURL('image/jpeg', 0.92);
 
   const lines = [formatStamp(meta.takenAt)];

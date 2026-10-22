@@ -16,7 +16,7 @@ const SHARED_ANSWERS: [SharedScope, string][] = [
 ];
 
 /**
- * 위반 유형 확인 단계의 후속 질문 — 해당할 때만 한 줄씩 보인다(lib/followUps.ts).
+ * 위반 유형 확인 단계의 후속 질문 — 해당할 때만 한 줄씩 보인다(lib/followUps.ts). 병행주차는 친환경차 유형이면 늘 묻는다.
  * 답하지 않아도 다음 단계로 갈 수 있다. 판독 근거 목록·미확인 표시는 화면에 늘어놓지 않는다.
  */
 export default function FollowUps({ supplement, supplementBusy, onSupplement, shared, onSharedAnswer }: FollowUpProps) {
@@ -47,6 +47,11 @@ export default function FollowUps({ supplement, supplementBusy, onSupplement, sh
       {shared && (
         <div className="mt-3 rounded border border-slate-200 px-3 py-2.5">
           <p className="text-[14px] font-bold text-slate-800">이 칸에 일반 자동차도 주차할 수 있다는 안내가 있나요?</p>
+          <p className="mt-0.5 text-[13px] text-slate-500 leading-snug">
+            {shared.notice
+              ? '사진에 그런 안내가 보이는 것 같아요. 이 차가 있는 칸에 해당하는지 확인해 주세요.'
+              : '친환경차 충전구역 중에는 표지판이나 바닥 글씨로 일반 자동차도 세울 수 있다고 안내하는 칸이 있어요. 있으면 신고 대상이 아닐 수 있어요.'}
+          </p>
           <div className="mt-2 flex gap-2" role="group" aria-label="일반 자동차 주차 안내">
             {SHARED_ANSWERS.map(([scope, label]) => (
               <button

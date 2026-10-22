@@ -22,6 +22,7 @@ import type { TypeOption } from '../lib/choose';
 import { OVERLAP_MIN } from '../lib/overlap';
 import { primeAlerts, ringReady, titleCountdown } from '../lib/alert';
 import { RETRYING_TEXT } from '../lib/vision';
+import { MAX_ZOOM, WIDE_ZOOM_NOTE, ZOOM_STEPS, cameraZoomRange, clampZoom, fingerDistance, setCameraZoom, zoomLabel } from '../lib/zoom';
 import type { VisionState } from '../lib/vision';
 import type { VisionResult } from '../../api/vision';
 import { VIOLATION_LABEL } from '../types/report';
@@ -104,6 +105,24 @@ export default function CaptureFlow(p: Props) {
     return () => { alive = false; stop?.(); };
   }, []);
 
+  // 촬영 배율 — 기기 카메라가 지원하면 그 배율, 아니면 화면 가운데를 키워 보이고 찍을 때 잘라 낸다(lib/zoom.ts)
+  const [zoom, setZoom] = useState(1);
+  const [zoomMode, setZoomMode] = useState<'camera' | 'digital'>('digital');
+  const [zoomMax, setZoomMax] = useState(MAX_ZOOM);
+  const zoomRef = useRef({ zoom: 1, mode: 'digital' as 'camera' | 'digital', max: MAX_ZOOM });
+  zoomRef.current = { zoom, mode: zoomMode, max: zoomMax };
+  const applyZoom = useCallback((next: number) => {
+    const { mode, max } = zoomRef.current;
+    const z = clampZoom(next, max);
+    setZoom(z);
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    if (mode === 'camera' && track) {
+      void setCameraZoom(track, z).then((ok) => {
+        if (!ok) setZoomMode('digital');
+      });
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     startCamera()
@@ -111,6 +130,9 @@ export default function CaptureFlow(p: Props) {
         if (cancelled) return stopCamera(stream);
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
+        const range = cameraZoomRange(stream.getVideoTracks?.()[0]);
+        setZoomMode(range ? 'camera' : 'digital');
+        setZoomMax(range ? Math.min(MAX_ZOOM, range.max) : MAX_ZOOM);
       })
       .catch((e: Error) => setCamError(e.message || '카메라를 열 수 없습니다'));
     return () => {
@@ -197,6 +219,41 @@ export default function CaptureFlow(p: Props) {
   const locGiveUp = posErrCode === 1 || waitedSec >= LOC_WAIT_SEC;
   const locBlocking = !pos && !locGiveUp;
   const shootable = (phase === 'first' || phase === 'second') && !camError && !locBlocking;
+  const aiming = (phase === 'first' || phase === 'second' || phase === 'wait') && !camError;
+
+  // 두 손가락으로 벌리면 페이지가 아니라 카메라 배율이 바뀐다. 촬영 흐름에서는 페이지 확대를 막는다
+  const aimingRef = useRef(aiming);
+  aimingRef.current = aiming;
+  useEffect(() => {
+    let start: { dist: number; zoom: number } | null = null;
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) start = { dist: fingerDistance(e.touches[0], e.touches[1]), zoom: zoomRef.current.zoom };
+    };
+    const onMove = (e: TouchEvent) => {
+      if (e.touches.length < 2) return;
+      e.preventDefault();
+      if (start && start.dist > 0 && aimingRef.current) applyZoom((start.zoom * fingerDistance(e.touches[0], e.touches[1])) / start.dist);
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) start = null;
+    };
+    // iOS Safari 는 두 손가락 확대를 gesture* 사건으로도 보낸다
+    const block = (e: Event) => e.preventDefault();
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onEnd);
+    document.addEventListener('gesturestart', block, { passive: false });
+    document.addEventListener('gesturechange', block, { passive: false });
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+      document.removeEventListener('gesturestart', block);
+      document.removeEventListener('gesturechange', block);
+    };
+  }, [applyZoom]);
 
   const shoot = useCallback(() => {
     const video = videoRef.current;
@@ -204,7 +261,7 @@ export default function CaptureFlow(p: Props) {
     primeAlerts();
     const takenAt = Date.now();
     // 판독은 촬영시각을 새기기 전 원본으로 한다. 신고서·화면에는 시각을 새긴 사진을 쓴다.
-    const frame = captureEvidenceFrame(video, { takenAt, lat: pos?.lat, lng: pos?.lng, accuracy: pos?.accuracy });
+    const frame = captureEvidenceFrame(video, { takenAt, lat: pos?.lat, lng: pos?.lng, accuracy: pos?.accuracy, digitalZoom: zoomMode === 'digital' ? zoom : 1 });
     const issue = posErrCode === 1 ? 'denied' : posErrCode ? 'unavailable' : undefined;
     p.onShot({
       takenAt,
@@ -218,13 +275,20 @@ export default function CaptureFlow(p: Props) {
       heading: snapshotHeading(headingSamples.current, takenAt),
       source: 'camera',
     });
-  }, [pos, posErrCode, p]);
+  }, [pos, posErrCode, p, zoom, zoomMode]);
 
   const accTone = !pos ? 'bg-slate-900/70' : pos.accuracy <= 10 ? 'bg-green-600/90' : pos.accuracy <= 30 ? 'bg-amber-600/90' : 'bg-red-600/90';
 
   return (
-    <div className="relative flex-1 min-h-0 bg-slate-900 overflow-hidden">
-      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+    <div className="relative flex-1 min-h-0 bg-slate-900 overflow-hidden" style={{ touchAction: 'manipulation' }}>
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className="absolute inset-0 w-full h-full object-cover"
+        style={zoomMode === 'digital' && zoom > 1 ? { transform: `scale(${zoom})` } : undefined}
+      />
 
       {/* 첫 번째 사진 잔상 — 같은 구도를 잡게 */}
       {first && !second && (
@@ -318,6 +382,31 @@ export default function CaptureFlow(p: Props) {
             </div>
           )}
           {phase === 'wait' && <WaitCard draft={draft} />}
+          {aiming && (
+            <div className="mb-2 flex flex-col items-center gap-1.5">
+              {zoom >= 2 && (
+                <p className="rounded-lg bg-amber-500/95 px-3 py-1.5 text-[12px] font-bold leading-snug text-slate-900 text-center">{WIDE_ZOOM_NOTE}</p>
+              )}
+              <div role="group" aria-label="촬영 배율" className="flex items-center gap-1 rounded-full bg-slate-900/75 p-1">
+                {ZOOM_STEPS.filter((step) => step <= zoomMax).map((step) => (
+                  <button
+                    key={step}
+                    type="button"
+                    onClick={() => applyZoom(step)}
+                    aria-pressed={zoom === step}
+                    className={`min-w-12 h-9 px-2 rounded-full text-[14px] font-bold tabular-nums ${zoom === step ? 'bg-white text-slate-900' : 'text-white'}`}
+                  >
+                    {zoomLabel(step)}
+                  </button>
+                ))}
+                {!Number.isInteger(zoom) && (
+                  <span className="px-2 text-[13px] font-bold text-amber-300 tabular-nums" aria-live="polite">
+                    {zoomLabel(zoom)}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <Thumbs shots={shots} />
             <button

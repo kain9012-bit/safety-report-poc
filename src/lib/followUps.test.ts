@@ -57,7 +57,7 @@ describe('보완 촬영 요청 — 사진으로 해결되는 부족 사유일 �
   });
 });
 
-describe('일반 자동차 병행주차 질문 — 친환경차 구역에서 그런 안내가 보일 때만', () => {
+describe('일반 자동차 병행주차 질문 — 친환경차 유형이면 늘 한 번 묻는다', () => {
   const ev = (kind: SharedParkingNotice['kind']) => draftWith([read([obs({ type: 'evcharging', zoneKind: 'eco_parking', sharedNotice: notice(kind) })]), read([])], { type: 'evcharging' });
   it('일반차 안내가 보이면 묻고, 답을 기록하면 같은 사진에서는 그 답을 보여 준다', () => {
     const d = ev('general_car');
@@ -72,9 +72,18 @@ describe('일반 자동차 병행주차 질문 — 친환경차 구역에서 그
     expect(changed.sharedParking?.scope).toBe('different_bay');
     expect(sharedParkingQuestion(changed)?.answer).toBeUndefined();
   });
-  it('전기차 시간 안내만 있거나 다른 유형이면 묻지 않는다', () => {
-    expect(sharedParkingQuestion(ev('ev_extra_time'))).toBeUndefined();
+  it('사진에 안내가 없어도(전기차 시간 안내만 있어도) 친환경차 유형이면 묻고, 다른 유형이면 묻지 않는다', () => {
+    expect(sharedParkingQuestion(ev('ev_extra_time'))).toEqual({ notice: '', answer: undefined });
+    expect(sharedParkingQuestion(draftWith([read([]), read([])], { type: 'evcharging' }))).toEqual({ notice: '', answer: undefined });
     expect(sharedParkingQuestion({ ...ev('general_car'), type: 'disabled' })).toBeUndefined();
+    expect(sharedParkingQuestion(normalizeDraft({ shots: [], type: 'evcharging' }))).toBeUndefined();
+  });
+  it('안내 없이 답하면 사진에서 못 봤다고 기록하고, 같은 사진에서는 다시 묻지 않는다', () => {
+    const d = answerSharedParking(draftWith([read([]), read([])], { type: 'evcharging' }), 'different_bay', at);
+    expect(d.sharedParking).toMatchObject({ answer: 'not_seen', notice: '', scope: 'different_bay', permission: 'unknown' });
+    expect(sharedParkingQuestion(d)?.answer).toBe('different_bay');
+    const other = draftWith([read([]), read([])], { type: 'hydrant' });
+    expect(answerSharedParking(other, 'same_bay', at)).toBe(other);
   });
 });
 
@@ -89,6 +98,13 @@ describe('제출 전 점검 — 결과를 바꿀 만큼 중요한 미확인만 �
     expect(rows(ev('same_bay')).find((c) => c.id === 'shared_parking')?.status).toBe('warn');
     expect(rows(ev('unknown')).find((c) => c.id === 'shared_parking')?.status).toBe('warn');
     expect(rows(ev('different_bay')).some((c) => c.id === 'shared_parking')).toBe(false);
+  });
+  it('안내가 안 보인 친환경차 신고도 답하기 전에는 노란불로 묻고, 없다고 답하면 줄을 만들지 않는다', () => {
+    const d = draftWith([read([]), read([])], { type: 'evcharging' });
+    const row = rows(d).find((c) => c.id === 'shared_parking');
+    expect(row?.status).toBe('warn');
+    expect(row?.detail).toContain('일반 자동차도 세울 수 있는 칸');
+    expect(rows(answerSharedParking(d, 'different_bay', at)).some((c) => c.id === 'shared_parking')).toBe(false);
   });
   it('서로 다른 정류소 번호가 읽히면 노란불 한 줄', () => {
     const stop = (publicId: string) => obs({ type: 'busstop', busStop: { publicId, name: '', readable: true } });
