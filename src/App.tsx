@@ -24,6 +24,8 @@ import ReportSteps from './components/ReportSteps';
 import type { PickedAddress, TypeInfo } from './components/FormParts';
 import { locatedShot } from './types/report';
 import type { DraftReport, EditableField, Shot, ViolationType } from './types/report';
+import { answerSharedParking, sharedParkingQuestion } from './lib/followUps';
+import type { SharedScope } from './lib/followUps';
 
 type Screen = 'loading' | 'home' | 'capture' | 'form';
 
@@ -364,6 +366,10 @@ export default function App() {
   const onPickAddress = (a: PickedAddress) =>
     setDraft((d) => ({ ...d, address: a.address, addressParcel: a.parcel, addressFrom: a.from, manual: { ...d.manual, address: true } }));
 
+  // 친환경차 병행주차 질문 — 친환경차충전구역 유형이면 늘 한 번 묻는다(lib/followUps.ts)
+  const shared = useMemo(() => sharedParkingQuestion(draft), [draft]);
+  const onSharedAnswer = (scope: SharedScope) => setDraft((d) => answerSharedParking(d, scope));
+
   const onShot = (s: Shot) => setDraft((d) => ({ ...d, shots: [...d.shots, s].slice(0, 2) }));
 
   // 교체 촬영 — 원래 기록은 저장해 두고 후보만 촬영 화면으로 보낸다. 완료 버튼에서 저장이 확정될 때만 바뀐다.
@@ -599,6 +605,7 @@ export default function App() {
             onEdit={onEdit}
             onConfirmPlate={(value) => setDraft((d) => ({ ...d, plateConfirmedFor: value }))}
             onPickAddress={onPickAddress}
+            followUps={{ shared, onSharedAnswer }}
             onRetake={retakeSecond}
             photos={{ busySlot: photoBusy, onCamera: photoByCamera, onAlbum: photoByAlbum, onRemove: photoRemove }}
             askMore={askMore}

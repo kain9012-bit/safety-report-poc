@@ -16,6 +16,7 @@ import { OVERLAP_MIN } from './overlap';
 import { extraTypeCheck } from './extraTypes';
 import type { CheckResult } from './rules';
 import type { Verdict } from './crosscheck';
+import { sharedParkingQuestion } from './followUps';
 import { locatedShot } from '../types/report';
 import type { DraftReport } from '../types/report';
 import type { VisionResult } from '../../api/vision';
@@ -96,6 +97,21 @@ export function precheck({ draft, body, verdict, vision, now = Date.now(), minIn
   // 6대 밖 유형 — 표지 붙은 차·친환경차는 위반이 아니고, 소방차전용구역은 대상 건물이 정해져 있다
   const extra = extraTypeCheck(draft.type, vision?.scene);
   if (extra) out.push(extra);
+
+  // 친환경차충전구역 — 일반 자동차도 세울 수 있는 칸인지 신고인에게 묻는다. 없다고 답하면 줄을 만들지 않는다
+  const shared = sharedParkingQuestion(draft);
+  if (shared && shared.answer !== 'different_bay') {
+    out.push({
+      id: 'shared_parking',
+      label: '일반 자동차 주차 안내',
+      status: 'warn',
+      detail: shared.answer === 'same_bay'
+        ? '이 칸에 일반 자동차도 주차할 수 있다는 안내가 있다고 답했습니다. 안내의 시간·조건에 해당하면 신고 대상이 아닐 수 있습니다.'
+        : shared.answer === 'unknown'
+          ? '일반 자동차 주차 안내가 이 칸에 적용되는지 확인하지 못했습니다. 안내의 시간·조건에 해당하면 신고 대상이 아닐 수 있습니다.'
+          : '친환경차 충전구역 중에는 일반 자동차도 세울 수 있는 칸이 있습니다. 위반 유형 확인 단계에서 이 칸에 그런 안내가 있는지 답해 주세요.',
+    });
+  }
 
   // 같은 차 — 두 장에서 따로 읽은 번호와 입력한 번호가 같으면 통과(회의 결정).
   // AI 가 확실히 읽지 못하면 신고인이 사진을 보고 입력한 번호로 내고 담당자가 다시 본다(주황).

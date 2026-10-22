@@ -29,13 +29,14 @@ describe('판독 한도(429)면 예비 모델로 넘긴다', () => {
   });
   it('한도에 걸린 뒤 예비 모델이 다른 오류를 내도 한도 초과로 알린다(다시 시도하면 풀릴 수 있어서)', async () => {
     vi.stubEnv('VISION_API_KEY', 'synthetic-test-key'); vi.stubEnv('VISION_PROVIDER', 'gemini');
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(status(429)).mockResolvedValueOnce(status(400)));
+    // 예비 모델은 모두 차례로 부른다(10/22 팀원 변경) — 첫 모델 한도, 나머지는 다른 오류
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(status(429)).mockImplementation(async () => status(400)));
     const response = await call();
     expect(response.status).toBe(429);
   });
   it('한도 초과가 없으면 지금처럼 — 다른 오류는 그대로, 모두 붐비면 busy', async () => {
     vi.stubEnv('VISION_API_KEY', 'synthetic-test-key'); vi.stubEnv('VISION_PROVIDER', 'gemini');
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(status(400)));
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => status(400)));
     expect((await call()).status).toBe(502);
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => status(503)));
     expect((await call()).status).toBe(503);

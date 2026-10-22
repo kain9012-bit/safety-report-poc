@@ -33,6 +33,8 @@ import {
 } from './FormParts';
 import type { PickedAddress, TypeInfo } from './FormParts';
 import { CROSSWALK_ADJACENT_NOTE } from '../lib/ground';
+import FollowUps from './FollowUps';
+import type { FollowUpProps } from './FollowUps';
 import PhotoSlots, { Dialog } from './PhotoSlots';
 import type { PhotoSlotActions } from './PhotoSlots';
 
@@ -53,6 +55,8 @@ interface Props {
   /** 신고인이 사진을 보고 확인한 차량번호(체크 해제면 undefined) */
   onConfirmPlate?: (value: string | undefined) => void;
   onPickAddress: (a: PickedAddress) => void;
+  /** 해당할 때만 보이는 후속 질문(친환경차 병행주차) */
+  followUps?: FollowUpProps;
   /** 촬영 화면으로 돌아가 사진을 다시 찍는다 */
   onRetake: () => void;
   /** 사진 칸마다 바꾸기·지우기, 빈 칸은 사진 넣기(앨범·카메라) */
@@ -179,6 +183,7 @@ export default function ReportSteps(p: Props) {
             {vision.result?.crosswalkAdjacent && draft.type !== 'crossing' && (
               <p className="mt-3 rounded border border-slate-200 px-3 py-2 text-[14px] text-slate-700 leading-snug">{CROSSWALK_ADJACENT_NOTE}</p>
             )}
+            {p.followUps && <FollowUps {...p.followUps} />}
           </Step>
         )}
 
