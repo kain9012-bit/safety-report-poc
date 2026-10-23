@@ -625,7 +625,13 @@ export function EvidenceSheet({ shots, result, onClose }: { shots: Shot[]; resul
         <div className="text-[13px] text-slate-500 space-y-1 border-t border-slate-200 pt-3">
           <p>
             <b className="text-slate-700">유형은 위 표에서 규칙으로 정합니다.</b> 두 장의 값이 엇갈리면(보임/아님) '모름'으로
-            봅니다. 여러 개가 보이면 횡단보도·인도 → 소화전·정류장·모퉁이 → 보호구역 순으로 앞선 것을 고릅니다.
+            봅니다.
+          </p>
+          {/* 추천 순서는 lib/choose.ts rankTypes 와 같아야 한다 */}
+          <p>
+            여러 개가 보이면 직접 고르게 하고 하나를 추천합니다. 추천은 지금 단속 시간인 유형 → 과태료가 큰 유형 → 위치자료도
+            근처라고 하는 유형 → 사진 판독 순서(횡단보도·인도 위 → 소화전·정류장·모퉁이 옆 → 전용·보호구역 안) 차례로 정합니다.
+            모두 단속 시간이 아니면 추천하지 않습니다.
           </p>
           <p>횡단보도·인도 '위'는 차 바퀴가 닿은 바닥 판독으로만 정합니다. 근처에 보이기만 하면 '위'로 보지 않습니다.</p>
           {result.crosswalkAdjacent && <p className="text-slate-700">{CROSSWALK_ADJACENT_NOTE}</p>}
