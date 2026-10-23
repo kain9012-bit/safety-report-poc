@@ -121,10 +121,10 @@ enum ReportEvidence {
     /// 사진에서 표시·대상 차량·경계가 모두 확인된 유형 — 유형을 자동으로 채우는 유일한 근거
     static func confidentTypes(_ draft: ZoneCase) -> [EvidenceType] { summarize(draft).filter { $0.status == .observed }.map(\.type) }
 
-    // MARK: 유형이 여럿 보일 때 추천 — 웹 lib/choose.ts rankTypes 와 같은 순서(2026-10-23 결정)
-    // 단속 시간 안 → 사진만으로 확인되는 유형 → 똑같이 확인되면 과태료가 무거운 유형 → 사진 판독 순서.
-    // 한 번 세운 차에 위반이 겹치면 가장 무거운 과태료 하나를 매기고(질서위반행위규제법 제13조 제1항),
-    // 입증된 위반만 매긴다(도로교통법 제160조 제3항). 그래서 사진만으로 확인되는지가 과태료보다 앞선다.
+    // MARK: 유형이 여럿 보일 때 추천 — 웹 lib/choose.ts rankTypes 와 같은 순서(2026-10-23 자문단 결론)
+    // 단속 시간 안 → 사진만으로 확인되는 유형 → 사진 판독 순서. 과태료로는 고르지 않는다(정보로만 보인다).
+    // 한 번 세운 차에 위반이 겹치면 담당 공무원이 가장 무거운 과태료 하나를 매기므로(질서위반행위규제법 제13조 제1항)
+    // 신고 유형을 무거운 쪽으로 고를 까닭이 없고, 고르지 않은 유형은 '함께 보인 위반'으로 알린다(officerLines).
     struct TypeOption: Equatable { var type: EvidenceType; var recommended: Bool; var enforceable: Bool; var tier: Int; var reasons: [String] }
     /// 승용 과태료(원) — 웹 localRules FINE_KRW
     static let fineWon: [EvidenceType: Int] = [
@@ -164,7 +164,6 @@ enum ReportEvidence {
         let sorted = rows.sorted { a, b in
             if a.enf != b.enf { return a.enf }
             if a.tier != b.tier { return a.tier < b.tier }
-            if a.fine != b.fine { return a.fine > b.fine }
             return a.order < b.order
         }
         return sorted.enumerated().map { i, row in
@@ -180,17 +179,16 @@ enum ReportEvidence {
         guard let last = word.unicodeScalars.last, (0xAC00...0xD7A3).contains(last.value) else { return "\(word)\(withFinal)(\(withoutFinal))" }
         return word + ((last.value - 0xAC00) % 28 == 0 ? withoutFinal : withFinal)
     }
-    /// 추천 이유 한 문장(웹 recommendLine)
+    /// 추천 이유 한 문장(웹 recommendLine). 과태료로 고르지 않으므로 과태료를 말하지 않는다
     static func recommendLine(_ options: [TypeOption]) -> String {
         guard let top = options.first(where: \.recommended) else { return "보이는 유형 모두 지금은 단속 시간이 아닙니다." }
-        guard let second = options.first(where: { $0.type != top.type }) else { return "\(josa(top.type.reportLabel, "으로", "로")) 신고합니다." }
+        let rest = options.filter { $0.type != top.type }
+        guard let second = rest.first else { return "\(josa(top.type.reportLabel, "으로", "로")) 신고합니다." }
         let pick = josa(top.type.reportLabel, "을", "를")
-        if !second.enforceable { return "\(josa(second.type.reportLabel, "은", "는")) 지금 단속 시간이 아니어서 \(pick) 추천합니다." }
-        if top.tier < second.tier { return "사진만으로 확인되는 \(pick) 추천합니다." }
-        if (fineWon[top.type] ?? 0) > (fineWon[second.type] ?? 0) {
-            return "둘 다 사진으로 확인되어, 더 무거운 \(pick) 추천합니다(한 번 세운 차에는 가장 무거운 과태료 하나가 매겨집니다)."
-        }
-        return "사진 판독 순서로 \(pick) 추천합니다."
+        if !second.enforceable { return "\(josa(second.type.reportLabel, "은", "는")) 지금 단속 시간이 아니어서 \(pick) 골라 두었습니다." }
+        let also = "\(rest.map(\.type.reportLabel).joined(separator: "·"))도 보여 담당 공무원에게 함께 알립니다."
+        if top.tier < second.tier { return "사진만으로 확인되는 \(pick) 골라 두었습니다. \(also)" }
+        return "사진 판독 순서(위 → 옆 → 구역 안)로 \(pick) 골라 두었습니다. \(also)"
     }
     /// 자동으로 채울 유형 — 하나면 그것, 여럿이면 추천 유형(없으면 사진 판독 순서의 첫 유형). 웹 App autoType 과 같다
     static func autoType(_ draft: ZoneCase) -> EvidenceType? {

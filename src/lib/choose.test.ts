@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { kstTime } from './kst';
-import { evidenceTier, josa, rankTypes, recommendLine } from './choose';
+import { SCENE_ORDER, evidenceTier, josa, rankTypes, recommendLine } from './choose';
+import { SCENE_TO_TYPE } from '../../api/vision';
 import type { Scene } from '../../api/vision';
 import { rulesFor } from './localRules';
 
@@ -27,17 +28,23 @@ describe('추천 문장', () => {
     const o = rankTypes(['hydrant', 'schoolzone'], { takenAt: weekday10, rules: national });
     expect(o[0]).toMatchObject({ type: 'schoolzone', recommended: true, tier: 0 });
     expect(o[1].tier).toBe(1);
-    expect(recommendLine(o)).toBe('사진만으로 확인되는 어린이보호구역을 추천합니다.');
+    expect(recommendLine(o)).toBe('사진만으로 확인되는 어린이보호구역을 골라 두었습니다. 소화전 5m 이내도 보여 담당 공무원에게 함께 알립니다.');
   });
   it('과태료가 더 커도 사진만으로 확인되지 않으면 뒤로 — 횡단보도 위(4만) > 소화전 옆(8만)', () => {
     const o = rankTypes(['hydrant', 'crossing'], { takenAt: weekday10, rules: national });
     expect(o.map((x) => x.type)).toEqual(['crossing', 'hydrant']);
     expect(o[1].reasons).toContain('소화전과의 거리(5m)는 사진만으로 재지 못합니다');
   });
-  it('둘 다 사진으로 확인되면 더 무거운 쪽 — 횡단보도 위 + 어린이보호구역(평일 낮)', () => {
-    const o = rankTypes(['crossing', 'schoolzone'], { takenAt: weekday10, rules: national });
-    expect(o[0].type).toBe('schoolzone');
-    expect(recommendLine(o)).toContain('둘 다 사진으로 확인되어, 더 무거운 어린이보호구역을 추천합니다');
+  it('둘 다 사진으로 확인되면 판독 순서 — 횡단보도 위가 어린이보호구역보다 먼저(과태료로 고르지 않는다)', () => {
+    const o = rankTypes(['schoolzone', 'crossing'], { takenAt: weekday10, rules: national });
+    expect(o.map((x) => x.type)).toEqual(['crossing', 'schoolzone']);
+    expect(recommendLine(o)).toBe('사진 판독 순서(위 → 옆 → 구역 안)로 횡단보도를 골라 두었습니다. 어린이보호구역도 보여 담당 공무원에게 함께 알립니다.');
+  });
+  it('과태료가 훨씬 커도 순서를 바꾸지 않고, 추천 문장에 과태료를 말하지 않는다 — 소화전 옆 + 소방차 전용구역(50만 원)', () => {
+    const o = rankTypes(['firelane', 'hydrant'], { takenAt: weekday10, rules: national });
+    expect(o.map((x) => x.type)).toEqual(['hydrant', 'firelane']);
+    expect(recommendLine(o)).not.toContain('과태료');
+    expect(o[1].reasons).toContain('과태료 승용 50만 원');
   });
   it('장애인전용구역은 앞유리에 표지가 없는 것까지 보여야 사진만으로 확인된다', () => {
     const scene = (disabledPermit: Scene['disabledPermit']) => ({ disabledPermit }) as Scene;
@@ -64,10 +71,13 @@ describe('추천 문장', () => {
     expect(o[0].recommended).toBe(false);
     expect(recommendLine(o)).toBe('보이는 유형 모두 지금은 단속 시간이 아닙니다.');
   });
-  it('확인 정도와 과태료가 같으면 사진 판독 순서', () => {
+  it('확인 정도가 같으면 사진 판독 순서', () => {
     const o = rankTypes(['crossing', 'sidewalk'], { takenAt: weekday10, rules: national });
     expect(o.map((x) => x.type)).toEqual(['crossing', 'sidewalk']);
-    expect(recommendLine(o)).toBe('사진 판독 순서로 횡단보도를 추천합니다.');
+    expect(recommendLine(o)).toBe('사진 판독 순서(위 → 옆 → 구역 안)로 횡단보도를 골라 두었습니다. 인도도 보여 담당 공무원에게 함께 알립니다.');
+  });
+  it('판독 순서는 서버 규칙표(SCENE_TO_TYPE)와 같다', () => {
+    expect(SCENE_ORDER).toEqual(SCENE_TO_TYPE.map(([, t]) => t));
   });
   it('같은 유형이 두 번 들어와도 한 번만', () => {
     expect(rankTypes(['crossing', 'crossing'], { takenAt: weekday10, rules: national })).toHaveLength(1);
