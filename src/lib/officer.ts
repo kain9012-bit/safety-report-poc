@@ -57,6 +57,9 @@ export function officerLines({ draft, precheck: pc, rules, minInterval, vision }
     const e = st(pc, 'evidence');
     lines.push(`- 위반 근거: ${e === 'pass' ? `사진에 ${VIOLATION_LABEL[draft.type]} 근거 보임` : `${VIOLATION_LABEL[draft.type]} — 신고인이 직접 고름, 사진 확인 필요`}`);
   }
+  // 한 번 세운 차에 함께 보인 다른 위반 — 겹치면 가장 무거운 과태료 하나를 매기므로(질서위반행위규제법 제13조 제1항) 담당자가 알아야 한다
+  const also = (vision?.ruleTypes ?? []).filter((t): t is Exclude<typeof t, 'none'> => t !== 'none' && t !== draft.type);
+  if (also.length) lines.push(`- 함께 보인 위반: ${also.map((t) => VIOLATION_LABEL[t]).join(', ')}(사진 판독, 확인 필요)`);
   const extra = pc.checks.find((c) => ['permit', 'ev'].includes(c.id));
   if (extra) lines.push(`- ${extra.label}: ${extra.status === 'pass' ? extra.detail.replace(/\.$/, '') : mark(extra.status)}`);
   const album = draft.shots.some((s) => s.source === 'album');
@@ -86,8 +89,9 @@ export function withOfficerSummary(body: string, lines: string[], max = BODY_MAX
   const head = body.trimEnd();
   let block = [OFFICER_HEADER, ...lines];
   const join = (bl: string[]) => (head ? `${head}\n\n${bl.join('\n')}` : bl.join('\n'));
-  // 확인 필요 목록, 사람이 넣은 차량번호 줄, 고지 후 제출 줄은 끝까지 남긴다
-  const caution = (line: string) => (line.startsWith('- 확인 필요:') && line !== '- 확인 필요: 없음') || line.startsWith('- 차량번호:') || line.startsWith('- 고지 후 제출:');
+  // 확인 필요 목록, 사람이 넣은 차량번호 줄, 고지 후 제출 줄, 함께 보인 위반 줄은 끝까지 남긴다
+  const caution = (line: string) =>
+    (line.startsWith('- 확인 필요:') && line !== '- 확인 필요: 없음') || line.startsWith('- 차량번호:') || line.startsWith('- 고지 후 제출:') || line.startsWith('- 함께 보인 위반:');
   while (block.length > 1 && join(block).length > max) {
     const removable = block.map((line, i) => i > 0 && !caution(line)).lastIndexOf(true);
     // 경고를 담을 공간조차 없으면 통과 항목만 붙여 오해하게 만들지 않는다.

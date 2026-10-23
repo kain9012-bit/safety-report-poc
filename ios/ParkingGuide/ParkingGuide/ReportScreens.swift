@@ -600,7 +600,7 @@ struct ReportStepsScreen: View {
         if let type = draft.reportType {
             VStack(alignment: .leading, spacing: 6) {
                 Text(type.reportLabel).font(.system(size: 22, weight: .medium)).foregroundStyle(ReportAppearance.blue)
-                Text(draft.typeSource == "photo" ? "사진 증거" : "직접 선택").font(.system(size: 12, weight: .bold)).padding(.horizontal, 6).padding(.vertical, 2)
+                Text(draft.typeSource == "photo" ? (confident.count > 1 ? "사진 증거 · 추천" : "사진 증거") : "직접 선택").font(.system(size: 12, weight: .bold)).padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Color(red: 1, green: 0.96, blue: 0.85), in: RoundedRectangle(cornerRadius: 4)).foregroundStyle(Color(red: 0.55, green: 0.35, blue: 0.0))
                 if draft.typeSource != "photo" { Text("직접 고른 유형입니다. 사진에 그 근거가 보이는지 확인해 주세요.").font(.system(size: 13)).foregroundStyle(ReportAppearance.muted) }
             }.padding(.top, 10)
@@ -610,10 +610,17 @@ struct ReportStepsScreen: View {
         }
         if confident.count >= 2 {
             VStack(alignment: .leading, spacing: 8) {
+                let options = ReportEvidence.rankedTypes(draft)
                 Text("사진에 유형이 \(confident.count)개 보입니다 — 하나를 골라 주세요").font(.system(size: 14, weight: .bold))
-                ForEach(confident) { type in
-                    Button { draft.chooseType(type); persist() } label: { Text(type.reportLabel).frame(maxWidth: .infinity, alignment: .leading) }
-                        .buttonStyle(ReportButtonStyle(primary: draft.reportType == type))
+                Text(ReportEvidence.recommendLine(options)).font(.system(size: 13)).foregroundStyle(ReportAppearance.muted).fixedSize(horizontal: false, vertical: true)
+                ForEach(options, id: \.type) { option in
+                    Button { draft.chooseType(option.type); persist() } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(option.type.reportLabel + (option.recommended ? " · 추천" : "")).frame(maxWidth: .infinity, alignment: .leading)
+                            Text(option.reasons.joined(separator: " · ")).font(.system(size: 12)).opacity(0.8).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .buttonStyle(ReportButtonStyle(primary: draft.reportType == option.type))
                 }
             }.padding(.top, 12)
         }

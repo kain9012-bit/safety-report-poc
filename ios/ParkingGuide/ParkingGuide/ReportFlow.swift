@@ -121,6 +121,84 @@ enum ReportEvidence {
     /// 사진에서 표시·대상 차량·경계가 모두 확인된 유형 — 유형을 자동으로 채우는 유일한 근거
     static func confidentTypes(_ draft: ZoneCase) -> [EvidenceType] { summarize(draft).filter { $0.status == .observed }.map(\.type) }
 
+    // MARK: 유형이 여럿 보일 때 추천 — 웹 lib/choose.ts rankTypes 와 같은 순서(2026-10-23 결정)
+    // 단속 시간 안 → 사진만으로 확인되는 유형 → 똑같이 확인되면 과태료가 무거운 유형 → 사진 판독 순서.
+    // 한 번 세운 차에 위반이 겹치면 가장 무거운 과태료 하나를 매기고(질서위반행위규제법 제13조 제1항),
+    // 입증된 위반만 매긴다(도로교통법 제160조 제3항). 그래서 사진만으로 확인되는지가 과태료보다 앞선다.
+    struct TypeOption: Equatable { var type: EvidenceType; var recommended: Bool; var enforceable: Bool; var tier: Int; var reasons: [String] }
+    /// 승용 과태료(원) — 웹 localRules FINE_KRW
+    static let fineWon: [EvidenceType: Int] = [
+        .hydrant: 80_000, .corner: 40_000, .busstop: 40_000, .crossing: 40_000, .schoolzone: 120_000, .sidewalk: 40_000,
+        .disabled: 100_000, .firelane: 500_000, .evcharging: 100_000, .other: 40_000,
+    ]
+    /// 사진만으로는 확인되지 않아 따로 볼 것 — 웹 CHECK_NOTE. 여기 없는 유형은 사진만으로 확인된다
+    static let checkNote: [EvidenceType: String] = [
+        .hydrant: "소화전과의 거리(5m)는 사진만으로 재지 못합니다", .corner: "모퉁이와의 거리(5m)는 사진만으로 재지 못합니다",
+        .busstop: "정류소와의 거리(10m)는 사진만으로 재지 못합니다", .firelane: "과태료 대상 건물(2018. 8. 10. 이후 허가)인지 따로 확인해야 합니다",
+        .evcharging: "일반 자동차도 세울 수 있는 칸인지 따로 확인해야 합니다", .disabled: "앞유리에 장애인자동차표지가 없는지 확인되지 않았습니다",
+        .other: "사진 자동 판독 대상이 아닙니다",
+    ]
+    /// 사진 판독 순서(웹 SCENE_TO_TYPE) — 위 → 옆 → 구역 안
+    static let sceneOrder: [EvidenceType] = [.crossing, .sidewalk, .hydrant, .busstop, .corner, .firelane, .disabled, .evcharging, .schoolzone]
+    /// 0: 사진만으로 확인된다, 1: 따로 확인할 것이 남는다(웹 evidenceTier). 장애인전용구역은 앞유리에 표지가 없는 것까지 보여야 0
+    static func evidenceTier(_ type: EvidenceType, _ draft: ZoneCase) -> Int {
+        if type == .disabled {
+            let flags = (draft.review.aiResult?.legacyReads ?? []).compactMap { $0.scene["disabledPermit"] }
+            return flags.contains("no") && !flags.contains("yes") ? 0 : 1
+        }
+        return checkNote[type] == nil ? 0 : 1
+    }
+    /// 단속 시간 — 전국 기준(어린이보호구역 평일 오전 8시~오후 8시)만 본다. 지역 규정은 웹(localRules)에만 있다
+    static func enforceable(_ type: EvidenceType, at date: Date?) -> Bool {
+        guard type == .schoolzone, let date else { return true }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Seoul")!
+        return (2...6).contains(calendar.component(.weekday, from: date)) && (8..<20).contains(calendar.component(.hour, from: date))
+    }
+    static func rankedTypes(_ draft: ZoneCase) -> [TypeOption] {
+        let at = draft.primaryPair.first?.takenAt
+        let rows = confidentTypes(draft).map { type in
+            (type: type, enf: enforceable(type, at: at), tier: evidenceTier(type, draft), fine: fineWon[type] ?? 0,
+             order: sceneOrder.firstIndex(of: type) ?? sceneOrder.count)
+        }
+        let sorted = rows.sorted { a, b in
+            if a.enf != b.enf { return a.enf }
+            if a.tier != b.tier { return a.tier < b.tier }
+            if a.fine != b.fine { return a.fine > b.fine }
+            return a.order < b.order
+        }
+        return sorted.enumerated().map { i, row in
+            var reasons: [String] = []
+            if !row.enf { reasons.append("지금은 단속 시간이 아닙니다(평일 오전 8시~오후 8시)") }
+            reasons.append(row.tier == 0 ? "사진만으로 확인됩니다" : checkNote[row.type] ?? "따로 확인할 것이 있습니다")
+            reasons.append("과태료 승용 \(row.fine / 10_000)만 원")
+            return TypeOption(type: row.type, recommended: i == 0 && row.enf, enforceable: row.enf, tier: row.tier, reasons: reasons)
+        }
+    }
+    /// 받침에 맞는 조사(웹 josa)
+    static func josa(_ word: String, _ withFinal: String, _ withoutFinal: String) -> String {
+        guard let last = word.unicodeScalars.last, (0xAC00...0xD7A3).contains(last.value) else { return "\(word)\(withFinal)(\(withoutFinal))" }
+        return word + ((last.value - 0xAC00) % 28 == 0 ? withoutFinal : withFinal)
+    }
+    /// 추천 이유 한 문장(웹 recommendLine)
+    static func recommendLine(_ options: [TypeOption]) -> String {
+        guard let top = options.first(where: \.recommended) else { return "보이는 유형 모두 지금은 단속 시간이 아닙니다." }
+        guard let second = options.first(where: { $0.type != top.type }) else { return "\(josa(top.type.reportLabel, "으로", "로")) 신고합니다." }
+        let pick = josa(top.type.reportLabel, "을", "를")
+        if !second.enforceable { return "\(josa(second.type.reportLabel, "은", "는")) 지금 단속 시간이 아니어서 \(pick) 추천합니다." }
+        if top.tier < second.tier { return "사진만으로 확인되는 \(pick) 추천합니다." }
+        if (fineWon[top.type] ?? 0) > (fineWon[second.type] ?? 0) {
+            return "둘 다 사진으로 확인되어, 더 무거운 \(pick) 추천합니다(한 번 세운 차에는 가장 무거운 과태료 하나가 매겨집니다)."
+        }
+        return "사진 판독 순서로 \(pick) 추천합니다."
+    }
+    /// 자동으로 채울 유형 — 하나면 그것, 여럿이면 추천 유형(없으면 사진 판독 순서의 첫 유형). 웹 App autoType 과 같다
+    static func autoType(_ draft: ZoneCase) -> EvidenceType? {
+        let confident = confidentTypes(draft)
+        guard confident.count > 1 else { return confident.first }
+        return rankedTypes(draft).first(where: \.recommended)?.type ?? sceneOrder.first(where: confident.contains)
+    }
+
     struct Supplement: Equatable { var id: String; var text: String }
     /// 보완 촬영 — 사진으로 해결되는 부족 사유일 때만, 한 번에 하나, 같은 사유는 한 번만(웹 followUps.supplementRequest)
     static func supplementRequest(_ draft: ZoneCase) -> Supplement? {
@@ -230,11 +308,10 @@ extension ZoneCase {
     }
     var typeChosenByUser: Bool { typeSource == "user" || (typeSource == nil && reportType != nil) }
 
-    /// 직접 고른 유형은 그대로 둔다. 사진에서 확인된 유형이 하나뿐일 때만 채우고, 근거가 사라지면 다시 비운다.
+    /// 직접 고른 유형은 그대로 둔다. 사진에서 확인된 유형이 하나면 그것을, 여럿이면 추천 유형을 채우고, 근거가 사라지면 다시 비운다.
     mutating func applyPhotoType() {
         guard !typeChosenByUser else { return }
-        let confident = ReportEvidence.confidentTypes(self)
-        if confident.count == 1, let type = confident.first {
+        if let type = ReportEvidence.autoType(self) {
             if reportType != type { var r = review; r.selectedType = type; r.selectionSource = "photo"; evidenceReview = r }
             typeSource = "photo"
         } else if typeSource == "photo" {
@@ -363,6 +440,11 @@ extension ZoneCase {
     var officerLines: [String] {
         var lines: [String] = []
         if let plate = officerPlateLine { lines.append(plate) }
+        // 한 번 세운 차에 함께 보인 다른 위반 — 겹치면 가장 무거운 과태료 하나를 매기므로 담당자가 알아야 한다(웹 officerLines)
+        if let type = reportType {
+            let also = ReportEvidence.confidentTypes(self).filter { $0 != type }
+            if !also.isEmpty { lines.append("- 함께 보인 위반: \(also.map(\.reportLabel).joined(separator: ", "))(사진 판독, 확인 필요)") }
+        }
         if let reds = submittedWithReds, !reds.isEmpty { lines.append("- 고지 후 제출: 빨간불(\(reds.joined(separator: ", ")))과 불수용될 수 있다는 안내를 보고 신고인이 그대로 제출") }
         return lines
     }

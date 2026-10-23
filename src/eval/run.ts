@@ -51,7 +51,7 @@ export function decide(row: Row, r: VisionResult): Outcome {
   // 사진에서 나온 유형만 채점한다('기타'는 사람이 고르는 유형이라 사진 판정에 나오지 않는다)
   const auto: Truth = verdict.type && verdict.type !== 'other' ? verdict.type : 'none';
   const opts = verdict.type
-    ? rankTypes([verdict.type, ...verdict.alternatives], { takenAt: NEUTRAL_TIME, rules: rulesFor() })
+    ? rankTypes([verdict.type, ...verdict.alternatives], { takenAt: NEUTRAL_TIME, rules: rulesFor(), scene: r.scene })
     : [];
   const read = r.photos[0]?.plate ?? { text: '', readable: false, confidence: 0 };
   const fill = read.readable && read.confidence >= PLATE_CONFIDENCE_FLOOR && isValidPlate(read.text);

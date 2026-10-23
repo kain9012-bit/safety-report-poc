@@ -300,18 +300,22 @@ export default function App() {
   const options = useMemo(() => {
     const first = primaryShots(draft)[0];
     if (!verdict.type || !first) return [];
-    return rankTypes([verdict.type, ...verdict.alternatives], { takenAt: first.takenAt, rules, candidates: typeInfo.candidates });
+    return rankTypes([verdict.type, ...verdict.alternatives], {
+      takenAt: first.takenAt, rules, candidates: typeInfo.candidates, scene: evidenceMerged?.scene,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verdict, rules, typeInfo.candidates, draft.shots, draft.primaryPair]);
+  }, [verdict, rules, typeInfo.candidates, draft.shots, draft.primaryPair, evidenceMerged]);
 
   // 화면에 꺼낼 후속 질문 — 민원인이 직접 해야 할 일이 있을 때만
   const supplement = useMemo(() => supplementRequest(draft), [draft]);
   const shared = useMemo(() => sharedParkingQuestion(draft), [draft]);
   const [supplementBusy, setSupplementBusy] = useState(false);
 
+  // 유형이 여럿 보이면 추천 유형을, 아니면 사진 판독 유형을 채운다 — 카메라로 찍든 앨범으로 넣든 같은 값
+  const autoType = options.find((o) => o.recommended)?.type ?? verdict.type;
   useEffect(() => {
-    setDraft((d) => (d.manual?.type || d.type === verdict.type ? d : { ...d, type: verdict.type }));
-  }, [verdict, setDraft]);
+    setDraft((d) => (d.manual?.type || d.type === autoType ? d : { ...d, type: autoType }));
+  }, [autoType, setDraft]);
 
   // 번호판 — 두 장에서 따로 읽은 값이 같고, 확신이 높고, 형식이 맞을 때만 채운다
   useEffect(() => {

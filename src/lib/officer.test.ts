@@ -94,6 +94,18 @@ describe('담당 공무원용 사전 점검 요약', () => {
 });
 
 
+describe('함께 보인 위반 — 한 번 세운 차에 겹친 위반은 담당자가 알아야 한다(질서위반행위규제법 제13조 제1항)', () => {
+  const both = { ...vision, ruleTypes: ['crossing', 'schoolzone'] } as unknown as VisionResult;
+  it('고르지 않은 유형을 함께 보인 위반으로 적는다', () => {
+    expect(lines(draft, both)).toContain('- 함께 보인 위반: 어린이보호구역(사진 판독, 확인 필요)');
+    expect(lines(draft).join('\n')).not.toContain('함께 보인 위반');
+  });
+  it('요약을 줄여도 함께 보인 위반 줄은 남긴다', () => {
+    const out = withOfficerSummary('가'.repeat(700), lines(draft, both), 900);
+    expect(out).toContain('- 함께 보인 위반: 어린이보호구역');
+  });
+});
+
 describe('요약 축약에도 확인 필요 항목을 보존한다', () => {
   it('공간이 부족하면 통과 항목부터 빼고 경고를 남긴다', () => {
     const body = '가'.repeat(800);
