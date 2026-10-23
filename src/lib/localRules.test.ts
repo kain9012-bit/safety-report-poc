@@ -53,12 +53,12 @@ describe('단속 시간', () => {
 
 describe('유형이 둘 이상 보일 때 추천(규칙)', () => {
   const rules = rulesFor();
-  it('과태료가 큰 유형을 추천 — 어린이보호구역(12만) > 소화전(8만)', () => {
+  it('사진만으로 확인되는 유형을 추천 — 어린이보호구역(표지 보임) > 소화전(거리 미측정)', () => {
     const o = rankTypes(['hydrant', 'schoolzone'], { takenAt: FRI_10, rules });
     expect(o[0]).toMatchObject({ type: 'schoolzone', recommended: true });
     expect(o[1].recommended).toBe(false);
     expect(FINE_KRW.schoolzone).toBeGreaterThan(FINE_KRW.hydrant);
-    expect(recommendLine(o)).toContain('과태료가 더 큰');
+    expect(recommendLine(o)).toContain('사진만으로 확인되는');
   });
   it('단속 시간 밖인 유형은 추천하지 않는다 — 밤 10시엔 소화전', () => {
     const o = rankTypes(['schoolzone', 'hydrant'], { takenAt: FRI_22, rules });
@@ -66,18 +66,14 @@ describe('유형이 둘 이상 보일 때 추천(규칙)', () => {
     expect(o.find((x) => x.type === 'schoolzone')!.enforceable).toBe(false);
     expect(recommendLine(o)).toContain('단속 시간이 아니어서');
   });
-  it('과태료가 같으면 위치자료가 맞는 쪽', () => {
+  it('위치자료가 정류장이라고 해도 순서는 바뀌지 않는다 — 횡단보도 위가 먼저', () => {
     const o = rankTypes(['crossing', 'busstop'], {
       takenAt: FRI_10,
       rules,
       candidates: [{ type: 'busstop', level: 'likely', distance: 4, reason: '' }],
     });
-    expect(o[0].type).toBe('busstop');
-    expect(o[0].coordAgrees).toBe(true);
-  });
-  it('그것도 같으면 사진 판독 규칙 순서', () => {
-    const o = rankTypes(['crossing', 'busstop'], { takenAt: FRI_10, rules });
     expect(o.map((x) => x.type)).toEqual(['crossing', 'busstop']);
+    expect(o[1].coordAgrees).toBe(true);
   });
 });
 

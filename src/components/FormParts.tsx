@@ -46,7 +46,7 @@ export const PickMap = lazy(() => import('./PickMap'));
 /** 사진에 좌표가 없을 때 지도를 펼칠 자리 — 전주시청 */
 export const DEFAULT_ORIGIN: LatLng = { lat: 35.8242, lng: 127.148 };
 
-export type Source = 'gps' | 'photo' | 'auto' | 'manual' | 'map' | 'photo_confirmed' | 'photo_only' | 'chosen';
+export type Source = 'gps' | 'photo' | 'auto' | 'manual' | 'map' | 'photo_confirmed' | 'photo_only' | 'chosen' | 'recommended';
 
 export const SOURCE: Record<Source, { cls: string; text: string }> = {
   gps: { cls: 'bg-blue-50 text-blue-700 border-blue-200', text: '사진 좌표에서 자동' },
@@ -57,6 +57,7 @@ export const SOURCE: Record<Source, { cls: string; text: string }> = {
   photo_confirmed: { cls: 'bg-green-50 text-green-700 border-green-200', text: '사진 증거 · 위치자료 일치' },
   photo_only: { cls: 'bg-amber-50 text-amber-800 border-amber-200', text: '사진 증거 · 확인 필요' },
   chosen: { cls: 'bg-green-50 text-green-700 border-green-200', text: '사진 증거 · 직접 고름' },
+  recommended: { cls: 'bg-green-50 text-green-700 border-green-200', text: '사진 증거 · 추천' },
 };
 
 /* ================================================================== */
@@ -213,9 +214,9 @@ export function TypeValue({
   const seen = verdict.type ? [verdict.type, ...verdict.alternatives] : [];
   const chosen = Boolean(draft.manual?.type) && Boolean(draft.type) && seen.includes(draft.type!);
   const manual = Boolean(draft.manual?.type) && !chosen;
-  const others = (manual && verdict.type ? [verdict.type, ...verdict.alternatives] : verdict.alternatives).filter(
-    (t) => t !== draft.type,
-  );
+  // 여럿 보이면 추천 유형이 먼저 채워진다(lib/choose.ts) — 사진 판독 유형과 다를 수 있다
+  const own = draft.type === verdict.type;
+  const others = [...(verdict.type ? [verdict.type] : []), ...verdict.alternatives].filter((t) => t !== draft.type);
   const missingLine = info.missing.length > 0 && (
     <p className="mt-1 text-[13px] text-slate-500">아직 못 본 위치자료: {info.missing.join(', ')}</p>
   );
@@ -247,17 +248,17 @@ export function TypeValue({
   );
 
   if (draft.type) {
-    const src: Source = manual ? 'manual' : chosen ? 'chosen' : verdict.source === 'photo_confirmed' ? 'photo_confirmed' : 'photo_only';
+    const src: Source = manual ? 'manual' : chosen ? 'chosen' : !own ? 'recommended' : verdict.source === 'photo_confirmed' ? 'photo_confirmed' : 'photo_only';
     return (
       <>
         <Value source={src}>{VIOLATION_LABEL[draft.type]}</Value>
         <div className="pl-9">
-          {!manual && verdict.photoReason && (
+          {!manual && own && verdict.photoReason && (
             <p className="mt-1 text-[14px] text-slate-600">
               <b className="text-slate-800">사진</b> {verdict.photoReason}
             </p>
           )}
-          {!manual && verdict.coordNote && (
+          {!manual && own && verdict.coordNote && (
             <p className="mt-0.5 text-[14px] text-slate-500">
               <b className="text-slate-700">위치자료(참고)</b> {verdict.coordNote}
             </p>
@@ -629,9 +630,10 @@ export function EvidenceSheet({ shots, result, onClose }: { shots: Shot[]; resul
           </p>
           {/* 추천 순서는 lib/choose.ts rankTypes 와 같아야 한다 */}
           <p>
-            여러 개가 보이면 직접 고르게 하고 하나를 추천합니다. 추천은 지금 단속 시간인 유형 → 과태료가 큰 유형 → 위치자료도
-            근처라고 하는 유형 → 사진 판독 순서(횡단보도·인도 위 → 소화전·정류장·모퉁이 옆 → 전용·보호구역 안) 차례로 정합니다.
-            모두 단속 시간이 아니면 추천하지 않습니다.
+            여러 개가 보이면 직접 고르게 하고 하나를 추천합니다. 추천은 지금 단속 시간인 유형 → 사진만으로 확인되는 유형(거리·대상
+            건물·겸용 구역처럼 따로 확인할 것이 없는 유형) → 똑같이 확인되면 과태료가 무거운 유형 → 사진 판독 순서(횡단보도·인도 위 →
+            소화전·정류장·모퉁이 옆 → 전용·보호구역 안) 차례로 정합니다. 모두 단속 시간이 아니면 추천하지 않습니다. 고르지 않은
+            유형은 담당 공무원에게 '함께 보인 위반'으로 알립니다.
           </p>
           <p>횡단보도·인도 '위'는 차 바퀴가 닿은 바닥 판독으로만 정합니다. 근처에 보이기만 하면 '위'로 보지 않습니다.</p>
           {result.crosswalkAdjacent && <p className="text-slate-700">{CROSSWALK_ADJACENT_NOTE}</p>}

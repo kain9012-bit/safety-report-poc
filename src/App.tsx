@@ -278,12 +278,16 @@ export default function App() {
   const rules = useMemo(() => rulesFor(draft.address), [draft.address]);
   const options = useMemo(() => {
     if (!verdict.type || !draft.shots[0]) return [];
-    return rankTypes([verdict.type, ...verdict.alternatives], { takenAt: draft.shots[0].takenAt, rules, candidates: typeInfo.candidates });
-  }, [verdict, rules, typeInfo.candidates, draft.shots]);
+    return rankTypes([verdict.type, ...verdict.alternatives], {
+      takenAt: draft.shots[0].takenAt, rules, candidates: typeInfo.candidates, scene: merged?.scene,
+    });
+  }, [verdict, rules, typeInfo.candidates, draft.shots, merged]);
 
+  // 유형이 여럿 보이면 추천 유형을, 아니면 사진 판독 유형을 채운다 — 카메라로 찍든 앨범으로 넣든 같은 값
+  const autoType = options.find((o) => o.recommended)?.type ?? verdict.type;
   useEffect(() => {
-    setDraft((d) => (d.manual?.type || d.type === verdict.type ? d : { ...d, type: verdict.type }));
-  }, [verdict, setDraft]);
+    setDraft((d) => (d.manual?.type || d.type === autoType ? d : { ...d, type: autoType }));
+  }, [autoType, setDraft]);
 
   // 번호판 — 두 장에서 따로 읽은 값이 같고, 확신이 높고, 형식이 맞을 때만 채운다
   useEffect(() => {
