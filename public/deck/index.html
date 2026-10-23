@@ -309,6 +309,7 @@ html,body{height:100%;background:#12110F;overflow:hidden;font-family:var(--sans)
 
 /* 시연 영상(화면 가득) */
 video.full{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#F4EFE6}
+#phoneDemo video.full{top:24px;height:calc(100% - 128px)}
 
 /* 담당자 업무 절차 */
 .proc{position:absolute;left:100px;right:100px;top:300px;display:grid;grid-template-columns:repeat(5,1fr);gap:22px 22px}
@@ -1049,6 +1050,22 @@ aside.notes{display:none}
     마지막으로 향후 발전 방향입니다. 이번 제안은 지금 규정과 신고 탭을 그대로 두고 AI 자동화만 더했습니다. 그다음 단계로 두 가지를 생각하고 있습니다.
     하나, 같은 자리 증빙입니다. 중간발표 때 한순간만 찍어 올리면 어떻게 하느냐는 질문이 있었습니다. 라이브 포토나 3~5초 연속 촬영이면 그 자리에 계속 있었다는 것을 보여 줄 수 있습니다.
     둘, 신고 탭 정리입니다. 현장 인터뷰에서 다른 탭으로 들어온 신고는 내용이 맞아도 처리되지 않는다고 들었습니다. 먼저 다른 탭의 위반이 찍히면 맞는 탭으로 안내하고, 나아가 탭을 고르지 않아도 사진으로 갈래를 정하는 방향입니다.
+  </aside>
+</section>
+
+<!-- 휴대폰 시연 영상 — 실제 휴대폰 화면 녹화(소리 없음) -->
+<section class="slide" data-title="휴대폰 시연 영상" id="phoneDemo">
+  <video class="full" data-auto src="assets/demo-phone.mp4" playsinline muted preload="auto"></video>
+  <aside class="notes">
+    (영상 약 2분 35초, 소리 없음 · 아래 재생바로 원하는 곳부터 · P 재생/멈춤, J/L 10초 뒤·앞) 실제 휴대폰으로 찍은 시연입니다.
+    0:00 사진부터 찍기
+    0:06 첫 번째 사진(배율 1·2·3배)
+    0:24 첫 번째 사진 확인 — 유형·번호·발생지역, 두 번째 사진까지 남은 시간
+    1:18 두 번째 사진 — 첫 번째 사진을 흐리게 겹쳐 같은 구도로
+    1:42 두 사진 확인 — 같은 자리·같은 번호
+    2:06 사진 판독 근거
+    2:18 신고서 — 유형 확인, 친환경차 병행주차 질문
+    2:24 차량번호 확인 → 2:30 제출
   </aside>
 </section>
 
