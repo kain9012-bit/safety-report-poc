@@ -583,12 +583,12 @@ aside.notes{display:none}
   </div>
   <div class="rules">
     <div class="rulec f" data-step="1"><div class="k">하나</div><h3>사진부터<br>찍기</h3><p>유형을 고르지 않아도<br>카메라가 바로 열림</p></div>
-    <div class="rulec f" data-step="2"><div class="k">둘</div><h3>AI는 보기만,<br>판정은 규칙</h3><p>왜 그렇게 판정했는지<br>설명할 수 있게</p></div>
+    <div class="rulec f" data-step="2"><div class="k">둘</div><h3>AI는 읽고,<br>규칙이 정함</h3><p>엇갈리면 사람이 고르고<br>근거는 표로 보여 줌</p></div>
     <div class="rulec f" data-step="3"><div class="k">셋</div><h3>모르면<br>단정하지 않음</h3><p>안 보이면 '없음'이 아니라<br>'모름'으로</p></div>
   </div>
   <div class="pg"></div>
   <aside class="notes">
-    세 가지 원칙입니다. 하나, 사진부터 찍습니다. 둘, AI는 사진을 읽기만 하고 판정은 규칙이 합니다. 그래서 왜 그렇게 판정했는지 설명할 수 있습니다.
+    세 가지 원칙입니다. 하나, 사진부터 찍습니다. 둘, AI는 사진을 읽고, 정하는 건 규칙입니다. AI 의견이 규칙과 엇갈리면 자동으로 채우지 않고 사람이 고릅니다. 그래서 어떤 항목을 보고 정했는지 근거 표로 보여 줄 수 있습니다.
     셋, 모르면 단정하지 않습니다. 화면 밖에 있는 것을 없다고 보지 않습니다.
   </aside>
 </section>
@@ -623,7 +623,7 @@ aside.notes{display:none}
 <section class="slide" data-title="AI와 규칙" data-steps="4">
   <div class="top-title">
     <div class="eyebrow">AI와 규칙</div>
-    <div class="title">AI는 보기만, 판정은 규칙이 합니다</div>
+    <div class="title">AI는 읽고, 정하는 건 규칙입니다</div>
   </div>
   <div class="ph f" data-step="1"><img src="assets/ai-bus.jpg" alt="버스정류소 앞에 선 회색 승용차(시험용 AI 생성 이미지)">
     <div class="bx" style="left:230px;top:40px;width:300px;height:210px"><span>버스정류장</span></div>
@@ -636,26 +636,26 @@ aside.notes{display:none}
     <div class="kv">버스정류장 표지<b class="y">보임</b></div>
     <div class="kv">보호구역 표시<b>아님</b></div>
     <div class="kv">교차로 모퉁이<b>아님</b></div>
-    <div class="kv">소화전<b>아님</b></div>
     <div class="kv plate">번호판<b>20라1119</b></div>
+    <div class="kv">유형 의견<b>버스정류소</b></div>
   </div>
   <svg class="arw f" data-step="3" style="left:1198px" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
   <div class="card2 crl f" data-step="3"><h4><i class="chip r">규칙</i>판정한 것</h4>
     <div class="rr">
-      <div><span>정류장 표지 보임 →</span> 유형 <b>버스정류소</b></div>
+      <div><span>정류장 표지 보임 + AI 의견 같음 →</span><br>유형 <b>버스정류소</b></div>
       <div><span>근거·번호판 보임 →</span> 첫 번째 사진 <b>통과</b></div>
       <div><span>발생지역 전주시 →</span> 두 번째 사진까지 <b>1분</b></div>
       <div><span>두 번째 사진 →</span> 겹침·번호판 <b>일치 확인</b></div>
     </div>
   </div>
   <div class="bound f" data-step="4"><span class="k">모르면 단정하지 않음</span>
-    <ul><li><em>✕</em>화면 밖 시설을 '없음'으로</li><li><em>✕</em>미분류를 '기타'로</li><li><em>✕</em>시간·지역 부족을 재촬영으로</li><li><em>✕</em>요건 확인을 위반 확정으로</li></ul></div>
+    <ul><li><em>✕</em>화면 밖 시설을 '없음'으로</li><li><em>✕</em>미분류를 '기타'로</li><li><em>✕</em>시간·지역 부족을 재촬영으로</li><li><em>✕</em>요건 확인을 위반 확정으로</li><li><em>✕</em>엇갈린 판독을 확정으로</li></ul></div>
   <div class="footnote">AI는 Gemini(사진 한 장씩 따로 판독) · 좌표·공공데이터는 AI에 주지 않고 규칙의 참고로만 사용 · 사진은 시험용 AI 생성 이미지</div>
   <div class="pg"></div>
   <aside class="notes">
-    실제로 한 장을 보겠습니다. (다음) AI는 사진에서 보이는 것만 답합니다. 버스정류장이 보이는지, 번호판 글자가 무엇인지까지입니다.
-    (다음) 그 답을 받아 유형을 정하고, 지자체 간격과 단속 시간을 적용하는 건 규칙입니다.
-    (다음) 모를 때는 단정하지 않습니다.
+    실제로 한 장을 보겠습니다. (다음) AI는 사진에서 보이는 것을 항목마다 '보임·아님·모름'으로 답하고, 번호판 글자를 읽습니다. 어떤 유형 같은지 의견도 하나 냅니다.
+    (다음) 유형은 그 항목에서 규칙으로 정합니다. AI 의견이 규칙과 같을 때만 칸을 채우고, 엇갈리면 비워 둔 채 사진에 보인 유형을 후보로 보여 사람이 고르게 합니다. 지자체 간격과 단속 시간, 두 사진의 겹침과 번호판 일치도 규칙이 확인합니다.
+    (다음) 모를 때는 단정하지 않습니다. AI와 규칙이 엇갈릴 때도 마찬가지입니다.
   </aside>
 </section>
 
