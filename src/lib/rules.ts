@@ -26,10 +26,10 @@ export const THRESHOLD_METERS: Record<ViolationType, number | undefined> = {
 export const MIN_INTERVAL_SEC = 60;
 
 /**
- * 두 장 간격 기준(초) — **지금은 현장 테스트용 3초.** 촬영 대기·앨범 점검·제출 점검이 모두 이 값을 쓴다.
- * 시연·실사용 전에는 MIN_INTERVAL_SEC 로 되돌린다(한 곳만 고치면 된다).
+ * 두 장 간격 기준(초) — 규정 60초(현장 테스트 때는 3초로 줄여 썼다). 촬영 대기·앨범 점검·제출 점검이 모두 이 값을 쓴다.
+ * 다시 테스트하려면 이 값만 3으로 바꾸면 된다(화면에 테스트용 표시가 함께 뜬다).
  */
-export const INTERVAL_SEC = 3;
+export const INTERVAL_SEC = MIN_INTERVAL_SEC;
 
 /** 테스트용 기준으로 돌고 있는가 — 화면에 '테스트용 3초 · 실제 기준 60초'를 함께 적는다 */
 export const IS_TEST_INTERVAL = INTERVAL_SEC < MIN_INTERVAL_SEC;
