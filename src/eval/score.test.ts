@@ -84,10 +84,10 @@ describe('앱과 같은 규칙으로 정하기', () => {
   const sc = { onCrosswalk: 'yes', onSidewalk: 'no', busStopVisible: 'no', schoolZoneMarking: 'yes', intersectionCorner: 'no', fireHydrantNear: 'no' } as const;
   const vr = (conf: number, plate = { text: '12가3456', readable: true, confidence: 0.9 }) =>
     ({ photos: [{ plate, scene: sc, typeGuess: 'crossing', typeConfidence: conf, evidence: 'e', boxes: [] }], plate: { ...plate, agree: null, reads: [plate.text] }, sameVehicle: 'unclear', scene: sc, ruleTypes: ['crossing', 'schoolzone'], typeGuess: 'crossing', typeConfidence: conf, modelAgrees: true, evidence: 'e', model: 'm' }) as never;
-  it('유형은 규칙 1순위, 추천은 과태료 기준', () => {
+  it('유형은 규칙 1순위, 추천도 같은 순서(사진만으로 확인 → 판독 순서, 과태료로 고르지 않는다)', () => {
     const o = decide(row(), vr(0.9));
     expect(o.auto).toBe('crossing');
-    expect(o.recommended).toBe('schoolzone');
+    expect(o.recommended).toBe('crossing');
     expect(o.candidates).toEqual(['crossing', 'schoolzone']);
   });
   it('확신이 기준(0.5) 아래면 비워 둔다', () => {

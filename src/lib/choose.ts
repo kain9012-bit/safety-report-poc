@@ -1,13 +1,13 @@
 /**
  * 첫 번째 사진에 위반 유형이 둘 이상 보일 때 — **사람이 고르고, 앱은 규칙으로 추천만 한다.**
  *
- * 추천 순서(규칙, 2026-10-23 결정):
+ * 추천 순서(규칙, 2026-10-23 자문단 결론):
  *  1. 찍은 시각이 그 유형의 단속 시간 안인가 (밖이면 신고해도 불수용 — 추천하지 않는다)
  *  2. 사진만으로 위반이 확인되는가 — 담당 공무원이 사진만 보고 "맞다"고 할 수 있는 유형 먼저(evidenceTier)
- *  3. 똑같이 확인되면 과태료가 무거운 유형 — 한 번 세운 차에 위반이 겹치면 가장 무거운 과태료 하나를
- *     매긴다(질서위반행위규제법 제13조 제1항). 입증되지 않은 위반은 매길 수 없으므로 2가 3보다 앞선다
- *  4. 사진 판독 규칙 순서(횡단보도·인도 위 → 소화전·정류장·모퉁이 옆 → 전용·보호구역 안)
- * 위치자료(공공데이터)는 판정 근거로 쓰지 않으므로 순서에 넣지 않고 이유 줄에만 적는다.
+ *  3. 사진 판독 규칙 순서(횡단보도·인도 위 → 소화전·정류장·모퉁이 옆 → 전용·보호구역 안)
+ * 과태료와 위치자료는 순서에 쓰지 않는다. 한 번 세운 차에 위반이 겹치면 담당 공무원이 가장 무거운 과태료
+ * 하나를 매기므로(질서위반행위규제법 제13조 제1항) 신고 유형을 무거운 쪽으로 고를 까닭이 없다. 대신 고르지
+ * 않은 유형은 '함께 보인 위반'으로 담당자에게 알린다(lib/officer.ts). 과태료는 유형별 정보로만 보인다.
  */
 import { FINE_KRW, inEnforcement } from './localRules';
 import type { AppliedRules } from './localRules';
@@ -62,23 +62,25 @@ export function evidenceTier(type: ViolationType, scene?: Scene | null): 0 | 1 {
   return CHECK_NOTE[type] ? 1 : 0;
 }
 
+/** 사진 판독 규칙 순서 — api/vision.ts SCENE_TO_TYPE 와 같아야 한다(시험으로 확인). 넘겨받은 순서와 상관없이 이 표로 줄 세운다 */
+export const SCENE_ORDER: ViolationType[] = ['crossing', 'sidewalk', 'hydrant', 'busstop', 'corner', 'firelane', 'disabled', 'evcharge', 'schoolzone'];
+const sceneRank = (t: ViolationType) => {
+  const i = SCENE_ORDER.indexOf(t);
+  return i < 0 ? SCENE_ORDER.length : i;
+};
+
 export function rankTypes(
   photoTypes: ViolationType[],
   opts: { takenAt: number; rules: AppliedRules; candidates?: Candidate[]; scene?: Scene | null },
 ): TypeOption[] {
   const uniq = [...new Set(photoTypes)];
-  const rows = uniq.map((type, order) => {
+  const rows = uniq.map((type) => {
+    const order = sceneRank(type);
     const enf = inEnforcement(opts.rules.types[type], opts.takenAt);
     const coordAgrees = Boolean(opts.candidates?.some((c) => c.type === type));
     return { type, order, enf, coordAgrees, tier: evidenceTier(type, opts.scene), fine: FINE_KRW[type] };
   });
-  rows.sort(
-    (a, b) =>
-      Number(b.enf.ok) - Number(a.enf.ok) ||
-      a.tier - b.tier ||
-      b.fine - a.fine ||
-      a.order - b.order,
-  );
+  rows.sort((a, b) => Number(b.enf.ok) - Number(a.enf.ok) || a.tier - b.tier || a.order - b.order);
   return rows.map((r, i) => {
     const reasons: string[] = [];
     if (!r.enf.ok) reasons.push(`지금은 단속 시간이 아닙니다(${r.enf.text})`);
@@ -96,17 +98,16 @@ export function rankTypes(
   });
 }
 
-/** 추천 이유 한 문장 — 목록 위에 쓴다 */
+/** 추천 이유 한 문장 — 목록 위에 쓴다. 과태료로 고르지 않으므로 과태료를 말하지 않는다 */
 export function recommendLine(options: TypeOption[]): string {
   const top = options.find((o) => o.recommended);
   if (!top) return '보이는 유형 모두 지금은 단속 시간이 아닙니다.';
-  const second = options.find((o) => o !== top);
-  if (!second) return `${josa(L(top.type), '으로', '로')} 신고합니다.`;
+  const rest = options.filter((o) => o !== top);
+  if (!rest.length) return `${josa(L(top.type), '으로', '로')} 신고합니다.`;
   const pick = josa(L(top.type), '을', '를');
-  if (!second.enforceable) return `${josa(L(second.type), '은', '는')} 지금 단속 시간이 아니어서 ${pick} 추천합니다.`;
-  if (top.tier < second.tier) return `사진만으로 확인되는 ${pick} 추천합니다.`;
-  if (FINE_KRW[top.type] > FINE_KRW[second.type]) {
-    return `둘 다 사진으로 확인되어, 더 무거운 ${pick} 추천합니다(한 번 세운 차에는 가장 무거운 과태료 하나가 매겨집니다).`;
-  }
-  return `사진 판독 순서로 ${pick} 추천합니다.`;
+  const second = rest[0];
+  if (!second.enforceable) return `${josa(L(second.type), '은', '는')} 지금 단속 시간이 아니어서 ${pick} 골라 두었습니다.`;
+  const also = `${rest.map((o) => L(o.type)).join('·')}도 보여 담당 공무원에게 함께 알립니다.`;
+  if (top.tier < second.tier) return `사진만으로 확인되는 ${pick} 골라 두었습니다. ${also}`;
+  return `사진 판독 순서(위 → 옆 → 구역 안)로 ${pick} 골라 두었습니다. ${also}`;
 }
